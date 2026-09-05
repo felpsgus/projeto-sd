@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "TodoList.Tasks.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__TasksDb": "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres",
+        "Tasks__AllowAnonymousCreate": "true"
+      },
+      "applicationUrl": "http://localhost:5100"
+    }
+  }
+}

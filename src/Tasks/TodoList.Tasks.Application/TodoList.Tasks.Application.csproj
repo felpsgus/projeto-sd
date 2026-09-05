@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TodoList.Tasks.Domain\TodoList.Tasks.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Abstrações leves (não EF/Npgsql, não ASP.NET Core — CA-12 de BE-02
+         continua respeitado): IOptions<T> para configuração tipada (BE-17,
+         TaskOptions) e ILogger<T> para o log de Warning/Error de BE-28,
+         ambos consumidos pelo próprio caso de uso, não pela borda HTTP. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

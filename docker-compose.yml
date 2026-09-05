@@ -1,0 +1,32 @@
+# docker-compose.yml de desenvolvimento (BE-02). Sobe só o Postgres — os dois
+# serviços continuam rodando com `dotnet run` fora do container (ver README).
+#
+# Os schemas "identity" e "tasks" NÃO são criados por nenhum script de
+# inicialização aqui: eles vêm das migrations de cada serviço
+# (`dotnet ef database update`, Identity primeiro — ver README), como o
+# escopo de BE-02 exige.
+#
+# Credenciais: "postgres/postgres" é uma credencial obviamente de
+# desenvolvimento local, não um segredo real — aceitável neste arquivo (CA-11
+# de BE-02). Nunca usar isso fora da máquina do desenvolvedor; em CI, a
+# connection string vem de variável de ambiente (ver README).
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: todolist-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todolist
+    ports:
+      - "5432:5432"
+    volumes:
+      - todolist-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d todolist"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  todolist-postgres-data:

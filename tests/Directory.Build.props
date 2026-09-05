@@ -1,0 +1,12 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+
+  <PropertyGroup>
+    <!-- CA1707 proíbe underscore em nomes de membros, mas a convenção de testes
+         (CONVENCOES-CODIGO.md, seção 4.2) é Metodo_Cenario_ResultadoEsperado. -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+</Project>

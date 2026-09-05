@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kernel compartilhado entre Identity e Tasks (decisão D-26).
+    Contém apenas Result<T>/Error/ErrorType (BE-03) — nenhum pacote externo,
+    nenhuma referência a outro projeto.
+  -->
+
+  <PropertyGroup>
+    <!-- CA1716: o nome "Error" é o vocabulário da especificação (BE-03) e
+         não há tipo genérico de linguagem chamado assim em C# — o alerta é
+         sobre outras linguagens .NET, risco aceito aqui por clareza. -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+
+</Project>

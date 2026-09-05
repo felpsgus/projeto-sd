@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TodoList.Tasks.Application\TodoList.Tasks.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lado cliente do mesmo contrato gRPC usado pelo Identity (D-29, BE-25). -->
+    <Protobuf Include="..\..\..\contracts\identity\v1\identity.proto" GrpcServices="Client" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Google.Protobuf e Grpc.Core.Api: tipos base (IMessage, ClientBase, CallInvoker)
+         exigidos pelo código C# gerado a partir do .proto para compilar.
+         Grpc.Net.Client: o canal/transporte (GrpcChannel). Grpc.Net.ClientFactory:
+         AddGrpcClient, o mesmo padrão de ciclo de vida do IHttpClientFactory (BE-27,
+         nota técnica — "AddGrpcClient e não new GrpcChannel"). -->
+    <PackageReference Include="Google.Protobuf" Version="3.31.1" />
+    <PackageReference Include="Grpc.Core.Api" Version="2.83.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.83.0" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.11" />
+    <PackageReference Include="Grpc.Tools" Version="2.83.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EF Core + Npgsql (BE-02): confinados à Infrastructure — Application e Api
+         não os referenciam diretamente (CA-12). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- snake_case automático de tabela/coluna (nota técnica de BE-02). Só resolve
+         nome; MaxLength, chave, índice etc. continuam explícitos via
+         IEntityTypeConfiguration<T> (ApplyConfigurationsFromAssembly). -->
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
+    <!-- Readiness check de banco (CA-03, CA-04) via AddDbContextCheck. -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
+    <!-- Só para o tooling `dotnet ef` (CA-01); não é usado em runtime. Sem
+         PrivateAssets: `dotnet ef` exige esta referência no fechamento de
+         dependências do projeto de STARTUP (Api), não só no projeto de
+         migrations — precisa fluir por ProjectReference (mesmo padrão já
+         usado por Google.Protobuf/Grpc.* neste mesmo projeto). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

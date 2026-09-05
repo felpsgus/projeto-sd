@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TodoList.Identity.Application\TodoList.Identity.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EF Core + Npgsql (BE-02): confinados à Infrastructure — Application e Api
+         não os referenciam diretamente (CA-12). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- snake_case automático de tabela/coluna (nota técnica de BE-02). Só resolve
+         nome; MaxLength, chave, índice etc. continuam explícitos via
+         IEntityTypeConfiguration<T> (ApplyConfigurationsFromAssembly). -->
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
+    <!-- Readiness check de banco (CA-03, CA-04) via AddDbContextCheck. -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <!-- Só para o tooling `dotnet ef` (CA-01); não é usado em runtime. Sem
+         PrivateAssets: `dotnet ef` exige esta referência no fechamento de
+         dependências do projeto de STARTUP (Api), não só no projeto de
+         migrations — precisa fluir por ProjectReference (mesmo padrão já
+         usado por Google.Protobuf/Grpc.* em TodoList.Tasks.Infrastructure). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

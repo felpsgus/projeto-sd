@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Necessário para `dotnet user-secrets` (BE-02, CA-11): a connection
+         string de dev fica fora do repositório. Ver README. -->
+    <UserSecretsId>e1dfd985-b088-47a1-a9d2-b701fec28fd7</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TodoList.Identity.Infrastructure\TodoList.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lado servidor do contrato gRPC compartilhado (D-29, BE-25). Caminho relativo
+         de propósito: um único .proto, sem cópia local em nenhum dos serviços. -->
+    <Protobuf Include="..\..\..\contracts\identity\v1\identity.proto" GrpcServices="Server" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.83.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.2" />
+  </ItemGroup>
+
+</Project>

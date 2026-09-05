@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tasks\TodoList.Tasks.Domain\TodoList.Tasks.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Tasks\TodoList.Tasks.Application\TodoList.Tasks.Application.csproj" />
+    <ProjectReference Include="..\..\src\Tasks\TodoList.Tasks.Infrastructure\TodoList.Tasks.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Tasks\TodoList.Tasks.Api\TodoList.Tasks.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="7.2.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
+    <!-- CreateTaskHandlerTests (BE-17, BE-28): verificação de ordem de
+         invocação (IIdentityGateway antes do repositório/SaveChanges) — o
+         mesmo padrão de dublê de teste já usado nos demais projetos
+         (CONVENCOES-CODIGO.md, seção 4.2: xUnit + FluentAssertions + NSubstitute). -->
+    <PackageReference Include="NSubstitute" Version="5.3.0" />
+    <!-- FakeTimeProvider (BE-05): testes de domínio puro de TodoTask avançam
+         o relógio sem Thread.Sleep — mesmo pacote já usado pelos testes de
+         integração de BE-02. -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

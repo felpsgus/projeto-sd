@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TodoList.Identity.Domain\TodoList.Identity.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

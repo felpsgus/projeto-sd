@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+option csharp_namespace = "TodoList.Contracts.Identity.V1";
+
+package identity.v1;
+
+// Fronteira de rede entre o Tasks Service (cliente) e o Identity Service
+// (servidor) — o único caminho pelo qual um serviço fala com o outro
+// (D-29). Alterar este arquivo e recompilar propaga a mudança para os
+// dois lados em um único build (CA-07 de BE-25).
+service IdentityService {
+  // Valida o dono antes de criar a tarefa (RN-AUTZ-01, RN-USER-04): o
+  // Tasks pergunta se o `owner_id` recebido existe e está ativo antes de
+  // persistir a tarefa.
+  rpc ValidateUser (ValidateUserRequest) returns (ValidateUserResponse);
+
+  // Único caminho para validar um token fora do Identity: a chave de
+  // assinatura não sai daqui (D-31). Stub nesta etapa (BE-26); usado pelo
+  // API Gateway na etapa seguinte para não ter que guardar a chave HS256.
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message ValidateUserRequest {
+  // Representação textual do Guid do usuário a validar. Trafega como
+  // string, não como bytes, para ficar legível em log e nas ferramentas
+  // de inspeção (custo aceito: alguns bytes a mais por chamada).
+  string user_id = 1;
+}
+
+message ValidateUserResponse {
+  // Verdadeiro se existe um usuário com esse id no Identity. Separado de
+  // `active` porque "nunca existiu" e "existe mas está inativo"
+  // (RN-USER-04) são desfechos diferentes para quem chama.
+  bool exists = 1;
+
+  // Estado atual do usuário (RN-USER-01, RN-USER-04). Só tem sentido
+  // quando `exists = true`; caso contrário vem `false`.
+  bool active = 2;
+
+  // Nome de exibição do dono, para o Tasks poder exibir/registrar sem
+  // manter cópia do dado (RN-AUTH-07). Único campo de usuário que
+  // atravessa a fronteira — nunca e-mail nem hash de senha. String
+  // vazia quando o usuário não existe, nunca null (proto3 não distingue
+  // os dois).
+  string display_name = 3;
+}
+
+message ValidateTokenRequest {
+  // Token de acesso (JWT) emitido pelo Identity, a validar por quem está
+  // fora dele — hoje ninguém, pois o RPC é stub (D-31).
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  // Verdadeiro se o token é válido e não expirou. Sempre `false` nesta
+  // etapa: o stub não implementa validação de JWT (BE-26, D-31).
+  bool valid = 1;
+
+  // Id do usuário dono do token, quando válido. Sempre string vazia
+  // nesta etapa, pelo mesmo motivo de `valid`.
+  string user_id = 2;
+}
