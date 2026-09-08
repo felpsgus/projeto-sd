@@ -25,6 +25,9 @@ bld/
 [Bb]in/
 [Oo]bj/
 
+## Artefatos de publicação para a VM (scripts/publish.ps1)
+artifacts/
+
 ## Test results
 TestResults/
 coverage*.json

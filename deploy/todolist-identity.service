@@ -1,0 +1,44 @@
+# Identity Service — servidor gRPC (BE-26).
+#
+# Instalar em /etc/systemd/system/todolist-identity.service (ver deploy/README.md).
+#
+# Por que systemd e não `dotnet run` numa sessão SSH: o serviço precisa sobreviver
+# à queda da conexão e voltar sozinho se o processo morrer. Uma sessão SSH que cai
+# no meio da apresentação levaria os dois serviços junto.
+[Unit]
+Description=TodoList Identity Service (servidor gRPC)
+Documentation=https://github.com/felipeaugustolopesveras/projeto-sd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=todolist
+Group=todolist
+WorkingDirectory=/opt/todolist/identity
+ExecStart=/opt/todolist/identity/TodoList.Identity.Api
+
+# Os segredos (connection string com a senha real do Postgres) ficam neste
+# arquivo, com permissão 600 e dono root — nunca no unit, que é legível por
+# qualquer usuário da VM, e nunca no repositório.
+EnvironmentFile=/etc/todolist/identity.env
+
+Restart=always
+RestartSec=5
+
+# O Identity precisa estar de pé antes do Tasks: o Tasks sobe sem ele, mas
+# devolve 503 na primeira criação (D-28, fail-closed). Ver a diretiva After= no
+# unit do Tasks — esta linha aqui é só o par de log.
+SyslogIdentifier=todolist-identity
+
+# Endurecimento básico. ProtectSystem=full deixa /usr e /boot somente-leitura;
+# não usamos "strict" porque ele tornaria todo o sistema de arquivos read-only e
+# qualquer escrita temporária do runtime viraria uma falha difícil de diagnosticar
+# na véspera da apresentação.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -370,6 +370,9 @@ O roteiro inteiro está automatizado, para ensaiar quantas vezes for preciso sem
 `demo-curl.ps1` aceita `-BaseUrl` — o mesmo script serve para verificar o ambiente do GCP através de um
 túnel. As seções abaixo são o que os scripts fazem, passo a passo, para quando algo sair do esperado.
 
+Para levar isto às VMs do GCP — empacotamento, systemd, firewall VPC e endurecimento do Postgres —
+veja [`deploy/README.md`](deploy/README.md).
+
 ### 1. Subir, na ordem
 
 A ordem importa e não é arbitrária: a FK cruzada `tasks.tasks.owner_id → identity.users(id)` faz a

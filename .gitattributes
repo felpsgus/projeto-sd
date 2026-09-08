@@ -1,0 +1,23 @@
+# Normalização de fim de linha.
+#
+# O repositório é desenvolvido no Windows, mas parte dele é EXECUTADA no Linux
+# (VM do GCP). Sem estas regras, o git converteria os scripts de shell para CRLF
+# no checkout e a VM falharia com "bad interpreter: /usr/bin/env bash^M" — erro
+# que não menciona fim de linha em lugar nenhum e custa meia hora para achar.
+
+* text=auto
+
+# Precisam de LF: são interpretados pelo Linux.
+*.sh            text eol=lf
+*.service       text eol=lf
+*.env.example   text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+Dockerfile      text eol=lf
+
+# Precisam de CRLF: o .editorconfig exige, e `dotnet format --verify-no-changes`
+# falha se o arquivo chegar com LF.
+*.cs            text eol=crlf
+*.csproj        text eol=crlf
+*.props         text eol=crlf
+*.ps1           text eol=crlf

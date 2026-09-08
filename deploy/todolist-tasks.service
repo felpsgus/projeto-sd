@@ -1,0 +1,35 @@
+# Tasks Service — cliente gRPC (BE-27/BE-28).
+#
+# Instalar em /etc/systemd/system/todolist-tasks.service (ver deploy/README.md).
+[Unit]
+Description=TodoList Tasks Service (cliente gRPC)
+Documentation=https://github.com/felipeaugustolopesveras/projeto-sd
+After=network-online.target todolist-identity.service
+Wants=network-online.target
+
+# Deliberadamente Wants=, não Requires=: se o Identity cair, o Tasks deve
+# continuar de pé respondendo 503 com identity.unavailable (D-28). Requires=
+# derrubaria o Tasks junto, e o caminho de indisponibilidade — que é parte da
+# demonstração — deixaria de existir.
+Wants=todolist-identity.service
+
+[Service]
+Type=simple
+User=todolist
+Group=todolist
+WorkingDirectory=/opt/todolist/tasks
+ExecStart=/opt/todolist/tasks/TodoList.Tasks.Api
+
+EnvironmentFile=/etc/todolist/tasks.env
+
+Restart=always
+RestartSec=5
+SyslogIdentifier=todolist-tasks
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
