@@ -9,6 +9,8 @@
 | **Regras cobertas** | RN-TASK-10, RN-AUTZ-01 |
 | **Estimativa** | P |
 
+> **Encerrada no T2 — gatilho removido por [BE-35](BE-35-tasks-servidor-grpc.md) (D-30 fechada).** O Tasks Service passa a ser alcançável só por gRPC: `POST /api/tasks` e o modo `Tasks:AllowAnonymousCreate` deixam de existir, junto com `HeaderCurrentUser` e `RequireValidUserIdHeaderFilter` no formato descritos abaixo. A borda REST do sistema passa a ser o **API Gateway** ([BE-36](BE-36-api-gateway.md)), único ponto público (**D-32**); a identidade que chega ao Tasks vem da metadata gRPC `x-user-id`, preenchida pelo Gateway depois de validar o token do usuário junto ao Identity (**D-34**).
+
 ## Objetivo
 
 Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a autenticação estar montada, para que a comunicação gRPC entre Tasks e Identity possa ser exercitada e demonstrada de ponta a ponta.

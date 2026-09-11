@@ -5,7 +5,7 @@
 | **Domínio** | Identidade / Integração |
 | **Serviço** | Identity (Microsserviço B) |
 | **Depende de** | [BE-25](BE-25-contrato-grpc-identity.md); usa [BE-04](BE-04-dominio-usuario.md) quando disponível |
-| **Bloqueia** | [BE-28](BE-28-validacao-dono-grpc.md), [BE-31](BE-31-verificacao-t1.md) |
+| **Bloqueia** | [BE-28](BE-28-validacao-dono-grpc.md), [BE-31](BE-31-verificacao-t1.md), [BE-34](BE-34-validate-token-real.md) |
 | **Regras cobertas** | RN-USER-01, RN-USER-04, RN-AUTH-06, RN-AUTH-07 |
 | **Estimativa** | M |
 
@@ -69,8 +69,8 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 
 ### `ValidateToken` (stub)
 
-- [ ] **CA-11** — `ValidateToken` responde `valid=false`, `user_id=""` para qualquer entrada, inclusive um token válido de verdade.
-- [ ] **CA-12** — Não existe nenhuma lógica de validação de JWT no caminho do stub (verificado em revisão) — o comportamento é declaradamente provisório e está anotado como tal no código.
+- [ ] **CA-11** — `ValidateToken` responde `valid=false`, `user_id=""` para qualquer entrada, inclusive um token válido de verdade. — **superado por [BE-34](BE-34-validate-token-real.md)** no T2.
+- [ ] **CA-12** — Não existe nenhuma lógica de validação de JWT no caminho do stub (verificado em revisão) — o comportamento é declaradamente provisório e está anotado como tal no código. — **superado por [BE-34](BE-34-validate-token-real.md)** no T2.
 
 ### Store de usuários
 

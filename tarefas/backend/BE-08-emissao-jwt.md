@@ -5,9 +5,11 @@
 | **Domínio** | Autenticação |
 | **Serviço** | **Identity, exclusivamente** — a chave de assinatura não sai daqui (**D-31**) |
 | **Depende de** | [BE-01](BE-01-fundacao-solution.md), [BE-04](BE-04-dominio-usuario.md) |
-| **Bloqueia** | BE-09, BE-10, BE-12, BE-13 |
+| **Bloqueia** | BE-09, BE-10, BE-12, BE-13, [BE-33](BE-33-login-minimo-grpc.md), [BE-34](BE-34-validate-token-real.md) |
 | **Regras cobertas** | RN-AUTH-10 (parte do access token), RN-AUTH-11 |
 | **Estimativa** | M |
+
+> **T2:** o recorte que entra nesta etapa é `JwtOptions`, `ITokenService` (implementado com `JsonWebTokenHandler` de `Microsoft.IdentityModel.JsonWebTokens`) e os `TokenValidationParameters` compartilhados — são a base de [BE-33](BE-33-login-minimo-grpc.md) (emissão) e [BE-34](BE-34-validate-token-real.md) (validação real via `ValidateToken`). O registro de autenticação JWT Bearer no pipeline do Identity e o Swagger com botão de autorização (**CA-12**) ficam para quando o Identity tiver um endpoint REST protegido — hoje ele só expõe `/health` e gRPC, então não há pipeline HTTP autenticado para registrar ainda. A varredura de **CA-14** (nenhuma referência a `Jwt:*` fora do Identity) passa a incluir também o **API Gateway**: nenhum `appsettings*.json`, variável de ambiente ou `.csproj` do Gateway referencia `Jwt:SigningKey` nem qualquer outra chave `Jwt:*`.
 
 ## Objetivo
 

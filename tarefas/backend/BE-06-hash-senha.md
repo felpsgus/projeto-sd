@@ -4,9 +4,11 @@
 |---|---|
 | **Domínio** | Autenticação |
 | **Depende de** | [BE-04](BE-04-dominio-usuario.md) |
-| **Bloqueia** | BE-07, BE-09, BE-15 |
+| **Bloqueia** | BE-07, BE-09, BE-15, [BE-33](BE-33-login-minimo-grpc.md) |
 | **Regras cobertas** | RN-AUTH-04, RN-AUTH-05 |
 | **Estimativa** | P |
+
+> **T2:** esta task entra na **Onda 7** porque o login mínimo do T2 ([BE-33](BE-33-login-minimo-grpc.md)) depende dela — com o escopo **integral** abaixo, sem recorte. A implementação escolhida é **PBKDF2-SHA256** do BCL (`Rfc2898DeriveBytes`), sem dependência de pacote novo, com formato de hash auto-descritivo `pbkdf2-sha256$iteracoes$salt$hash` (algoritmo, custo e salt no próprio valor persistido, para poder evoluir o custo sem quebrar hashes existentes — CA-05).
 
 ## Objetivo
 

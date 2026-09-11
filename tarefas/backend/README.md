@@ -10,6 +10,8 @@ O backend é composto por **dois microsserviços independentes** que se comunica
 |---|---|---|---|
 | **Identity Service** | **servidor gRPC** | usuários, credenciais, tokens | BE-04, BE-06 a BE-16, [BE-26](BE-26-identity-servidor-grpc.md) |
 | **Tasks Service** | **cliente gRPC** | tarefas | BE-05, BE-17 a BE-23, [BE-27](BE-27-tasks-cliente-grpc.md) a [BE-30](BE-30-configuracao-enderecos-grpc.md) |
+| **Tasks Service** (a partir do T2) | também **servidor gRPC** (`CreateTask`) — deixa de expor REST | tarefas | [BE-35](BE-35-tasks-servidor-grpc.md) |
+| **API Gateway** (T2) | **única borda REST pública**; cliente gRPC dos dois serviços | nada — autentica, valida e traduz (**D-33**) | [BE-36](BE-36-api-gateway.md) |
 
 Cada task traz no cabeçalho a linha **Serviço**, indicando onde ela vive.
 
@@ -102,6 +104,35 @@ Esta onda é o que transforma dois projetos na mesma solution em dois microsserv
 | [BE-30](BE-30-configuracao-enderecos-grpc.md) | Configuração por ambiente dos endereços e portas | ambos | P |
 | [BE-31](BE-31-verificacao-t1.md) | Verificação da comunicação gRPC: roteiro e critérios | ambos | P |
 
+### Onda 7 — API Gateway (T2) e preparo da nuvem (T3)
+
+A etapa do T2 (apresentação em **22/10/2026**): um API Gateway REST que autentica (**401**), valida o payload (**400**) e traduz JSON em gRPC até o Tasks (**201**). Decisões **D-33** a **D-37** em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md). Traz para dentro do T2 duas tasks da Onda 2, que o login exige: [BE-06](BE-06-hash-senha.md) (integral) e [BE-08](BE-08-emissao-jwt.md) (recortada, **D-36**).
+
+```
+cliente ──HTTP/JSON──▶ Gateway :8080
+                         ├─ autenticação ──gRPC ValidateToken──▶ Identity :5081
+                         ├─ validação do payload (400)
+                         └─ gRPC CreateTask (metadata x-user-id) ──▶ Tasks :5101
+                                                                     └─gRPC ValidateUser─▶ Identity
+```
+
+| # | Tarefa | Serviço | Est. |
+|---|---|---|---|
+| [BE-32](BE-32-contratos-grpc-t2.md) | Contratos do T2: `Login` no `identity.proto` e o novo `tasks.proto` | ambos + Gateway | P |
+| [BE-06](BE-06-hash-senha.md) | Hashing de senha e política de senha — antecipada da Onda 1 | Identity | P |
+| [BE-08](BE-08-emissao-jwt.md) | Emissão e validação de JWT — antecipada, recorte **D-36** | Identity | M |
+| [BE-33](BE-33-login-minimo-grpc.md) | Login mínimo via gRPC (recorte de BE-09) + seed com hash real | Identity | M |
+| [BE-34](BE-34-validate-token-real.md) | `ValidateToken` real, substituindo o stub | Identity | P |
+| [BE-35](BE-35-tasks-servidor-grpc.md) | Tasks servidor gRPC (`CreateTask`) e remoção do gatilho REST | Tasks | M |
+| [BE-36](BE-36-api-gateway.md) | API Gateway: autenticação, validação na borda, tradução REST → gRPC | Gateway | G |
+| [BE-37](BE-37-deploy-t2-vm.md) | Deploy do T2 na VM (systemd, firewall da 8080) | todos | M |
+| [BE-38](BE-38-containerizacao.md) | Dockerfiles e docker compose completo — preparo do T3 | todos | M |
+| [BE-39](BE-39-verificacao-t2.md) | Verificação do T2: roteiro 401/400/201 e apresentação | todos | P |
+
+Paralelismo: depois de BE-32, a trilha do Identity (BE-06 → BE-08 → BE-33/BE-34) e a do Tasks (BE-35) não dependem uma da outra. BE-36 fecha as duas; BE-37 e BE-38 podem correr juntas.
+
+**Depois do T2 (T3, apresentação em 03/12/2026)** — ainda sem task numerada, listadas em [BE-38](BE-38-containerizacao.md): Cloud SQL no lugar da VM de banco, deploy dos três serviços no Cloud Run (backends privados), resiliência nos clientes gRPC (retry + circuit breaker) e desligamento das VMs.
+
 > Estimativa: **P** ≈ até 1 dia · **M** ≈ 1–2 dias · **G** ≈ 3+ dias.
 
 ## Grafo de dependências
@@ -129,6 +160,16 @@ BE-01 ──┬── BE-02 ──┬── BE-04 ──┬── BE-06 ── B
 BE-24 acompanha desde BE-01 e fecha ao final.
 ```
 
+Onda 7 (T2):
+
+```
+BE-32 ──┬── BE-06 ── BE-08 ──┬── BE-33 ──┐
+        │                    └── BE-34 ──┤
+        │                                ├── BE-36 ──┬── BE-37 ──┐
+        └── BE-35 (usa BE-28) ───────────┘           │           ├── BE-39
+                                                     └── BE-38 ──┘ (BE-38 também prepara o T3)
+```
+
 > **BE-27 e BE-28 também dependem de BE-03.** O gateway gRPC e a validação do
 > dono devolvem `Result<T>` e consomem códigos do catálogo de erros (`identity.unavailable`,
 > `owner.not_found`, `owner.inactive`); sem BE-03 essas tasks improvisam o próprio
@@ -146,9 +187,9 @@ BE-24 acompanha desde BE-01 e fecha ao final.
 | RN-AUTH-05 | Senha em hash, nunca retornada | [BE-06](BE-06-hash-senha.md) |
 | RN-AUTH-06 | Usuário nasce ativo | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
 | RN-AUTH-07 | Nome de exibição padrão = parte antes do `@` | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
-| RN-AUTH-08 | Login com e-mail + senha | [BE-09](BE-09-login.md) |
-| RN-AUTH-09 | Mensagem genérica de credencial inválida | [BE-09](BE-09-login.md) |
-| RN-AUTH-10 | Emitir access + refresh token | [BE-08](BE-08-emissao-jwt.md), [BE-10](BE-10-refresh-token-rotacao.md) |
+| RN-AUTH-08 | Login com e-mail + senha | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md) (recorte T2) |
+| RN-AUTH-09 | Mensagem genérica de credencial inválida | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md), [BE-36](BE-36-api-gateway.md) |
+| RN-AUTH-10 | Emitir access + refresh token | [BE-08](BE-08-emissao-jwt.md), [BE-10](BE-10-refresh-token-rotacao.md), [BE-33](BE-33-login-minimo-grpc.md) (só access, D-36) |
 | RN-AUTH-11 | Access token expira em 15 min | [BE-08](BE-08-emissao-jwt.md) |
 | RN-AUTH-12 | Logout invalida refresh token | [BE-11](BE-11-logout-revogacao.md) |
 | RN-AUTH-13 | 5 tentativas → bloqueio de 15 min | [BE-12](BE-12-bloqueio-tentativas-login.md) |
@@ -164,7 +205,7 @@ BE-24 acompanha desde BE-01 e fecha ao final.
 | RN-USER-01 | Campos do usuário | [BE-04](BE-04-dominio-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
 | RN-USER-02 | Editar nome de exibição | [BE-14](BE-14-perfil-usuario.md) |
 | RN-USER-03 | E-mail imutável | [BE-04](BE-04-dominio-usuario.md), [BE-14](BE-14-perfil-usuario.md) |
-| RN-USER-04 | Inativo não autentica | [BE-09](BE-09-login.md), [BE-26](BE-26-identity-servidor-grpc.md), [BE-28](BE-28-validacao-dono-grpc.md) |
+| RN-USER-04 | Inativo não autentica | [BE-09](BE-09-login.md), [BE-26](BE-26-identity-servidor-grpc.md), [BE-28](BE-28-validacao-dono-grpc.md), [BE-33](BE-33-login-minimo-grpc.md) |
 | RN-USER-05 | Excluir conta remove as tarefas | [BE-16](BE-16-exclusao-conta.md) |
 | RN-TASK-01 | Campos da tarefa | [BE-05](BE-05-dominio-tarefa.md) |
 | RN-TASK-02 | Título 1–200, não só espaços | [BE-05](BE-05-dominio-tarefa.md) |
@@ -175,7 +216,7 @@ BE-24 acompanha desde BE-01 e fecha ao final.
 | RN-TASK-07 | Nasce Pendente | [BE-05](BE-05-dominio-tarefa.md) |
 | RN-TASK-08 | Concluir registra data | [BE-05](BE-05-dominio-tarefa.md), [BE-20](BE-20-concluir-reabrir-tarefa.md) |
 | RN-TASK-09 | Reabrir limpa data | [BE-05](BE-05-dominio-tarefa.md), [BE-20](BE-20-concluir-reabrir-tarefa.md) |
-| RN-TASK-10 | Criar informando ao menos o título | [BE-17](BE-17-criar-tarefa.md), [BE-29](BE-29-gatilho-http-criar-tarefa.md) |
+| RN-TASK-10 | Criar informando ao menos o título | [BE-17](BE-17-criar-tarefa.md), [BE-29](BE-29-gatilho-http-criar-tarefa.md) (encerrada), [BE-35](BE-35-tasks-servidor-grpc.md), [BE-36](BE-36-api-gateway.md) |
 | RN-TASK-11 | Editar campos da tarefa | [BE-19](BE-19-editar-tarefa.md) |
 | RN-TASK-12 | Remover a própria tarefa | [BE-21](BE-21-remover-tarefa.md) |
 | RN-TASK-13 | Remoção lógica | [BE-21](BE-21-remover-tarefa.md), [BE-23](BE-23-expurgo-tarefas-removidas.md) |
@@ -185,7 +226,7 @@ BE-24 acompanha desde BE-01 e fecha ao final.
 | RN-AUTZ-01 | Tarefa pertence a um usuário | [BE-05](BE-05-dominio-tarefa.md), [BE-28](BE-28-validacao-dono-grpc.md) |
 | RN-AUTZ-02 | Só manipula as próprias tarefas | [BE-18](BE-18-consultar-tarefa-autorizacao.md) |
 | RN-AUTZ-03 | Tarefa de outro → "não encontrada" | [BE-18](BE-18-consultar-tarefa-autorizacao.md) |
-| RN-AUTZ-04 | Toda operação exige sessão | [BE-13](BE-13-protecao-endpoints.md) |
+| RN-AUTZ-04 | Toda operação exige sessão | [BE-13](BE-13-protecao-endpoints.md), [BE-36](BE-36-api-gateway.md) (na borda) |
 | RN-LIST-01 | Lista só do usuário, não removidas | [BE-22](BE-22-listagem-tarefas.md) |
 | RN-LIST-02 | Filtro por estado | [BE-22](BE-22-listagem-tarefas.md) |
 | RN-LIST-03 | Filtro por prioridade | [BE-22](BE-22-listagem-tarefas.md) |
@@ -196,4 +237,4 @@ BE-24 acompanha desde BE-01 e fecha ao final.
 
 **Cobertura:** 56 de 56 regras endereçadas (RN-AUTH-22 é um não-objetivo explícito).
 
-As tasks da Onda 6 não introduzem regra de negócio nova: elas realocam a verificação de regras existentes para a fronteira entre os dois serviços. [BE-25](BE-25-contrato-grpc-identity.md), [BE-30](BE-30-configuracao-enderecos-grpc.md) e [BE-31](BE-31-verificacao-t1.md) são habilitadoras e não aparecem na tabela por RN própria.
+As tasks das Ondas 6 e 7 não introduzem regra de negócio nova: elas realocam a verificação de regras existentes para a fronteira entre os serviços e para a borda do Gateway. [BE-25](BE-25-contrato-grpc-identity.md), [BE-30](BE-30-configuracao-enderecos-grpc.md), [BE-31](BE-31-verificacao-t1.md), [BE-32](BE-32-contratos-grpc-t2.md), [BE-34](BE-34-validate-token-real.md), [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md) e [BE-39](BE-39-verificacao-t2.md) são habilitadoras e não aparecem na tabela por RN própria.

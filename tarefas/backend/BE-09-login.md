@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTH-08, RN-AUTH-09, RN-AUTH-10, RN-USER-04 |
 | **Estimativa** | M |
 
+> **T2 (D-36):** [BE-33](BE-33-login-minimo-grpc.md) entrega um **recorte** desta task — só o access token, via RPC gRPC `Login` no Identity, com o **API Gateway** como borda REST. Refresh token, cookie (D-20) e o restante do escopo abaixo continuam **aqui**, em aberto até essas tasks entrarem. A rota `POST /api/auth/login` descrita abaixo passa a viver no **Gateway** (D-32), que recebe o JSON, chama o RPC `Login` e traduz a resposta — o Identity não expõe mais este endpoint REST diretamente.
+
 ## Objetivo
 
 Um usuário ativo troca e-mail + senha por um par de tokens (access + refresh) e passa a ter uma sessão autenticada.

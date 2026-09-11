@@ -163,6 +163,8 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 ### D-30 — Identidade provisória no Tasks: `X-User-Id` sob flag
 
+> **✅ Fechada no T2.** O gatilho REST foi removido por [BE-35](BE-35-tasks-servidor-grpc.md): o Tasks passou a ser alcançável só por gRPC, e a identidade chega pela metadata `x-user-id` que o Gateway preenche **depois** de validar o token (**D-34**). A flag `Tasks:AllowAnonymousCreate` deixou de existir. O texto abaixo fica como registro.
+
 **Questão:** enquanto não há autenticação na borda do Tasks, de onde vem o dono da tarefa?
 
 **Padrão adotado:** header `X-User-Id`, lido por uma implementação alternativa de `ICurrentUser`, ativada **apenas** com `Tasks:AllowAnonymousCreate=true` (padrão `false`).
@@ -213,3 +215,87 @@ Com isso: `/api/auth/*` e `/api/tasks` voltam a ser rotas da **mesma** origem, `
 **Enquanto o Gateway não existe:** nada a fazer no frontend, que não é tocado nesta etapa. O acesso direto ao Tasks é o gatilho provisório de [BE-29](BE-29-gatilho-http-criar-tarefa.md), em ambiente local. **NÃO DEVE** ser implementado CORS "para funcionar por enquanto" — seria trabalho descartado e mascararia o desenho correto.
 
 **Afeta:** [BE-29](BE-29-gatilho-http-criar-tarefa.md), transversal na etapa do Gateway e na de implantação. Do lado do frontend, ver **FD-16**.
+
+---
+
+## Decisões do API Gateway (T2)
+
+A etapa do Gateway — [BE-32](BE-32-contratos-grpc-t2.md) a [BE-39](BE-39-verificacao-t2.md) — materializa o desenho de **D-31** e **D-32** e levantou as decisões abaixo. Todas estão fechadas (10/09/2026).
+
+```
+cliente ──HTTP/JSON──▶ Gateway :8080
+                         ├─ autenticação ──gRPC ValidateToken──▶ Identity :5081
+                         ├─ validação do payload (400)
+                         └─ gRPC CreateTask (metadata x-user-id) ──▶ Tasks :5101
+                                                                     └─gRPC ValidateUser─▶ Identity
+```
+
+### D-33 — O Gateway é um projeto só, sem Domain/Application
+
+**Questão:** a convenção (seção 2.1 de [CONVENCOES-CODIGO.md](../../CONVENCOES-CODIGO.md)) prevê quatro projetos por serviço. O Gateway segue?
+
+**Padrão adotado:** não. `src/Gateway/TodoList.Gateway.Api` é **um** projeto Web, organizado por pasta (`Endpoints/`, `Authentication/`, `Validation/`, `Backends/`, `ErrorHandling/`, `Contracts/`).
+
+**Por quê:** o Gateway não tem regra de negócio nem persistência — ele autentica, valida o formato do payload e traduz protocolo. Domain e Application sairiam vazios, e Infrastructure seria só o registro dos clientes gRPC. Quatro projetos para isso é cerimônia, não arquitetura.
+
+**Limite explícito:** o Gateway **NÃO DEVE** referenciar nenhum projeto do Identity ou do Tasks — nem `SharedKernel`. A única fronteira com os serviços são os `.proto` em `contracts/` (**D-29**). Verificado por teste de arquitetura ([BE-36](BE-36-api-gateway.md)). No dia em que uma regra de negócio aparecer no Gateway, ela está no lugar errado.
+
+**Afeta:** [BE-36](BE-36-api-gateway.md), [BE-38](BE-38-containerizacao.md).
+
+### D-34 — A identidade chega ao Tasks pela metadata gRPC `x-user-id`
+
+**Questão:** o Gateway validou o token e sabe quem é o usuário. Como o Tasks fica sabendo?
+
+**Padrão adotado:** metadata gRPC **`x-user-id`** (o `sub` do token) e **`x-client-date`** (repassado do request, **D-18**), preenchidos por um interceptor de cliente no Gateway. **Nunca** no corpo da mensagem — `tasks.proto` não tem campo de dono.
+
+**Por quê:** é a continuação direta de **D-30**: o dono é identidade, não dado de negócio. Metadata gRPC é header HTTP/2, então a leitura no Tasks é a mesma que o header provisório já fazia via `IHttpContextAccessor` — o `CreateTaskHandler` não muda.
+
+**Risco assumido — o mesmo de D-30, agora permanente:** o Tasks **confia no chamador**. Quem alcançar a porta gRPC do Tasks cria tarefa em nome de qualquer usuário. Por isso o Tasks **NÃO DEVE** ser publicamente acessível (**D-32**): na VM, a porta fica fechada no firewall; no Cloud Run (T3), o serviço é privado (`--no-allow-unauthenticated`) e só a conta de serviço do Gateway pode invocá-lo.
+
+**Se mudar** (confiança zero entre serviços): o Gateway repassa o próprio JWT e o Tasks chama `ValidateToken` — uma chamada de rede a mais por requisição, em troca de não depender do isolamento de rede.
+
+**Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-36](BE-36-api-gateway.md).
+
+### D-35 — Mapeamento de erro gRPC ↔ HTTP, com o `errorCode` no trailer
+
+**Questão:** o Tasks devolve `Result<T>` com `Error(Code, Message, Type)`. Como esse erro atravessa o gRPC e volta a ser um `ProblemDetails` HTTP no Gateway, sem perder o código do catálogo?
+
+**Padrão adotado:**
+
+| `ErrorType` (Tasks) | `StatusCode` gRPC | HTTP (Gateway) |
+|---|---|---|
+| `Validation` | `InvalidArgument` | 400 |
+| `NotFound` | `NotFound` | 404 |
+| `Conflict` | `FailedPrecondition` | 409 |
+| `Unavailable` | `Unavailable` | 503 + `Retry-After` |
+| `Failure` | `Internal` | 500 |
+| — (sem identidade) | `Unauthenticated` | 401 |
+| — (deadline estourado) | `DeadlineExceeded` | 503 + `Retry-After` |
+
+O `Error.Code` (ex.: `task.owner_inactive`) viaja no trailer **`error-code`**; a mensagem, no `Status.Detail`. O Gateway reconstrói o `ProblemDetails` com o mesmo `errorCode` que o Tasks devolvia em REST — o contrato visto pelo cliente não muda.
+
+**Por quê trailer e não `google.rpc.Status` com detalhes tipados:** o rich error model exige `Grpc.StatusProto` e mensagens de detalhe próprias — mais contrato para dois serviços do mesmo repositório. Um trailer string resolve o único dado que falta.
+
+**Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-36](BE-36-api-gateway.md).
+
+### D-36 — O login do T2 é um recorte de BE-09
+
+**Questão:** o T2 exige **401** para token ausente ou inválido — então precisa existir token válido. O fluxo completo de autenticação (BE-06 a BE-12) cabe no prazo?
+
+**Padrão adotado:** um recorte. Entram [BE-06](BE-06-hash-senha.md) (hash, escopo integral), [BE-08](BE-08-emissao-jwt.md) (emissão e validação de JWT, sem o Bearer no pipeline do Identity) e um RPC **`Login`** que troca e-mail + senha por **access token** ([BE-33](BE-33-login-minimo-grpc.md)), exposto pelo Gateway como `POST /api/auth/login`. **Ficam de fora:** refresh token e cookie ([BE-10](BE-10-refresh-token-rotacao.md)), logout ([BE-11](BE-11-logout-revogacao.md)), bloqueio por tentativas ([BE-12](BE-12-bloqueio-tentativas-login.md)) e cadastro ([BE-07](BE-07-cadastro-usuario.md)) — os usuários continuam vindo do seed de demonstração, agora com hash de senha real.
+
+**Por quê login real e não um token de desenvolvimento:** um emissor de token "só para demo" seria mais uma rota provisória a remover — exatamente o tipo de dívida que D-30 acabou de pagar. O recorte é código definitivo: BE-09 completa o que falta **em cima** dele, sem reescrever.
+
+**Consequência aceita:** sem refresh, a sessão dura o access token (15 min, **D-02**) e depois exige novo login. Para a demonstração e para o T3, é suficiente.
+
+**Afeta:** [BE-06](BE-06-hash-senha.md), [BE-08](BE-08-emissao-jwt.md), [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md), [BE-34](BE-34-validate-token-real.md).
+
+### D-37 — Cada backend tem uma porta HTTP/2 que vira a `$PORT` do Cloud Run
+
+**Questão:** o Cloud Run (T3) roteia **uma** porta por serviço. O Identity hoje escuta em duas (5080 REST, 5081 gRPC) e o Tasks falava REST.
+
+**Padrão adotado:** todo serviço de backend expõe um endpoint Kestrel **`Grpc`** com `Protocols=Http2` — Identity em `5081`, Tasks em `5101` localmente e na VM, e `8080` no container. É por ele que passa todo o tráfego entre serviços. O endpoint `Http` (Http1) continua existindo só para `/health` operado por humano (`curl`); ele não é necessário no Cloud Run. Para os probes, cada backend mapeia o **gRPC Health Checking Protocol** (`Grpc.AspNetCore.HealthChecks`), que o Cloud Run sabe consultar.
+
+**Por quê não `Http1AndHttp2` na mesma porta:** sem TLS não há ALPN, e o Kestrel não negocia HTTP/2 em texto claro numa porta que também aceita HTTP/1.1. No Cloud Run, com `--use-http2`, o tráfego chega ao container como h2c — então a porta de serviço precisa ser `Http2` pura.
+
+**Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md).
