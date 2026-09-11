@@ -47,6 +47,8 @@ coverage*.info
 appsettings.*.local.json
 *.env
 .env.*
+# BE-38: .env.example é versionado de propósito (placeholders, sem segredo real).
+!.env.example
 
 ## OS
 .DS_Store

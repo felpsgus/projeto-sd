@@ -1,15 +1,38 @@
-# docker-compose.yml de desenvolvimento (BE-02). Sobe só o Postgres — os dois
-# serviços continuam rodando com `dotnet run` fora do container (ver README).
+# docker-compose.yml de desenvolvimento (BE-02, BE-38). Por padrão (sem
+# `--profile full`) sobe só o Postgres — os três serviços continuam rodando
+# com `dotnet run` fora do container (ver README, seção "Rodando o T2"). Isso
+# NÃO mudou com BE-38: `docker compose up postgres` continua funcionando
+# exatamente como antes, sem exigir o perfil novo nem nenhuma variável (CA-06).
 #
 # Os schemas "identity" e "tasks" NÃO são criados por nenhum script de
-# inicialização aqui: eles vêm das migrations de cada serviço
-# (`dotnet ef database update`, Identity primeiro — ver README), como o
-# escopo de BE-02 exige.
+# inicialização aqui: eles vêm das migrations de cada serviço. No fluxo
+# `dotnet run`, isso é `dotnet ef database update`, Identity primeiro (ver
+# README). No fluxo em container (perfil `full`, BE-38), é o serviço
+# `migrate` abaixo, aplicando os SQL idempotentes que `scripts/publish.ps1`
+# já gera para a VM (mesmos arquivos, mesma ordem — a FK cruzada
+# tasks.tasks.owner_id -> identity.users(id) exige Identity primeiro).
 #
 # Credenciais: "postgres/postgres" é uma credencial obviamente de
 # desenvolvimento local, não um segredo real — aceitável neste arquivo (CA-11
 # de BE-02). Nunca usar isso fora da máquina do desenvolvedor; em CI, a
 # connection string vem de variável de ambiente (ver README).
+#
+# Perfil "full" (BE-38): `docker compose --profile full up --build` sobe a
+# stack inteira em container — postgres, migrate, identity, tasks, gateway —
+# para validar os Dockerfiles antes do T3 (Cloud Run). Pré-requisito:
+# `scripts/publish.ps1` já ter gerado artifacts/sql/{01-identity,02-tasks}.sql
+# (o compose não gera SQL — só aplica). Segredos (Jwt__SigningKey,
+# UserStore__DemoUserPassword) vêm de um `.env` na raiz, NÃO versionado — veja
+# `.env.example` ao lado deste arquivo. Só o `gateway` publica porta no host
+# (D-32) — `identity` e `tasks` só existem na rede interna do compose.
+#
+# Sem healthcheck HTTP nos três containers .NET: a imagem `aspnet:10.0` não
+# traz `curl`/`wget`, e instalar uma ferramenta só para isso aumentaria a
+# imagem e a superfície sem necessidade — se um backend ainda estiver
+# subindo, o Gateway responde 503 com Retry-After (D-28, fail-closed) e se
+# recupera sozinho quando o backend fica pronto; no Cloud Run (T3), os probes
+# usam o gRPC Health Checking Protocol, sem depender de ferramenta no
+# container (D-37).
 services:
   postgres:
     image: postgres:17-alpine
@@ -27,6 +50,88 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # --- Perfil "full" (BE-38) -------------------------------------------
+
+  # Vida curta: aplica os dois SQL idempotentes gerados por
+  # `scripts/publish.ps1` (mesma origem que a VM usa — deploy/README.md) na
+  # ordem exigida pela FK cruzada (identity antes de tasks) e sai. Falha
+  # explicitamente, em vez de "passar" sem aplicar nada, se artifacts/sql/
+  # ainda não existir.
+  migrate:
+    image: postgres:17-alpine
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - ./artifacts/sql:/sql:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        test -f /sql/01-identity.sql && test -f /sql/02-tasks.sql || {
+          echo "artifacts/sql não encontrado — rode scripts/publish.ps1 antes de 'docker compose --profile full up'.";
+          exit 1;
+        };
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d todolist -f /sql/01-identity.sql -f /sql/02-tasks.sql
+
+  identity:
+    build:
+      context: .
+      dockerfile: src/Identity/TodoList.Identity.Api/Dockerfile
+    image: todolist-identity
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=todolist;Username=postgres;Password=postgres
+      UserStore__Provider: Persisted
+      UserStore__SeedDemoUsers: "true"
+      # UserStore__DemoUserPassword e Jwt__SigningKey vêm do .env (env_file
+      # acima) — nunca fixados aqui (CA-05, nenhum segredo em ENV/imagem).
+    # Sem `ports:` (D-32): só o gateway é alcançável do host.
+
+  tasks:
+    build:
+      context: .
+      dockerfile: src/Tasks/TodoList.Tasks.Api/Dockerfile
+    image: todolist-tasks
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Sem env_file: o Tasks não recebe o `.env` (ele carrega Jwt__SigningKey,
+    # que é só do Identity — D-31, CA-14 de BE-08).
+    environment:
+      ConnectionStrings__TasksDb: Host=postgres;Port=5432;Database=todolist;Username=postgres;Password=postgres
+      Identity__GrpcAddress: http://identity:8080
+    # Sem `ports:` (D-32): só o gateway é alcançável do host.
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/TodoList.Gateway.Api/Dockerfile
+    image: todolist-gateway
+    profiles: ["full"]
+    depends_on:
+      identity:
+        condition: service_started
+      tasks:
+        condition: service_started
+    environment:
+      Backends__IdentityGrpcAddress: http://identity:8080
+      Backends__TasksGrpcAddress: http://tasks:8080
+    ports:
+      - "8080:8080"
 
 volumes:
   todolist-postgres-data:

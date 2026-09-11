@@ -1,0 +1,45 @@
+# BE-38. Um só .dockerignore na raiz, usado pelos três `docker build -f ... .`.
+# CUIDADO: não exclua nada que o restore/publish precise — contracts/,
+# Directory.Build.props, global.json, .editorconfig e os .csproj/código de
+# src/ têm que sobreviver aqui. O .sln não é necessário (o restore é feito
+# pelo .csproj de cada serviço).
+
+**/bin/
+**/obj/
+**/out/
+artifacts/
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+.claude/
+
+# Testes não entram no contexto de build de nenhum serviço.
+tests/
+
+# Documentação e planejamento — não afetam o build.
+tarefas/
+*.md
+
+# Segredos locais — nunca no contexto de build.
+*.env
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+
+# Scripts e deploy da VM — não usados pelo Dockerfile.
+scripts/
+deploy/
+
+# IDE / OS
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Logs e resultados de teste
+*.log
+logs/
+TestResults/
