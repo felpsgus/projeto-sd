@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- BE-36, D-33: um único projeto Web, sem Domain/Application/Infrastructure
+       — o Gateway não tem regra de negócio própria, só traduz e delega
+       (CA-20/CA-21). Nenhuma <ProjectReference> a TodoList.Identity.* /
+       TodoList.Tasks.* / TodoList.SharedKernel: os dois .proto abaixo são a
+       ÚNICA fonte de tipos compartilhados com os backends. -->
+
+  <ItemGroup>
+    <!-- Lado cliente dos dois contratos gRPC (D-32): caminho relativo direto
+         para contracts/, sem cópia local em nenhum serviço (mesmo padrão do
+         lado servidor em TodoList.Tasks.Api/TodoList.Identity.Api). -->
+    <Protobuf Include="..\..\..\contracts\identity\v1\identity.proto" GrpcServices="Client" />
+    <Protobuf Include="..\..\..\contracts\tasks\v1\tasks.proto" GrpcServices="Client" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.31.1" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.83.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Grpc.Core.Api" Version="2.83.0" />
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.2" />
+  </ItemGroup>
+
+</Project>

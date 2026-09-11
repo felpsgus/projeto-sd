@@ -1,42 +1,33 @@
 extern alias IdentityApi;
 
 using System.Collections.Concurrent;
-using System.Net;
-using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using FluentAssertions;
-using Microsoft.AspNetCore.Hosting;
+using Grpc.Core;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using TodoList.Identity.Infrastructure.Users;
 using Xunit;
 using IdentityProgram = IdentityApi::Program;
+using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
 
 namespace TodoList.Tasks.IntegrationTests.Tasks;
 
 /// <summary>
-/// BE-31, CA-07 — a evidência de que houve ida e volta pela rede entre os dois
-/// serviços é o par de entradas de log com o <b>mesmo</b> <c>traceId</c>: a do
-/// Tasks registrando a chamada de saída (<c>ValidateUser</c>, <c>userId</c>,
-/// <c>statusCode</c>, <c>durationMs</c>) e a do Identity registrando a chamada
-/// recebida com o resultado (<c>exists</c>, <c>active</c>).
-///
-/// <para>
-/// Por que isso merece teste e não só um trecho no README: a serialização gRPC
-/// é binária, então não há nada observável entre "requisição entrou no Tasks" e
-/// "resposta saiu do Identity" além desses dois logs. Um roteiro que só mostra
-/// o log de um dos lados não distingue uma chamada de rede de uma chamada de
-/// método local — que é exatamente o que a demonstração precisa provar.
-/// </para>
+/// BE-31/CA-16 de BE-35 — a evidência de que houve ida e volta pela rede
+/// entre os dois serviços é o par de entradas de log com o <b>mesmo</b>
+/// <c>traceId</c>: a do Tasks registrando a chamada recebida
+/// (<c>CreateTask</c>, <c>ownerId</c>, <c>statusCode</c>, <c>durationMs</c>) e
+/// a do Identity registrando a chamada de <c>ValidateUser</c> recebida com o
+/// resultado (<c>exists</c>, <c>active</c>).
 /// </summary>
 public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
 {
-    // Casa com "traceId=00-8f3d...-01" no fim das duas mensagens de log. O
-    // traceparent do W3C não contém vírgula nem espaço, então parar no primeiro
-    // separador é suficiente e não depende da ordem dos campos na mensagem.
+    // Casa com "traceId=00-8f3d...-01" no fim das duas mensagens de log.
     private static readonly Regex _traceIdNaMensagem = new(@"traceId=([^\s,]+)", RegexOptions.Compiled);
 
     private SqliteConnection _connection = null!;
@@ -53,26 +44,24 @@ public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
-    // CA1001: a disposição de verdade acontece em DisposeAsync (IAsyncLifetime) —
-    // mesmo padrão de CreateTaskOwnerValidationTests.
+    // CA1001: a disposição de verdade acontece em DisposeAsync.
     public void Dispose() => GC.SuppressFinalize(this);
 
-    [Fact] // CA-07 — caminho de sucesso
-    public async Task PostTasks_CaminhoDeSucesso_LogDosDoisServicosTemOMesmoTraceId()
+    [Fact] // CA-16 — caminho de sucesso
+    public async Task CreateTask_CaminhoDeSucesso_LogDosDoisServicosTemOMesmoTraceId()
     {
-        var (statusCode, traceIdDoTasks, traceIdDoIdentity) =
-            await PostAsync(InMemoryUserLookup.ActiveUserId);
+        var (statusCode, traceIdDoTasks, traceIdDoIdentity) = await CallAsync(InMemoryUserLookup.ActiveUserId);
 
-        statusCode.Should().Be(HttpStatusCode.Created);
+        statusCode.Should().Be(StatusCode.OK);
         AssertCorrelacionados(traceIdDoTasks, traceIdDoIdentity);
     }
 
-    [Fact] // CA-07 — caminho de rejeição (dono inexistente)
-    public async Task PostTasks_DonoInexistente_LogDosDoisServicosTemOMesmoTraceId()
+    [Fact] // CA-16 — caminho de rejeição (dono inexistente)
+    public async Task CreateTask_DonoInexistente_LogDosDoisServicosTemOMesmoTraceId()
     {
-        var (statusCode, traceIdDoTasks, traceIdDoIdentity) = await PostAsync(Guid.NewGuid());
+        var (statusCode, traceIdDoTasks, traceIdDoIdentity) = await CallAsync(Guid.NewGuid());
 
-        statusCode.Should().Be(HttpStatusCode.NotFound);
+        statusCode.Should().Be(StatusCode.NotFound);
 
         // A rejeição é o caso que mais importa correlacionar: é ele que prova
         // que o "não" veio do Identity, e não de uma checagem local do Tasks.
@@ -81,48 +70,53 @@ public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
 
     private static void AssertCorrelacionados(string? traceIdDoTasks, string? traceIdDoIdentity)
     {
-        traceIdDoTasks.Should().NotBeNullOrWhiteSpace("o log de saída do Tasks precisa carregar o traceId para ser correlacionável");
+        traceIdDoTasks.Should().NotBeNullOrWhiteSpace("o log de CreateTask do Tasks precisa carregar o traceId para ser correlacionável");
         traceIdDoIdentity.Should().NotBeNullOrWhiteSpace("o Identity registra o traceparent recebido pela metadata gRPC");
         traceIdDoIdentity.Should().Be(traceIdDoTasks, "é o mesmo traceId nos dois lados que evidencia a ida e a volta pela rede");
     }
 
     /// <summary>
-    /// Dispara <c>POST /api/tasks</c> com os dois serviços reais e devolve o
-    /// status HTTP mais o <c>traceId</c> extraído da entrada de log de cada
-    /// lado.
+    /// Dispara <c>CreateTask</c> com os dois serviços reais e devolve o
+    /// <see cref="StatusCode"/> mais o <c>traceId</c> extraído da entrada de
+    /// log de cada lado.
     /// </summary>
-    private async Task<(HttpStatusCode StatusCode, string? TraceIdDoTasks, string? TraceIdDoIdentity)> PostAsync(Guid userId)
+    private async Task<(StatusCode StatusCode, string? TraceIdDoTasks, string? TraceIdDoIdentity)> CallAsync(Guid userId)
     {
         var logDoIdentity = new CapturingLoggerProvider();
         var logDoTasks = new CapturingLoggerProvider();
 
         await using var identityFactory = new WebApplicationFactory<IdentityProgram>()
-            .WithWebHostBuilder(builder => builder.ConfigureLogging(logging => logging.AddProvider(logDoIdentity)));
-
-        var settings = new Dictionary<string, string?> { ["Tasks:AllowAnonymousCreate"] = "true" };
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+                services.AddLogging(logging => logging.AddProvider(logDoIdentity))));
 
         await using var factory = new TasksApiFactory(
             _connection,
             _timeProvider,
             identityFactory,
             identityFactory.Server.BaseAddress,
-            settings,
-            services => services.AddLogging(logging => logging.AddProvider(logDoTasks)));
+            configureServices: services => services.AddLogging(logging => logging.AddProvider(logDoTasks)));
 
         await factory.EnsureDatabaseCreatedAsync();
-        using var client = factory.CreateClient();
+        using var client = new TasksGrpcTestClient(factory.Server.CreateHandler(), factory.Server.BaseAddress);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tasks")
+        var request = new ProtoCreateTaskRequest { Title = "Correlação de traceId entre os dois serviços" };
+        var headers = TasksGrpcTestClient.OwnerHeaders(userId.ToString());
+
+        StatusCode statusCode;
+
+        try
         {
-            Content = JsonContent.Create(new { title = "Correlação de traceId entre os dois serviços" }),
-        };
-        request.Headers.Add("X-User-Id", userId.ToString());
-
-        var response = await client.SendAsync(request);
+            await client.CreateTaskAsync(request, headers);
+            statusCode = StatusCode.OK;
+        }
+        catch (RpcException exception)
+        {
+            statusCode = exception.StatusCode;
+        }
 
         return (
-            response.StatusCode,
-            ExtrairTraceId(logDoTasks, "ValidateUser (Identity gRPC)"),
+            statusCode,
+            ExtrairTraceId(logDoTasks, "CreateTask: ownerId="),
             ExtrairTraceId(logDoIdentity, "ValidateUser: userId="));
     }
 

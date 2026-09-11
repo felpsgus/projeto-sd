@@ -214,6 +214,50 @@ public class ArchitectureTests
         violacoes.Should().BeEmpty("endereço/porta do Identity deve vir só de appsettings*.json (Identity:GrpcAddress), nunca de código");
     }
 
+    [Fact] // CA-14 de BE-08
+    public void CodigoDoTasks_NaoReferenciaJwtSigningKey()
+    {
+        // D-31: a chave de assinatura JWT nunca sai do Identity. Varre todo
+        // src/Tasks (código e appsettings*.json) e o exemplo de variáveis de
+        // ambiente do deploy do Tasks — nenhum dos dois pode citar `Jwt:`,
+        // `Jwt__` (mesma chave, forma de variável de ambiente) nem
+        // `SigningKey`. O Gateway ainda não existe nesta etapa; a varredura
+        // é estendida para ele em BE-36.
+        var tasksSrc = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Tasks");
+        var tasksEnvExample = Path.Combine(SolutionPathHelper.SolutionRoot, "deploy", "tasks.env.example");
+        var violacoes = new List<string>();
+
+        var termosProibidos = new[] { "Jwt:", "Jwt__", "SigningKey" };
+
+        foreach (var arquivo in Directory.EnumerateFiles(tasksSrc, "*", SearchOption.AllDirectories))
+        {
+            if (arquivo.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                || arquivo.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var conteudo = File.ReadAllText(arquivo);
+
+            if (termosProibidos.Any(termo => conteudo.Contains(termo, StringComparison.Ordinal)))
+            {
+                violacoes.Add(arquivo);
+            }
+        }
+
+        if (File.Exists(tasksEnvExample))
+        {
+            var conteudoEnvExample = File.ReadAllText(tasksEnvExample);
+
+            if (termosProibidos.Any(termo => conteudoEnvExample.Contains(termo, StringComparison.Ordinal)))
+            {
+                violacoes.Add(tasksEnvExample);
+            }
+        }
+
+        violacoes.Should().BeEmpty("Jwt:SigningKey (D-31) é exclusiva do Identity — o Tasks Service não recebe nem referencia essa chave");
+    }
+
     [Fact] // CA-10 de BE-03
     public void SharedKernel_ExpoeApenasResultErrorEErrorType()
     {

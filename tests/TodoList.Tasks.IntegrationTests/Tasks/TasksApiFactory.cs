@@ -17,9 +17,9 @@ namespace TodoList.Tasks.IntegrationTests.Tasks;
 
 /// <summary>
 /// <see cref="WebApplicationFactory{TEntryPoint}"/> do Tasks Api real (mesmo
-/// pipeline de produção: <c>Program.cs</c>, filtros, <c>ResultHttpResults</c>,
-/// <c>GlobalExceptionHandler</c>) usado pelos testes de <c>POST /api/tasks</c>
-/// (BE-17, BE-28, BE-29). Duas substituições de infraestrutura, nada de
+/// pipeline de produção: <c>Program.cs</c>, <c>ResultHttpResults</c>,
+/// <c>GlobalExceptionHandler</c>) usado pelos testes de <c>CreateTask</c> gRPC
+/// (BE-17, BE-28, BE-35). Duas substituições de infraestrutura, nada de
 /// negócio:
 /// <list type="bullet">
 /// <item><see cref="TasksDbContext"/> passa a apontar para SQLite in-memory
@@ -62,7 +62,7 @@ internal sealed class TasksApiFactory : WebApplicationFactory<Program>
     /// handler em memória, não por esta rede); sem ele, é o endereço morto
     /// usado no teste de indisponibilidade.
     /// </param>
-    /// <param name="configOverrides">Chaves de configuração adicionais (ex.: <c>Tasks:MaxActivePerUser</c>, <c>Tasks:AllowAnonymousCreate</c>).</param>
+    /// <param name="configOverrides">Chaves de configuração adicionais (ex.: <c>Tasks:MaxActivePerUser</c>).</param>
     /// <param name="configureServices">
     /// Gancho extra de DI, aplicado por último (depois da substituição de
     /// banco/relógio/gRPC acima) — usado quando um teste precisa de algo que

@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+option csharp_namespace = "TodoList.Contracts.Tasks.V1";
+
+package tasks.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Fronteira de rede entre o API Gateway (cliente) e o Tasks Service
+// (servidor) — análoga a identity.proto, mas para o domínio de tarefas.
+service TasksService {
+  // Cria uma tarefa (RN-TASK-10) em nome do usuário identificado pela
+  // metadata gRPC "x-user-id" (D-34) — nunca por campo desta mensagem.
+  rpc CreateTask (CreateTaskRequest) returns (TaskReply);
+}
+
+message CreateTaskRequest {
+  // Título da tarefa (RN-TASK-02): 1–200 caracteres, não só espaços.
+  string title = 1;
+  // Descrição opcional (RN-TASK-03): até 2000 caracteres. `optional`
+  // distingue "não informado" de "informado como vazio" — proto3 sem
+  // `optional` não faz essa distinção (ver BE-32).
+  optional string description = 2;
+  // Prioridade (RN-TASK-04). TASK_PRIORITY_UNSPECIFIED equivale a
+  // "não informado" e o servidor aplica o padrão Média.
+  TaskPriority priority = 3;
+  // Data de vencimento opcional, no formato yyyy-MM-dd (RN-TASK-05).
+  // String, não google.type.Date (ver BE-32).
+  optional string due_date = 4;
+}
+
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_LOW = 1;
+  TASK_PRIORITY_MEDIUM = 2;
+  TASK_PRIORITY_HIGH = 3;
+}
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_PENDING = 1;
+  TASK_STATUS_COMPLETED = 2;
+}
+
+message TaskReply {
+  // Id gerado pelo Tasks Service.
+  string id = 1;
+  // Título da tarefa, como persistido.
+  string title = 2;
+  // Descrição, se houver. optional para distinguir ausente de vazio.
+  optional string description = 3;
+  // Prioridade efetiva (nunca UNSPECIFIED numa resposta).
+  TaskPriority priority = 4;
+  // Estado atual (RN-TASK-06). Nasce PENDING (RN-TASK-07).
+  TaskStatus status = 5;
+  // Data de vencimento, se houver, no formato yyyy-MM-dd.
+  optional string due_date = 6;
+  // Verdadeiro se vencida e ainda pendente (RN-TASK-16), calculado pelo
+  // Tasks Service a partir de x-client-date (D-18/D-34).
+  bool is_overdue = 7;
+  // Data/hora de conclusão (RN-TASK-08), presente só se status=COMPLETED.
+  google.protobuf.Timestamp completed_at = 8;
+  // Data/hora de criação.
+  google.protobuf.Timestamp created_at = 9;
+  // Data/hora da última alteração (RN-TASK-14).
+  google.protobuf.Timestamp updated_at = 10;
+}

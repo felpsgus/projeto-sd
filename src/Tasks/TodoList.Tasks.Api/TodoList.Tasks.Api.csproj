@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <!-- Necessário para `dotnet user-secrets` (BE-02, CA-11): a connection
@@ -11,10 +11,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lado servidor do contrato gRPC de tarefas (D-29, BE-32). Caminho relativo
+         de propósito: um único .proto, sem cópia local em nenhum dos serviços. -->
+    <Protobuf Include="..\..\..\contracts\tasks\v1\tasks.proto" GrpcServices="Server" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.17.2" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.83.0" />
+    <!-- gRPC Health Checking Protocol (BE-35, D-37) — o probe do Cloud Run
+         consulta grpc.health.v1.Health/Check nesta mesma porta gRPC. -->
+    <PackageReference Include="Grpc.AspNetCore.HealthChecks" Version="2.83.0" />
   </ItemGroup>
+
+  <!-- OpenAPI/Scalar (Microsoft.AspNetCore.OpenApi, Scalar.AspNetCore) removidos por BE-35:
+       o único endpoint documentável (POST /api/tasks) foi removido, e MapHealthChecks/gRPC
+       não produzem metadata de OpenAPI — não sobrou nada para documentar. -->
+
 
 </Project>

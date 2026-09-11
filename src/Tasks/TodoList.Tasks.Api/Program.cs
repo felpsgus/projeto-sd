@@ -1,12 +1,9 @@
-using System.Text.Json.Serialization;
 using FluentValidation;
-using Microsoft.Extensions.Options;
-using Scalar.AspNetCore;
 using TodoList.Tasks.Api.Configuration;
 using TodoList.Tasks.Api.Endpoints;
 using TodoList.Tasks.Api.ErrorHandling;
+using TodoList.Tasks.Api.Grpc;
 using TodoList.Tasks.Api.Security;
-using TodoList.Tasks.Api.Startup;
 using TodoList.Tasks.Application.Security;
 using TodoList.Tasks.Application.Tasks;
 using TodoList.Tasks.Infrastructure.Identity;
@@ -14,14 +11,8 @@ using TodoList.Tasks.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOpenApi();
 builder.Services.AddApiErrorHandling();
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-
-// BE-17, nota técnica: enums trafegam como string ("High"), nunca como
-// número — contrato legível e resistente a reordenação do enum.
-builder.Services.ConfigureHttpJsonOptions(options =>
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // Abstração de tempo (BE-02, CA-08): nada de DateTime.UtcNow espalhado pelo
 // código. Testes substituem por um FakeTimeProvider.
@@ -39,38 +30,14 @@ builder.Services
     .Bind(builder.Configuration.GetSection(TaskOptions.SectionName))
     .ValidateOnStart();
 
-// BE-29 (D-30): só a fiação HTTP lê esta flag — a Application não a conhece.
-builder.Services
-    .AddOptions<TasksCreationOptions>()
-    .Bind(builder.Configuration.GetSection(TasksCreationOptions.SectionName))
-    .ValidateOnStart();
-
-// BE-13/BE-29: ICurrentUser/IClientDate são abstrações de Application — a
-// escolha de implementação é decidida uma vez, aqui, na borda.
+// BE-35 (D-30 fechada, D-34): ICurrentUser/IClientDate são abstrações de
+// Application — a escolha de implementação é decidida uma vez, aqui, na
+// borda. CallerIdentityCurrentUser é a ÚNICA implementação registrada (CA-10)
+// — sem factory condicional: o Tasks confia no chamador (metadata gRPC
+// x-user-id) de forma permanente, não mais sob uma flag de ambiente.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IClientDate, HttpContextClientDate>();
-
-// A implementação é escolhida por um factory resolvido por requisição — não
-// por um "if" fora do container decidido uma vez no boot — para que a
-// decisão sempre reflita o IOptions<TasksCreationOptions> efetivamente
-// vinculado (o mesmo valor que TaskEndpoints consulta para a allowlist de
-// AllowAnonymous, e que StartupLog usa para o aviso de inicialização),
-// mesmo quando a configuração é montada em etapas (caso de
-// WebApplicationFactory nos testes de integração, que injeta overrides
-// depois deste ponto do arquivo, mas antes do primeiro request).
-builder.Services.AddScoped<ICurrentUser>(serviceProvider =>
-{
-    var creationOptions = serviceProvider.GetRequiredService<IOptions<TasksCreationOptions>>().Value;
-
-    // TODO(dono: time Backend — BE-13; prazo: antes de qualquer ambiente
-    // exposto fora de máquina local/demo): trocar por uma implementação de
-    // ICurrentUser baseada em claim (BE-13) e remover o ramo
-    // AllowAnonymousCreate — ver TodoList.Tasks.Api.Security.HeaderCurrentUser
-    // e BE-29 (D-30).
-    return creationOptions.AllowAnonymousCreate
-        ? new HeaderCurrentUser(serviceProvider.GetRequiredService<IHttpContextAccessor>())
-        : new NotYetAuthenticatedCurrentUser();
-});
+builder.Services.AddScoped<ICurrentUser, CallerIdentityCurrentUser>();
 
 builder.Services.AddScoped<CreateTaskHandler>();
 
@@ -90,23 +57,39 @@ builder.Services.AddTasksPersistence(builder.Configuration);
 builder.Services.AddHealthChecks()
     .AddTasksDatabaseHealthCheck();
 
+// BE-35 (D-37): gRPC Health Checking Protocol. AddGrpcHealthChecks() reusa o
+// MESMO IHealthChecksBuilder de AddHealthChecks() acima (chama-o
+// internamente, TryAdd-style) e mapeia o serviço "" (sem nome — o que
+// grpc.health.v1.Health/Check consulta sem especificar HealthCheckRequest.Service)
+// para TODOS os checks registrados, que hoje é só AddTasksDatabaseHealthCheck
+// (tag "ready"). Decisão (D-37): é o mesmo check de /health/ready — o
+// liveness puro (processo de pé) já é garantido pelo próprio Kestrel aceitar
+// a conexão TCP/HTTP2, então o que vale reportar por este canal para o probe
+// do Cloud Run é a readiness real (conectividade com o banco), não um "always
+// healthy" que esconderia o serviço realmente fora do ar.
+builder.Services.AddGrpcHealthChecks();
+
+builder.Services.AddGrpc(options =>
+{
+    // BE-35: exceção não tratada dentro de um RPC NÃO DEVE vazar stack
+    // trace/mensagem interna ao chamador fora de Development — mesma regra
+    // de GlobalExceptionHandler (BE-03, CA-05) para o transporte HTTP.
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+})
+    // BE-35: RequireCallerIdentityInterceptor é registrado SÓ para
+    // TasksGrpcService — nunca globalmente (AddGrpc(options => ...)), porque
+    // isso bloquearia grpc.health.v1.Health/Check (D-37), que não manda
+    // x-user-id e não deveria precisar.
+    .AddServiceOptions<TasksGrpcService>(options =>
+        options.Interceptors.Add<RequireCallerIdentityInterceptor>());
+
 var app = builder.Build();
 
 app.UseApiErrorHandling();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.MapScalarApiReference();
-}
-
-// BE-29, CA-06: aviso de inicialização quando o modo provisório está ligado.
-if (app.Services.GetRequiredService<IOptions<TasksCreationOptions>>().Value.AllowAnonymousCreate)
-{
-    StartupLog.AllowAnonymousCreateEnabled(app.Logger);
-}
-
 app.MapEndpoints();
+app.MapGrpcService<TasksGrpcService>();
+app.MapGrpcHealthChecksService();
 
 app.Run();
 

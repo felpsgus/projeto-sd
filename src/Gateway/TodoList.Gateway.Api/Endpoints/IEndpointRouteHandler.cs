@@ -1,0 +1,12 @@
+namespace TodoList.Gateway.Api.Endpoints;
+
+/// <summary>
+/// Contrato implementado por cada grupo de endpoints (feature) do Gateway —
+/// mesmo padrão de <c>TodoList.Tasks.Api.Endpoints.IEndpointRouteHandler</c>.
+/// Cada implementação usa <see cref="IEndpointRouteBuilder.MapGroup(string)"/>
+/// para registrar suas rotas — nada de Controllers.
+/// </summary>
+public interface IEndpointRouteHandler
+{
+    public void MapEndpoints(IEndpointRouteBuilder endpoints);
+}

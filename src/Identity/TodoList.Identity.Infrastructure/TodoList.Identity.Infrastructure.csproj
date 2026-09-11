@@ -15,12 +15,20 @@
     <!-- Readiness check de banco (CA-03, CA-04) via AddDbContextCheck. -->
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <!-- Bind()/ValidateDataAnnotations() de PasswordHashingOptions (BE-06) —
+         a Api usa o SDK Web, que já traz isso; a Infrastructure precisa da
+         referência explícita para expor AddIdentitySecurity. -->
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.11" />
     <!-- Só para o tooling `dotnet ef` (CA-01); não é usado em runtime. Sem
          PrivateAssets: `dotnet ef` exige esta referência no fechamento de
          dependências do projeto de STARTUP (Api), não só no projeto de
          migrations — precisa fluir por ProjectReference (mesmo padrão já
          usado por Google.Protobuf/Grpc.* em TodoList.Tasks.Infrastructure). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <!-- Emissão/validação de access token JWT (BE-08). Confinado ao Identity
+         (D-31): é o único serviço com Jwt:SigningKey. -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
   </ItemGroup>
 
 </Project>

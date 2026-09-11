@@ -14,6 +14,10 @@
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="7.2.2" />
+    <!-- Cliente gRPC dos testes (BE-35), mesmo pacote de
+         TodoList.Identity.IntegrationTests: GrpcChannel.ForAddress sobre o
+         handler do WebApplicationFactory, sem porta TCP real. -->
+    <PackageReference Include="Grpc.Net.Client" Version="2.83.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />

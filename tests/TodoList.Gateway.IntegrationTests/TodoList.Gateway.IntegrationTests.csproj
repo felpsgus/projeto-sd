@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Gateway\TodoList.Gateway.Api\TodoList.Gateway.Api.csproj" />
+    <!-- Aliased (ver GatewayApiFactory.cs): gera o lado servidor dos mesmos
+         .proto que TodoList.Gateway.Api gera do lado cliente — sem o alias,
+         os tipos de mensagem colidiriam por nome nesta compilação. -->
+    <ProjectReference Include="..\TodoList.Gateway.IntegrationTests.Fakes\TodoList.Gateway.IntegrationTests.Fakes.csproj">
+      <Aliases>Fakes</Aliases>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="7.2.2" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.83.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

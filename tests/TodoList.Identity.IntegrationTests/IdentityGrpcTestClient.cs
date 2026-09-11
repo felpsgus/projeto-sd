@@ -16,6 +16,7 @@ internal sealed class IdentityGrpcTestClient : IDisposable
 {
     private static readonly Method<ValidateUserRequest, ValidateUserResponse> _validateUserMethod = CreateMethod<ValidateUserRequest, ValidateUserResponse>("ValidateUser");
     private static readonly Method<ValidateTokenRequest, ValidateTokenResponse> _validateTokenMethod = CreateMethod<ValidateTokenRequest, ValidateTokenResponse>("ValidateToken");
+    private static readonly Method<LoginRequest, LoginResponse> _loginMethod = CreateMethod<LoginRequest, LoginResponse>("Login");
 
     private readonly GrpcChannel _channel;
     private readonly CallInvoker _invoker;
@@ -31,6 +32,9 @@ internal sealed class IdentityGrpcTestClient : IDisposable
 
     public AsyncUnaryCall<ValidateTokenResponse> ValidateTokenAsync(ValidateTokenRequest request) =>
         _invoker.AsyncUnaryCall(_validateTokenMethod, host: null, new CallOptions(), request);
+
+    public AsyncUnaryCall<LoginResponse> LoginAsync(LoginRequest request) =>
+        _invoker.AsyncUnaryCall(_loginMethod, host: null, new CallOptions(), request);
 
     public void Dispose() => _channel.Dispose();
 

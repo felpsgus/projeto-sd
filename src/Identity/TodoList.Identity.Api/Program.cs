@@ -5,8 +5,10 @@ using TodoList.Identity.Api.Configuration;
 using TodoList.Identity.Api.Endpoints;
 using TodoList.Identity.Api.ErrorHandling;
 using TodoList.Identity.Api.Grpc;
+using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Infrastructure.Persistence;
+using TodoList.Identity.Infrastructure.Security;
 using TodoList.Identity.Infrastructure.Users;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +41,10 @@ builder.Services
 // aplicadas por comando explícito (ver README).
 builder.Services.AddIdentityPersistence(builder.Configuration);
 
+// Hashing de senha (BE-06): PasswordHashingOptions validado no start +
+// IPasswordHasher singleton (Pbkdf2PasswordHasher).
+builder.Services.AddIdentitySecurity(builder.Configuration);
+
 // Seleção do store de usuários por configuração (BE-26). "InMemory" não tem
 // dependência escopada, então pode ser Singleton de verdade (uma instância só
 // no processo inteiro — é o que faz o log de aviso do CA-15 aparecer uma
@@ -53,6 +59,13 @@ builder.Services.AddIdentityPersistence(builder.Configuration);
 builder.Services.AddSingleton<InMemoryUserLookup>();
 builder.Services.AddScoped<PersistedUserLookup>();
 builder.Services.AddScoped<DemoUserSeeder>();
+
+// Login (BE-33): LoginHandler é Scoped porque depende de IUserRepository
+// (Scoped, por sua vez do IdentityDbContext). DummyPasswordHash é Singleton
+// de propósito — o hash dummy precisa ser fixo por processo, não recalculado
+// a cada requisição (ver XML doc de DummyPasswordHash).
+builder.Services.AddSingleton<DummyPasswordHash>();
+builder.Services.AddScoped<LoginHandler>();
 
 builder.Services.AddScoped<IUserLookup>(sp =>
 {
@@ -87,14 +100,27 @@ using (var warmUpScope = app.Services.CreateScope())
     warmUpScope.ServiceProvider.GetRequiredService<IUserLookup>();
 }
 
-// Seed de usuários de demonstração (BE-04/BE-26, CA-14): desligado por
-// padrão, ligado só por UserStore:SeedDemoUsers=true — nunca
-// EnsureCreated()/Migrate() automático aqui, a tabela precisa já existir
-// (ver README, seção "Migrations").
-if (app.Services.GetRequiredService<IOptions<UserStoreOptions>>().Value.SeedDemoUsers)
+var userStoreOptions = app.Services.GetRequiredService<IOptions<UserStoreOptions>>().Value;
+
+// BE-33, CA-11: com UserStore:Provider=InMemory não existe senha/hash
+// associado ao seed em memória — Login sempre nega (decisão na borda, não na
+// Application). O aviso sai uma única vez aqui, na inicialização, nunca a
+// cada chamada de Login.
+if (userStoreOptions.Provider == UserStoreOptions.InMemoryProvider)
+{
+    StartupLog.LoginNotSupportedWithInMemoryProvider(app.Services.GetRequiredService<ILogger<Program>>());
+}
+
+// Seed de usuários de demonstração (BE-04/BE-26/BE-33, CA-14 de BE-26, CA-08
+// de BE-33): desligado por padrão, ligado só por UserStore:SeedDemoUsers=true
+// — nunca EnsureCreated()/Migrate() automático aqui, a tabela precisa já
+// existir (ver README, seção "Migrations"). DemoUserPassword é obrigatória
+// quando SeedDemoUsers=true (UserStoreOptions.Validate, ValidateOnStart), então
+// já está garantida não-nula neste ponto.
+if (userStoreOptions.SeedDemoUsers)
 {
     using var seedScope = app.Services.CreateScope();
-    await seedScope.ServiceProvider.GetRequiredService<DemoUserSeeder>().SeedAsync(CancellationToken.None);
+    await seedScope.ServiceProvider.GetRequiredService<DemoUserSeeder>().SeedAsync(userStoreOptions.DemoUserPassword!, CancellationToken.None);
 }
 
 if (app.Environment.IsDevelopment())
@@ -111,4 +137,19 @@ await app.RunAsync();
 // Exposto para TodoList.Identity.IntegrationTests via WebApplicationFactory<Program>.
 public partial class Program
 {
+}
+
+/// <summary>
+/// Log de inicialização do host (BE-33, CA-11) — não é um <c>LoggerMessage</c>
+/// de hot path como os de <c>IdentityGrpcService</c>, mas segue o mesmo
+/// mecanismo de logging estruturado (source-generated), em vez de string
+/// interpolada solta.
+/// </summary>
+internal static partial class StartupLog
+{
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Identity está com UserStore:Provider=InMemory — Login sempre responde succeeded=false " +
+            "(não há senha/hash associado ao seed em memória). Use UserStore:Provider=Persisted para autenticar de verdade.")]
+    public static partial void LoginNotSupportedWithInMemoryProvider(ILogger logger);
 }

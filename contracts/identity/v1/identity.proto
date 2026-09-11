@@ -4,10 +4,12 @@ option csharp_namespace = "TodoList.Contracts.Identity.V1";
 
 package identity.v1;
 
-// Fronteira de rede entre o Tasks Service (cliente) e o Identity Service
-// (servidor) — o único caminho pelo qual um serviço fala com o outro
-// (D-29). Alterar este arquivo e recompilar propaga a mudança para os
-// dois lados em um único build (CA-07 de BE-25).
+import "google/protobuf/timestamp.proto";
+
+// Fronteira de rede entre o Tasks Service (cliente), o API Gateway (cliente)
+// e o Identity Service (servidor) — o único caminho pelo qual os outros
+// serviços falam com o Identity (D-29). Alterar este arquivo e recompilar
+// propaga a mudança para todos os lados em um único build (CA-07 de BE-25).
 service IdentityService {
   // Valida o dono antes de criar a tarefa (RN-AUTZ-01, RN-USER-04): o
   // Tasks pergunta se o `owner_id` recebido existe e está ativo antes de
@@ -15,9 +17,14 @@ service IdentityService {
   rpc ValidateUser (ValidateUserRequest) returns (ValidateUserResponse);
 
   // Único caminho para validar um token fora do Identity: a chave de
-  // assinatura não sai daqui (D-31). Stub nesta etapa (BE-26); usado pelo
-  // API Gateway na etapa seguinte para não ter que guardar a chave HS256.
+  // assinatura não sai daqui (D-31). Implementado em BE-34: valida
+  // assinatura, emissor, audiência e expiração. Usado pelo API Gateway para
+  // não ter que guardar a chave HS256.
   rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+
+  // Login (RN-AUTH-08): troca e-mail + senha por um access token. Recorte
+  // de BE-09 para o T2 (D-36) — só o access token, sem refresh/cookie.
+  rpc Login (LoginRequest) returns (LoginResponse);
 }
 
 message ValidateUserRequest {
@@ -47,16 +54,36 @@ message ValidateUserResponse {
 
 message ValidateTokenRequest {
   // Token de acesso (JWT) emitido pelo Identity, a validar por quem está
-  // fora dele — hoje ninguém, pois o RPC é stub (D-31).
+  // fora dele — o API Gateway, único chamador (D-31).
   string access_token = 1;
 }
 
 message ValidateTokenResponse {
-  // Verdadeiro se o token é válido e não expirou. Sempre `false` nesta
-  // etapa: o stub não implementa validação de JWT (BE-26, D-31).
+  // Verdadeiro se o token é válido e não expirou. Implementado em BE-34:
+  // valida assinatura, issuer, audience e expiração (D-31).
   bool valid = 1;
 
-  // Id do usuário dono do token, quando válido. Sempre string vazia
-  // nesta etapa, pelo mesmo motivo de `valid`.
+  // Id do usuário dono do token, quando válido. String vazia quando
+  // `valid = false`.
   string user_id = 2;
+}
+
+message LoginRequest {
+  // E-mail informado pelo usuário, normalizado no Identity antes da busca.
+  string email = 1;
+  // Senha em texto puro — trafega só nesta chamada interna, nunca em log.
+  string password = 2;
+}
+
+message LoginResponse {
+  // Falso para e-mail inexistente, senha errada ou usuário inativo —
+  // as três causas são indistinguíveis (RN-AUTH-09). Nunca status de
+  // erro gRPC para credencial inválida, só para falha de infraestrutura.
+  bool succeeded = 1;
+  // Access token JWT, presente só quando succeeded=true.
+  string access_token = 2;
+  // Expiração do access token, presente só quando succeeded=true.
+  google.protobuf.Timestamp expires_at = 3;
+  // Id do usuário autenticado, presente só quando succeeded=true.
+  string user_id = 4;
 }

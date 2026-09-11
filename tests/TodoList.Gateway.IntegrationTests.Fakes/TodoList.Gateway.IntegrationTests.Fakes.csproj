@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Biblioteca de apoio (servidores gRPC falsos), não uma suíte de testes:
+       tests/Directory.Build.props marca todo projeto sob tests/ como
+       IsTestProject=true, o que faz o VSTest tentar carregar este assembly
+       como suíte e falhar ao resolver Google.Protobuf no deps.json.
+       Desliga aqui, localmente, sem alterar o Directory.Build.props. -->
+  <PropertyGroup>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <!-- Lado servidor dos dois .proto (BE-36, abordagem obrigatória de teste),
+       num projeto à parte de TodoList.Gateway.IntegrationTests: o Gateway
+       (referenciado normalmente pelos testes) só gera o lado CLIENTE dos
+       mesmos .proto — compilar também o lado servidor aqui, no mesmo
+       projeto de teste, geraria classes de mensagem com nome idêntico ao
+       de TodoList.Gateway.Api (mesmo `csharp_namespace`), ambíguas na
+       mesma compilação. Este projeto isola essa geração; quem o consome
+       (TodoList.Gateway.IntegrationTests) nunca precisa nomear um tipo de
+       mensagem gerado pelo proto — só os POCOs (`FakeCreateTaskRequest`,
+       `FakeTaskReply`) e os dois `Func&lt;&gt;` de configuração. -->
+
+  <ItemGroup>
+    <Protobuf Include="..\..\contracts\identity\v1\identity.proto" GrpcServices="Server" />
+    <Protobuf Include="..\..\contracts\tasks\v1\tasks.proto" GrpcServices="Server" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.83.0" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

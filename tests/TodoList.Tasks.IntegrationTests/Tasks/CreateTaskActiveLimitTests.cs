@@ -1,9 +1,7 @@
 extern alias IdentityApi;
 
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
 using FluentAssertions;
+using Grpc.Core;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -14,18 +12,17 @@ using TodoList.Tasks.Application.Tasks;
 using TodoList.Tasks.Domain.Tasks;
 using Xunit;
 using IdentityProgram = IdentityApi::Program;
+using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
 
 namespace TodoList.Tasks.IntegrationTests.Tasks;
 
 /// <summary>
-/// BE-17 — limite de tarefas ativas (RN-TASK-15, D-08). "Ativa" =
-/// <b>não concluída E não removida</b> (nota técnica de BE-17: o defeito mais
-/// provável é essa definição). Usa <c>Tasks:MaxActivePerUser</c> reduzido
-/// (nunca 500 tarefas reais em teste, conforme "Testes obrigatórios" de
-/// BE-17) e um <see cref="IUserLookup"/> de teste que trata qualquer
-/// <see cref="Guid"/> como usuário ativo — necessário para exercitar CA-18
-/// (limite por usuário) com dois donos arbitrários, já que o seed fixo do
-/// Identity (<c>InMemoryUserLookup</c>) só conhece dois ids.
+/// BE-17 — limite de tarefas ativas (RN-TASK-15, D-08), migrado para gRPC por
+/// BE-35. "Ativa" = <b>não concluída E não removida</b> (nota técnica de
+/// BE-17). Usa <c>Tasks:MaxActivePerUser</c> reduzido e um
+/// <see cref="IUserLookup"/> de teste que trata qualquer <see cref="Guid"/>
+/// como usuário ativo — necessário para exercitar CA-18 (limite por usuário)
+/// com dois donos arbitrários.
 /// </summary>
 public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
 {
@@ -35,7 +32,7 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
     private FakeTimeProvider _timeProvider = null!;
     private WebApplicationFactory<IdentityProgram> _identityFactory = null!;
     private TasksApiFactory _factory = null!;
-    private HttpClient _client = null!;
+    private TasksGrpcTestClient _client = null!;
 
     public async Task InitializeAsync()
     {
@@ -52,14 +49,10 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
             _timeProvider,
             _identityFactory,
             new Uri("http://identity.test"),
-            new Dictionary<string, string?>
-            {
-                ["Tasks:MaxActivePerUser"] = ReducedLimit.ToString(),
-                ["Tasks:AllowAnonymousCreate"] = "true",
-            });
+            new Dictionary<string, string?> { ["Tasks:MaxActivePerUser"] = ReducedLimit.ToString() });
 
         await _factory.EnsureDatabaseCreatedAsync();
-        _client = _factory.CreateClient();
+        _client = new TasksGrpcTestClient(_factory.Server.CreateHandler(), _factory.Server.BaseAddress);
     }
 
     public async Task DisposeAsync()
@@ -69,98 +62,89 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
         await _identityFactory.DisposeAsync();
     }
 
-    // CA1001: mesmo padrão de CreateTaskOwnerValidationTests — a disposição
-    // de verdade acontece em DisposeAsync.
+    // CA1001: a disposição de verdade acontece em DisposeAsync.
     public void Dispose() => GC.SuppressFinalize(this);
 
     [Fact] // CA-14, CA-19 — limite reduzido bloqueia na (limite + 1)-ésima criação
-    public async Task PostTasks_NoLimiteReduzido_ACriacaoQueAtingeOLimiteSucede_APosLimiteFalha()
+    public async Task CreateTask_NoLimiteReduzido_ACriacaoQueAtingeOLimiteSucede_APosLimiteFalha()
     {
         var owner = Guid.NewGuid();
         await SeedPendingTasksAsync(owner, ReducedLimit - 1);
 
-        var atingeOLimite = await PostAsync(owner, "Última vaga");
-        atingeOLimite.StatusCode.Should().Be(HttpStatusCode.Created);
+        var atingeOLimite = await CallAsync(owner, "Última vaga");
+        atingeOLimite.Id.Should().NotBeNullOrEmpty();
 
-        var apósOLimite = await PostAsync(owner, "Sem vaga");
-        apósOLimite.StatusCode.Should().Be(HttpStatusCode.Conflict);
-
-        var body = await apósOLimite.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("errorCode").GetString().Should().Be("task.active_limit_reached");
+        var exception = await CallAndCaptureFailureAsync(owner, "Sem vaga");
+        exception.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+        exception.Trailers.GetValue("error-code").Should().Be("task.active_limit_reached");
     }
 
     [Fact] // CA-15 — mensagem clara com o valor do limite
-    public async Task PostTasks_AoAtingirOLimite_MensagemInformaOLimiteDeFormaClara()
+    public async Task CreateTask_AoAtingirOLimite_MensagemInformaOLimiteDeFormaClara()
     {
         var owner = Guid.NewGuid();
         await SeedPendingTasksAsync(owner, ReducedLimit);
 
-        var response = await PostAsync(owner, "Sem vaga");
+        var exception = await CallAndCaptureFailureAsync(owner, "Sem vaga");
 
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var detail = body.GetProperty("detail").GetString();
-
-        detail.Should().Contain(ReducedLimit.ToString());
+        exception.Status.Detail.Should().Contain(ReducedLimit.ToString());
     }
 
     [Fact] // CA-16 — tarefas concluídas não contam para o limite
-    public async Task PostTasks_ComTarefasConcluidasNoLimite_AindaPermiteCriarPendente()
+    public async Task CreateTask_ComTarefasConcluidasNoLimite_AindaPermiteCriarPendente()
     {
         var owner = Guid.NewGuid();
         await SeedCompletedTasksAsync(owner, ReducedLimit);
 
-        var response = await PostAsync(owner, "Concluídas não contam");
+        var reply = await CallAsync(owner, "Concluídas não contam");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        reply.Id.Should().NotBeNullOrEmpty();
     }
 
     [Fact] // CA-17 — soft delete libera espaço imediatamente
-    public async Task PostTasks_ApósSoftDeleteDeUmaAtiva_LiberaEspacoNoLimite()
+    public async Task CreateTask_ApósSoftDeleteDeUmaAtiva_LiberaEspacoNoLimite()
     {
         var owner = Guid.NewGuid();
         var ids = await SeedPendingTasksAsync(owner, ReducedLimit);
 
         // No limite — a próxima criação falharia se nada mudasse.
-        (await PostAsync(owner, "Sem vaga antes do soft delete")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CallAndCaptureFailureAsync(owner, "Sem vaga antes do soft delete")).StatusCode.Should().Be(StatusCode.FailedPrecondition);
 
         await SoftDeleteAsync(ids[0]);
 
-        var response = await PostAsync(owner, "Cabe depois do soft delete");
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var reply = await CallAsync(owner, "Cabe depois do soft delete");
+        reply.Id.Should().NotBeNullOrEmpty();
     }
 
     [Fact] // CA-18 — o limite é por usuário
-    public async Task PostTasks_UsuarioNoLimite_NaoAfetaOutroUsuarioComZeroTarefas()
+    public async Task CreateTask_UsuarioNoLimite_NaoAfetaOutroUsuarioComZeroTarefas()
     {
         var primeiroUsuario = Guid.NewGuid();
         var segundoUsuario = Guid.NewGuid();
         await SeedPendingTasksAsync(primeiroUsuario, ReducedLimit);
 
-        (await PostAsync(primeiroUsuario, "Primeiro, sem vaga")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CallAndCaptureFailureAsync(primeiroUsuario, "Primeiro, sem vaga")).StatusCode.Should().Be(StatusCode.FailedPrecondition);
 
-        var response = await PostAsync(segundoUsuario, "Segundo, com vaga");
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var reply = await CallAsync(segundoUsuario, "Segundo, com vaga");
+        reply.Id.Should().NotBeNullOrEmpty();
     }
 
     [Fact] // CA-20 — limite nulo desativa o bloqueio
-    public async Task PostTasks_ComLimiteNulo_NaoHaBloqueioMesmoComMuitasTarefasAtivas()
+    public async Task CreateTask_ComLimiteNulo_NaoHaBloqueioMesmoComMuitasTarefasAtivas()
     {
         await using var connectionSemLimite = new SqliteConnection("DataSource=:memory:");
         await connectionSemLimite.OpenAsync();
 
         // PostConfigure roda depois do Bind feito em Program.cs (CA-20: o
-        // valor null é o que desativa o limite) — mais direto e livre de
-        // ambiguidade de representação textual do que tentar expressar
-        // "null" numa chave de configuração in-memory.
+        // valor null é o que desativa o limite).
         await using var factorySemLimite = new TasksApiFactory(
             connectionSemLimite,
             _timeProvider,
             _identityFactory,
             new Uri("http://identity.test"),
-            new Dictionary<string, string?> { ["Tasks:AllowAnonymousCreate"] = "true" },
             configureServices: services => services.PostConfigure<TaskOptions>(options => options.MaxActivePerUser = null));
         await factorySemLimite.EnsureDatabaseCreatedAsync();
-        using var clientSemLimite = factorySemLimite.CreateClient();
+        using var clientSemLimite = new TasksGrpcTestClient(factorySemLimite.Server.CreateHandler(), factorySemLimite.Server.BaseAddress);
 
         var owner = Guid.NewGuid();
         await using (var context = factorySemLimite.CreateDbContext())
@@ -173,15 +157,10 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
             await context.SaveChangesAsync();
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tasks")
-        {
-            Content = JsonContent.Create(new { title = "Sem limite" }),
-        };
-        request.Headers.Add("X-User-Id", owner.ToString());
+        var reply = await clientSemLimite.CreateTaskAsync(
+            new ProtoCreateTaskRequest { Title = "Sem limite" }, TasksGrpcTestClient.OwnerHeaders(owner.ToString()));
 
-        var response = await clientSemLimite.SendAsync(request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        reply.Id.Should().NotBeNullOrEmpty();
     }
 
     private async Task<List<Guid>> SeedPendingTasksAsync(Guid owner, int count)
@@ -223,15 +202,20 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
         await context.SaveChangesAsync();
     }
 
-    private async Task<HttpResponseMessage> PostAsync(Guid owner, string title)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tasks")
-        {
-            Content = JsonContent.Create(new { title }),
-        };
-        request.Headers.Add("X-User-Id", owner.ToString());
+    private async Task<TodoList.Contracts.Tasks.V1.TaskReply> CallAsync(Guid owner, string title) =>
+        await _client.CreateTaskAsync(new ProtoCreateTaskRequest { Title = title }, TasksGrpcTestClient.OwnerHeaders(owner.ToString()));
 
-        return await _client.SendAsync(request);
+    private async Task<RpcException> CallAndCaptureFailureAsync(Guid owner, string title)
+    {
+        try
+        {
+            await CallAsync(owner, title);
+            throw new InvalidOperationException("Esperava RpcException de falha, mas a chamada teve sucesso.");
+        }
+        catch (RpcException exception)
+        {
+            return exception;
+        }
     }
 
     /// <summary>Trata qualquer <see cref="Guid"/> como usuário existente e ativo — só para os testes de limite (CA-18 precisa de donos arbitrários).</summary>

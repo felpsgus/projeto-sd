@@ -1,10 +1,8 @@
 extern alias IdentityApi;
 
-using System.Net;
-using System.Net.Http.Json;
 using FluentAssertions;
+using Grpc.Core;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -16,18 +14,17 @@ using TodoList.Tasks.Infrastructure.Persistence;
 using TodoList.Tasks.IntegrationTests.Persistence;
 using Xunit;
 using IdentityProgram = IdentityApi::Program;
+using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
 
 namespace TodoList.Tasks.IntegrationTests.Tasks;
 
 /// <summary>
-/// BE-17 (CA-23), BE-28 (CA-04, CA-06, CA-09) — prova, contra
-/// <b>Postgres real</b> (Testcontainers, não o SQLite in-memory do resto
-/// desta pasta), que os três desfechos de rejeição de <c>POST /api/tasks</c>
-/// não gravam nenhuma linha em <c>tasks.tasks</c>: dono inexistente (404),
-/// dono inativo (409) e Identity indisponível (503). <b>Requer Docker.</b>
-/// Ver <see cref="PostgresContainerFixture"/> e o README para excluir a
-/// categoria num ambiente sem Docker
-/// (<c>dotnet test --filter "Category!=Docker"</c>).
+/// BE-17 (CA-23), BE-28 (CA-04, CA-06, CA-09), migrado para gRPC por BE-35 —
+/// prova, contra <b>Postgres real</b> (Testcontainers, não o SQLite in-memory
+/// do resto desta pasta), que os três desfechos de rejeição de
+/// <c>CreateTask</c> não gravam nenhuma linha em <c>tasks.tasks</c>: dono
+/// inexistente (<c>NotFound</c>), dono inativo (<c>FailedPrecondition</c>) e
+/// Identity indisponível (<c>Unavailable</c>). <b>Requer Docker.</b>
 /// </summary>
 [Collection("Postgres")]
 public class CreateTaskPostgresRejectionTests : IAsyncLifetime
@@ -39,30 +36,27 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    // Chamado só de dentro do corpo de um teste (ver o comentário em
-    // PostgresContainerFixture): não fala com o daemon Docker quando a
-    // categoria está filtrada fora.
     public Task InitializeAsync() => Task.CompletedTask;
 
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     [Trait("Category", "Docker")]
-    public async Task PostTasks_DonoInexistenteOuInativo_NenhumaLinhaGravadaNoPostgresReal()
+    public async Task CreateTask_DonoInexistenteOuInativo_NenhumaLinhaGravadaNoPostgresReal()
     {
         await _fixture.EnsureStartedAsync();
 
         await using var identityFactory = new WebApplicationFactory<IdentityProgram>();
         await using var factory = CreateFactoryRoteadoParaIdentityReal(identityFactory);
         await MigrateAsync(factory);
-        using var client = factory.CreateClient();
+        using var client = new TasksGrpcTestClient(factory.Server.CreateHandler(), factory.Server.BaseAddress);
 
         var usuarioInexistente = Guid.NewGuid();
-        var respostaInexistente = await PostAsync(client, usuarioInexistente, "Dono inexistente (Postgres real)");
-        respostaInexistente.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var excecaoInexistente = await CallAndCaptureFailureAsync(client, usuarioInexistente, "Dono inexistente (Postgres real)");
+        excecaoInexistente.StatusCode.Should().Be(StatusCode.NotFound);
 
-        var respostaInativo = await PostAsync(client, InMemoryUserLookup.InactiveUserId, "Dono inativo (Postgres real)");
-        respostaInativo.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var excecaoInativo = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.InactiveUserId, "Dono inativo (Postgres real)");
+        excecaoInativo.StatusCode.Should().Be(StatusCode.FailedPrecondition);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<TasksDbContext>();
@@ -74,18 +68,18 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "Docker")]
-    public async Task PostTasks_IdentityIndisponivel_NenhumaLinhaGravadaNoPostgresReal()
+    public async Task CreateTask_IdentityIndisponivel_NenhumaLinhaGravadaNoPostgresReal()
     {
         await _fixture.EnsureStartedAsync();
 
         var enderecoMorto = TasksApiFactory.GetUnreachableAddress();
         await using var factory = CreateFactoryComIdentityMorto(enderecoMorto);
         await MigrateAsync(factory);
-        using var client = factory.CreateClient();
+        using var client = new TasksGrpcTestClient(factory.Server.CreateHandler(), factory.Server.BaseAddress);
 
         var owner = Guid.NewGuid();
-        var resposta = await PostAsync(client, owner, "Identity indisponível (Postgres real)");
-        resposta.StatusCode.Should().Be((HttpStatusCode)StatusCodes.Status503ServiceUnavailable);
+        var exception = await CallAndCaptureFailureAsync(client, owner, "Identity indisponível (Postgres real)");
+        exception.StatusCode.Should().Be(StatusCode.Unavailable);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<TasksDbContext>();
@@ -119,7 +113,6 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
                 [$"ConnectionStrings:{TodoList.Tasks.Infrastructure.Persistence.ServiceCollectionExtensions.ConnectionStringName}"] = _fixture.ConnectionString,
                 ["Identity:GrpcAddress"] = identityAddress.ToString(),
                 ["Identity:GrpcTimeoutSeconds"] = "2",
-                ["Tasks:AllowAnonymousCreate"] = "true",
                 ["Service:DisplayName"] = "Tasks Service (teste Postgres real)",
             });
         });
@@ -129,9 +122,7 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
         // A FK cruzada de schema (tasks.tasks.owner_id → identity.users(id),
         // D-27) exige que o schema "identity" já exista antes da migration
         // do Tasks rodar — por isso o Identity migra primeiro, contra o
-        // MESMO Postgres do container. Migrations reais (não EnsureCreated):
-        // é o mesmo schema versionado que roda em produção — chamado aqui,
-        // no arranjo do teste, nunca em código de produção (BE-02).
+        // MESMO Postgres do container.
         await using (var identityOptions = new IdentityDbContext(
             new DbContextOptionsBuilder<IdentityDbContext>()
                 .UseNpgsql(
@@ -148,14 +139,16 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
         await context.Database.MigrateAsync();
     }
 
-    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, Guid userId, string title)
+    private static async Task<RpcException> CallAndCaptureFailureAsync(TasksGrpcTestClient client, Guid userId, string title)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/tasks")
+        try
         {
-            Content = JsonContent.Create(new { title }),
-        };
-        request.Headers.Add("X-User-Id", userId.ToString());
-
-        return await client.SendAsync(request);
+            await client.CreateTaskAsync(new ProtoCreateTaskRequest { Title = title }, TasksGrpcTestClient.OwnerHeaders(userId.ToString()));
+            throw new InvalidOperationException("Esperava RpcException de falha, mas a chamada teve sucesso.");
+        }
+        catch (RpcException exception)
+        {
+            return exception;
+        }
     }
 }
