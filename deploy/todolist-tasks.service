@@ -3,7 +3,7 @@
 # Instalar em /etc/systemd/system/todolist-tasks.service (ver deploy/README.md).
 [Unit]
 Description=TodoList Tasks Service (cliente gRPC)
-Documentation=https://github.com/felipeaugustolopesveras/projeto-sd
+Documentation=https://github.com/felpsgus/projeto-sd
 After=network-online.target todolist-identity.service
 Wants=network-online.target
 

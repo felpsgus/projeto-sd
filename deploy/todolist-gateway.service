@@ -1,0 +1,41 @@
+# API Gateway — origem única HTTP (BE-36).
+#
+# Instalar em /etc/systemd/system/todolist-gateway.service (ver deploy/README.md).
+#
+# D-32: o Gateway é a UNICA porta alcancavel de fora da VPC. Identity e Tasks
+# ficam atras dele, so por gRPC em 127.0.0.1 — nunca publicados diretamente.
+[Unit]
+Description=TodoList API Gateway (origem unica HTTP)
+Documentation=https://github.com/felpsgus/projeto-sd
+After=network-online.target todolist-identity.service todolist-tasks.service
+Wants=network-online.target
+
+# Deliberadamente Wants=, nao Requires=: se um backend cair, o Gateway deve
+# continuar de pe e devolver 503 (identity.unavailable / tasks.unavailable), nao
+# morrer junto. Mesmo raciocinio do unit do Tasks em relacao ao Identity (D-28).
+Wants=todolist-identity.service todolist-tasks.service
+
+[Service]
+Type=simple
+User=todolist
+Group=todolist
+WorkingDirectory=/opt/todolist/gateway
+ExecStart=/opt/todolist/gateway/TodoList.Gateway.Api
+
+# O Gateway nao guarda segredo nenhum (nao valida JWT localmente, D-31) — este
+# arquivo so tem os enderecos gRPC internos, mas segue o mesmo padrao dos outros
+# dois units por consistencia e porque pode ganhar valor sensivel no futuro.
+EnvironmentFile=/etc/todolist/gateway.env
+
+Restart=always
+RestartSec=5
+SyslogIdentifier=todolist-gateway
+
+# Endurecimento basico, identico aos outros dois units.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

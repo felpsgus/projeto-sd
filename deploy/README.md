@@ -1,14 +1,15 @@
-# Implantação no GCP — runbook do T1
+# Implantação no GCP — runbook do T1 e T2
 
-Passo a passo para colocar os dois microsserviços de pé e verificar que a comunicação gRPC
+Passo a passo para colocar os microsserviços de pé e verificar que a comunicação gRPC
 funciona lá. Escrito para o fluxo **sem `gcloud` local**: tudo pelo Console web do GCP e pelo
 SSH no navegador.
 
 > **Estado destes arquivos.** `scripts/publish.ps1` foi executado e verificado na máquina de
-> desenvolvimento. O deploy nas VMs (`install-on-vm.sh`, os dois `*.service`, os `.env`) foi
-> executado pelo Felipe em 06/09/2026 e os serviços subiram. `demo.sh` e `tmux-demo.sh` ainda
-> não foram exercitados contra as VMs — trate o primeiro ensaio com folga, não como
-> formalidade.
+> desenvolvimento. O deploy do T1 nas VMs (`install-on-vm.sh`, os `*.service`, os `.env`) foi
+> executado pelo Felipe em 06/09/2026 e os serviços subiram. O upgrade para o T2 (seção
+> abaixo) ainda **não foi executado na VM real** — as instruções foram preparadas e revisadas
+> no repositório, mas a execução em campo (CA-01 a CA-08 de BE-37) fica registrada como
+> pendência até acontecer. Trate o primeiro ensaio com folga, não como formalidade.
 
 > Este arquivo é o **runbook** (o que digitar). Para entender **o que cada script faz por
 > dentro e por quê**, veja [ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md).
@@ -17,40 +18,69 @@ SSH no navegador.
 
 | VM | Zona | IP interno | Papel |
 |---|---|---|---|
-| `maquina-1-psd` | `us-central1-a` | `10.128.0.4` | Identity Service (5080 REST, 5081 gRPC) **e** Tasks Service (5100 REST) |
+| `maquina-1-psd` | `us-central1-a` | `10.128.0.4` | Identity Service (5080 `/health`, 5081 gRPC), Tasks Service (5100 `/health`, 5101 gRPC) **e** API Gateway (8080 HTTP) |
 | `maquina-2-psd` | `us-central1-a` | `10.128.0.5` | PostgreSQL (5432) |
 
-O salto gRPC acontece **dentro** da `maquina-1-psd`, por `127.0.0.1:5081`. O que cruza a rede
-entre VMs é o acesso ao Postgres — e é essa a regra de firewall VPC do requisito 3 do enunciado.
+O salto gRPC acontece **dentro** da `maquina-1-psd`, por `127.0.0.1:5081` e `127.0.0.1:5101`.
+O que cruza a rede entre VMs é o acesso ao Postgres — e é essa a regra de firewall VPC do
+requisito 3 do enunciado. Desde o T2, a **única** porta de aplicação alcançável de fora da
+VPC é a 8080 do Gateway (**D-32**) — 5080/5081/5100/5101 não devem responder de fora.
 
 > Confirme os IPs internos antes de preencher os arquivos de ambiente:
 > **Compute Engine → Instâncias de VM**, coluna "IP interno".
 
 ## 1. Firewall VPC (Console web)
 
-**VPC network → Firewall → Create firewall rule.** Três regras:
+**VPC network → Firewall → Create firewall rule.** Quatro regras (a quarta é nova no T2):
 
 | Nome | Targets (tags) | Source IPv4 ranges | Protocolos/portas | Para quê |
 |---|---|---|---|---|
 | `todolist-allow-postgres` | `todolist-db` | `10.128.0.4/32` | `tcp:5432` | **a regra do requisito 3** — só a VM de aplicação fala com o banco |
-| `todolist-allow-grpc-internal` | `todolist-app` | `10.128.0.0/20` | `tcp:5081` | declara a intenção do canal gRPC na sub-rede |
+| `todolist-allow-grpc-internal` | `todolist-app` | `10.128.0.0/20` | `tcp:5081,5101` | declara a intenção do canal gRPC na sub-rede (Identity + Tasks) |
 | `todolist-allow-iap-ssh` | (em branco = todas) | `35.235.240.0/20` | `tcp:22` | SSH no navegador via IAP |
+| `todolist-allow-gateway` | `todolist-app` | `0.0.0.0/0` | `tcp:8080` | **a única regra de ingresso de aplicação vinda da internet** (T2, D-32) |
 
-Direção `Ingress`, ação `Allow`, prioridade `1000` nas três.
+Direção `Ingress`, ação `Allow`, prioridade `1000` nas quatro.
 
 Depois marque as VMs com as tags — **Compute Engine → a VM → Editar → Tags de rede**:
 
 - `maquina-1-psd` → `todolist-app`
 - `maquina-2-psd` → `todolist-db`
 
-> **A segunda regra é intencionalmente redundante hoje.** Como os dois serviços estão na mesma
-> VM, o gRPC não depende dela. Ela existe para declarar a intenção do canal e para ser o
-> artefato concreto quando a pergunta "mostre a regra que deixa seus serviços conversarem"
-> aparecer na banca. A regra que está de fato no caminho crítico é a do Postgres.
+> **A regra de gRPC interno é intencionalmente redundante.** Como os três serviços estão na
+> mesma VM, o gRPC não depende dela — o caminho crítico é `127.0.0.1`. Ela existe para
+> declarar a intenção do canal e para ser o artefato concreto quando a pergunta "mostre a
+> regra que deixa seus serviços conversarem" aparecer na banca. A regra que está de fato no
+> caminho crítico do tráfego entre VMs é a do Postgres.
 
-> **Não abra a 5100 para a internet.** O Tasks roda com `Tasks__AllowAnonymousCreate=true`
-> (modo provisório de BE-29): sem autenticação, qualquer um cria tarefa em nome de qualquer
-> usuário. Na apresentação, o `curl` sai de dentro da própria VM — seção 7.
+> **Não abra 5080, 5081, 5100 ou 5101 para a internet — só a 8080.** Desde o T2, Identity e
+> Tasks confiam no chamador para saber quem é o usuário (`X-User-Id` / metadata `x-user-id`,
+> **D-30**/**D-34**): isso só é seguro enquanto o Gateway for o único caminho até eles. Um
+> desses back-ends acessível publicamente vira falsificação de identidade trivial.
+
+> **Verificação de fora, obrigatória (D-32, CA-03 de BE-37).** Do seu notebook, **não** de
+> dentro da VM, contra o **IP externo** da `maquina-1-psd`:
+>
+> ```bash
+> for porta in 5080 5081 5100 5101; do
+>     echo "porta $porta:"
+>     curl --max-time 3 "http://$IP_EXTERNO:$porta/health"
+>     echo "  (esperado: timeout ou recusa de conexão, nunca resposta HTTP)"
+> done
+> curl --max-time 3 "http://$IP_EXTERNO:8080/health"   # esperado: 200 OK
+> ```
+>
+> Uma regra de firewall mal escrita é um erro silencioso: a aplicação continua funcionando
+> via Gateway e ninguém percebe que uma porta interna também ficou aberta até ser tarde. Só a
+> comprovação de campo conta — não "confiar na regra".
+
+### 1.1 IP externo estático (T2)
+
+**Compute Engine → Endereços IP → Promover a estático**, na `maquina-1-psd`. Um IP efêmero
+pode trocar se a VM for parada e reiniciada; promover **depois** que ele já mudou é tarde
+demais, porque qualquer material de apresentação (slide, script salvo) que cite o IP
+precisaria ser refeito. Reservar com antecedência custa uma tela do Console e elimina o
+risco — faça isso bem antes do ensaio, não no dia.
 
 ## 2. PostgreSQL na `maquina-2-psd`
 
@@ -245,7 +275,110 @@ sudo journalctl -u todolist-tasks -u todolist-identity --since '2 min ago' | gre
 **Redeploy** depois de mudar código: `./scripts/publish.ps1`, novo upload, extrair,
 `sudo ./install-on-vm.sh`. As migrations só quando houver migration nova.
 
-## 7. No dia da apresentação
+## 7. T2 — upgrade da VM do T1
+
+Esta seção é um **upgrade**, não uma reinstalação. `install-on-vm.sh` já é idempotente e
+nunca recria os `.env` — o T2 usa exatamente esse mecanismo. Reinstalar do zero jogaria fora
+os usuários já semeados e obrigaria recriar segredos que já estão corretos.
+
+**O que muda:** um terceiro serviço (o API Gateway) passa a existir, `Tasks__AllowAnonymousCreate`
+sai do Tasks e o Identity passa a exigir chave JWT e senha de demonstração explícitas. O banco
+**já tem** as linhas de `identity.users` com o hash placeholder do T1 — nada precisa ser
+recriado; o seed, ao rodar de novo, vê que a senha não confere com o hash armazenado e o
+regrava (BE-33 CA-09). **Não há migration nova.**
+
+1. **Firewall e IP** — se ainda não feito: seção 1 (regra `todolist-allow-gateway`, revisão de
+   `todolist-allow-grpc-internal`) e seção 1.1 (IP estático).
+
+2. **Editar os `.env` existentes na VM**, na sessão SSH da `maquina-1-psd`:
+
+   ```bash
+   sudo nano /etc/todolist/identity.env
+   ```
+
+   Acrescente (gerando a chave **na própria VM**, nunca reaproveitando algo de teste):
+
+   ```bash
+   openssl rand -base64 48    # cole o resultado em Jwt__SigningKey abaixo
+   ```
+
+   ```
+   Jwt__SigningKey=<a chave gerada acima>
+   Jwt__Issuer=todolist-identity
+   Jwt__Audience=todolist
+   UserStore__DemoUserPassword=<uma senha de demonstração — nunca versione este valor>
+   ```
+
+   ```bash
+   sudo nano /etc/todolist/tasks.env
+   ```
+
+   Remova a linha `Tasks__AllowAnonymousCreate=true` (e o comentário acima dela) — o gatilho
+   REST provisório foi removido (BE-35); o Tasks agora é só gRPC.
+
+   ```bash
+   sudo cp ~/todolist-deploy/gateway.env.example /etc/todolist/gateway.env
+   sudo chmod 600 /etc/todolist/gateway.env
+   sudo chown root:root /etc/todolist/gateway.env
+   ```
+
+   O `gateway.env` só tem endereços — nenhum segredo a preencher, mas confira os dois
+   endereços `127.0.0.1` antes de seguir.
+
+3. **Empacotar e subir**, do mesmo jeito do T1:
+
+   ```powershell
+   ./scripts/publish.ps1
+   ```
+
+   Upload do novo `todolist-deploy.tar.gz` pelo SSH do navegador, extraindo **por cima** do
+   `~/todolist-deploy` existente:
+
+   ```bash
+   tar -xzf ~/todolist-deploy.tar.gz -C ~/todolist-deploy
+   cd ~/todolist-deploy
+   chmod +x *.sh
+   ```
+
+4. **Instalar** — agora com o terceiro serviço:
+
+   ```bash
+   sudo ./install-on-vm.sh
+   ```
+
+   O script confere os três `.env` (recusa continuar se `gateway.env` estiver faltando ou com
+   placeholder, mesmo padrão de `identity.env`/`tasks.env`), instala a unit
+   `todolist-gateway.service` e sobe os três serviços **na ordem Identity → Tasks → Gateway**,
+   esperando o `/health` de cada um antes de seguir para o próximo — a mesma lógica de espera
+   por condição que já existia entre Identity e Tasks, estendida a mais um salto. É a mesma
+   ordem para qualquer restart manual depois:
+
+   ```bash
+   sudo systemctl restart todolist-identity && sleep 2 \
+     && sudo systemctl restart todolist-tasks && sleep 2 \
+     && sudo systemctl restart todolist-gateway
+   ```
+
+   **Por que essa ordem:** o Gateway é cliente gRPC dos outros dois (D-33). Reiniciá-lo
+   primeiro não quebra nada de fato (ele reconecta na primeira chamada), mas subir os
+   back-ends primeiro evita que as primeiras requisições reais — inclusive as do ensaio —
+   encontrem 503 por um back-end ainda de pé.
+
+5. **Conferir a partir de fora**, IP externo, porta 8080, antes de considerar a VM pronta
+   (ver o bloco de verificação na seção 1):
+
+   ```bash
+   curl --max-time 3 "http://$IP_EXTERNO:8080/health"
+   DEMO_PASSWORD=... ./smoke.sh "http://$IP_EXTERNO:8080"
+   ```
+
+> **Tempo do roteiro de subida (CA-06 de BE-37).** Meça, em pelo menos uma execução real, o
+> tempo do upload do tarball até as três units `active` e a verificação de fora respondendo, e
+> registre aqui:
+>
+> `[PENDENTE — medir na primeira execução real na VM]`
+
+## 8. No dia da apresentação
 
 Sem `gcloud` não há túnel IAP — e tudo bem, porque **rodar de dentro da VM é a opção mais
 robusta mesmo**: o SSH do navegador só precisa de HTTPS, que nenhuma rede institucional
@@ -256,51 +389,51 @@ Abra **um** SSH no navegador na `maquina-1-psd`. Dois scripts montam tudo:
 ```bash
 sudo apt-get install -y tmux     # uma vez
 cd ~/todolist-deploy
-./tmux-demo.sh                   # monta a tela em 3 painéis e entra nela
+./tmux-demo.sh                   # monta a tela em 4 painéis e entra nela
 ```
 
 ```
 ┌───────────────────────┬──────────────────────────┐
 │                       │  log do IDENTITY         │
-│   roteiro (demo.sh)   ├──────────────────────────┤
-│                       │  log do TASKS            │
+│                       ├──────────────────────────┤
+│   roteiro (demo.sh)   │  log do TASKS            │
+│                       ├──────────────────────────┤
+│                       │  log do GATEWAY          │
 └───────────────────────┴──────────────────────────┘
 ```
 
-No painel da esquerda:
+No painel da esquerda, com a senha de demonstração (a mesma de `UserStore__DemoUserPassword`
+em `identity.env`):
 
 ```bash
-./demo.sh
+DEMO_PASSWORD=... ./demo.sh
 ```
 
-Três atos, avançando a cada Enter — você narra, aperta Enter, a resposta aparece:
-
-1. **dono válido → 201.** Aponte para os dois painéis de log: a mesma chamada `ValidateUser`,
-   com o **mesmo `traceId`**. É a evidência de que houve ida e volta pela rede.
-2. **a mesma requisição, só mudando o `X-User-Id` → 404.** O Identity respondeu `exists=False`.
-   Um Tasks que decidisse sozinho teria devolvido 201 aqui também.
-3. **Identity parado → 503, nada gravado.** Fail-closed (D-28). O script religa o Identity
-   sozinho no fim — e também se você interromper no meio, por um `trap`.
-
-O `demo.sh` faz uma chamada de aquecimento antes do Ato 1, descartada e invisível. Se preferir
-aquecer bem antes de começar: `./demo.sh --warmup`.
+O roteiro faz login de verdade contra o Gateway e usa o access token nas chamadas
+subsequentes — narre, aperte Enter, a resposta aparece. Os detalhes de cada ato (o que prova
+cada um) ficam no roteiro do próprio script e em
+[ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md); a ideia geral se manteve: login válido, um
+caso negado pelo Identity, e o Identity fora do ar — só que agora entrando por HTTP no Gateway
+(8080), não mais direto no Tasks.
 
 Atalhos de tmux que importam: `Ctrl+B` + seta navega entre painéis, `Ctrl+B d` sai sem matar a
 sessão, `tmux attach -t demo` volta.
 
-> **Aumente a fonte do terminal antes.** A linha do `ValidateUser` precisa caber sem quebrar —
-> se o `traceId` for para a segunda linha, a correlação entre os dois painéis, que é o ponto
-> inteiro da demonstração, deixa de ser visível da última fileira.
+> **Aumente a fonte do terminal antes.** Cada linha de log precisa caber sem quebrar — se um
+> identificador de correlação for para a segunda linha, o ponto da demonstração deixa de ser
+> visível da última fileira.
 
 ### Checklist da última hora
 
 - [ ] As duas VMs **ligadas** (Compute Engine → Instâncias de VM).
-- [ ] `sudo systemctl is-active todolist-identity todolist-tasks` → `active` nos dois.
-- [ ] `./smoke.sh` verde.
+- [ ] `sudo systemctl is-active todolist-identity todolist-tasks todolist-gateway` → `active`
+      nos três.
+- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde (padrão contra `http://127.0.0.1:8080`).
+- [ ] Verificação de fora feita de novo pouco antes: 8080 responde, 5080/5081/5100/5101 não.
 - [ ] Aquecimento: uma requisição descartável disparada — a primeira chamada paga conexão
       HTTP/2 e a primeira query do EF Core; que isso aconteça antes da plateia.
-- [ ] `tmux` montado, fonte do terminal aumentada.
-- [ ] O Identity **religado**, se você testou o 503 no ensaio.
+- [ ] `tmux` montado, fonte do terminal aumentada, os quatro painéis visíveis.
+- [ ] O Identity **religado**, se você testou a indisponibilidade no ensaio.
 
 ## Sintomas e causas
 
@@ -320,9 +453,40 @@ sessão, `tmux attach -t demo` volta.
 
 ## Depois do T1
 
-Três coisas que existem só porque a autenticação ainda não foi implementada, e que precisam
-sair antes de qualquer ambiente de verdade:
+Três coisas foram listadas no T1 como dívida a pagar antes de qualquer ambiente de verdade.
+O T2 resolveu duas delas; a terceira segue de pé:
 
-1. `Tasks__AllowAnonymousCreate=true` — cai quando BE-13/API Gateway entrar.
-2. `UserStore__SeedDemoUsers=true` — cai quando BE-07 (cadastro) entrar.
-3. O `PasswordHash` placeholder dos usuários de demonstração — BE-06 substitui.
+1. ~~`Tasks__AllowAnonymousCreate=true`~~ — **caiu.** BE-35 removeu o gatilho HTTP provisório
+   do Tasks; a flag deixou de existir no código e no `.env`. A identidade agora chega pela
+   metadata gRPC `x-user-id`, preenchida pelo Gateway depois de validar o token (D-34).
+2. `UserStore__SeedDemoUsers=true` — **continua de pé.** Ainda não há cadastro real (BE-07
+   segue fora do escopo do T2); o seed continua sendo a única forma de existir usuário para o
+   roteiro de login. Cai quando o cadastro entrar.
+3. ~~O `PasswordHash` placeholder dos usuários de demonstração~~ — **caiu.** BE-06 trouxe hash
+   real (PBKDF2), e o seed (BE-33 CA-09) regrava automaticamente qualquer hash placeholder ou
+   senha de demonstração desatualizada que encontrar.
+
+## Pendências na VM (T2)
+
+O que falta fazer manualmente, na VM real, para fechar BE-37 (nada disto foi executado por
+este agente — só preparado no repositório):
+
+- [ ] Criar a regra de firewall `todolist-allow-gateway` e revisar `todolist-allow-grpc-internal`
+      para `tcp:5081,5101` (seção 1).
+- [ ] Reservar o IP estático da `maquina-1-psd` (seção 1.1).
+- [ ] Subir o novo `todolist-deploy.tar.gz` (`scripts/publish.ps1` + upload pelo SSH do
+      navegador).
+- [ ] Editar os três `.env` na VM com os segredos reais: `identity.env` (`Jwt__SigningKey`
+      gerada com `openssl rand -base64 48`, `Jwt__Issuer`/`Jwt__Audience`,
+      `UserStore__DemoUserPassword`), `tasks.env` (remover `Tasks__AllowAnonymousCreate`),
+      `gateway.env` (criado a partir do `.example`, sem segredo).
+- [ ] Rodar `sudo ./install-on-vm.sh` e confirmar as três units `active` na ordem
+      Identity → Tasks → Gateway.
+- [ ] Verificar de fora da VPC: `curl --max-time 3` no IP externo confirma que 8080 responde e
+      que 5080/5081/5100/5101 **não** respondem (seção 1).
+- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde contra `http://<IP_EXTERNO>:8080`.
+- [ ] Medir e registrar na seção 7 o tempo do roteiro de subida completo, do upload do
+      tarball às três units `active` e à verificação de fora (CA-06 de BE-37).
+- [ ] Ensaio cronometrado do roteiro de apresentação (`tmux-demo.sh` + `demo.sh`), com pelo
+      menos uma execução real do caminho de indisponibilidade e a religada do serviço
+      conferida no fim.

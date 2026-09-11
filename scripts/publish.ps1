@@ -9,6 +9,7 @@
 
         publish/identity/       binário do Identity Service (linux-x64)
         publish/tasks/          binário do Tasks Service (linux-x64)
+        publish/gateway/        binário do API Gateway (linux-x64)
         sql/01-identity.sql     script idempotente das migrations do Identity
         sql/02-tasks.sql        script idempotente das migrations do Tasks
         todolist-deploy.tar.gz  tudo acima + os arquivos de deploy, num arquivo só
@@ -114,6 +115,7 @@ New-Item -ItemType Directory -Path $sqlRoot -Force | Out-Null
 $servicos = @(
     @{ Nome = 'identity'; Projeto = 'src/Identity/TodoList.Identity.Api' }
     @{ Nome = 'tasks';    Projeto = 'src/Tasks/TodoList.Tasks.Api' }
+    @{ Nome = 'gateway';  Projeto = 'src/Gateway/TodoList.Gateway.Api' }
 )
 
 $selfContainedFlag = if ($SelfContained) { 'true' } else { 'false' }
@@ -182,12 +184,14 @@ Copy-Item $publishRoot -Destination (Join-Path $stage 'publish') -Recurse
 Copy-Item $sqlRoot -Destination (Join-Path $stage 'sql') -Recurse
 Copy-Item (Join-Path $root 'deploy/todolist-identity.service') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/todolist-tasks.service') -Destination $stage
+Copy-Item (Join-Path $root 'deploy/todolist-gateway.service') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/install-on-vm.sh') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/smoke.sh') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/demo.sh') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/tmux-demo.sh') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/identity.env.example') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/tasks.env.example') -Destination $stage
+Copy-Item (Join-Path $root 'deploy/gateway.env.example') -Destination $stage
 
 $tarball = Join-Path $OutputRoot 'todolist-deploy.tar.gz'
 if (Test-Path $tarball) { Remove-Item $tarball -Force }

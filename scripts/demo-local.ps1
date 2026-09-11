@@ -1,17 +1,19 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Sobe o ambiente completo do T1 na máquina local: Postgres, migrations na ordem
-    correta e os dois microsserviços, cada um na sua própria janela.
+    Sobe o ambiente completo do T2 na máquina local: Postgres, migrations na ordem
+    correta e os três microsserviços (Identity, Tasks, Gateway), cada um na sua
+    própria janela.
 
 .DESCRIPTION
-    Automatiza a seção "Rodando os dois serviços" do README.md — o mesmo roteiro que
-    será executado na apresentação, só que contra localhost. As duas janelas separadas
-    não são estética: o par de linhas de log com o mesmo traceId, uma em cada serviço,
-    é a evidência de que a chamada gRPC cruzou a fronteira entre eles.
+    Automatiza a seção "Rodando o T2" do README.md — o mesmo roteiro que será
+    executado na apresentação, só que contra localhost. As três janelas separadas
+    não são estética: o trio de linhas de log com o mesmo traceId, uma em cada
+    serviço, é a evidência de que a requisição atravessou Gateway -> Tasks ->
+    Identity (e Gateway -> Identity, na validação do token) por gRPC.
 
-    Depois que este script terminar, dispare os quatro caminhos com:
-        ./scripts/demo-curl.ps1
+    Depois que este script terminar, dispare os seis passos com:
+        ./scripts/demo-t2.ps1 -DemoPassword <a senha impressa abaixo>
 
 .PARAMETER SkipMigrations
     Pula o 'dotnet ef database update' dos dois serviços. Use em ensaios repetidos,
@@ -36,6 +38,18 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $identityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=$PostgresPassword"
 $tasksDb = $identityDb
+
+# Jwt:SigningKey (BE-08) NUNCA é versionada — nem aqui. Uma chave aleatória de
+# 48 bytes por execução, só para esta demonstração local; passada ao processo
+# do Identity por variável de ambiente (Jwt__SigningKey), nunca gravada em
+# appsettings*.json. O Tasks Service não recebe esta variável (D-31, CA-14 de
+# BE-08): ele não valida JWT.
+$jwtSigningKey = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+
+# UserStore:DemoUserPassword (BE-33) também NUNCA é versionada. Senha aleatória
+# por execução, impressa no console para o roteiro de login — o seed regrava o
+# hash dos dois usuários de demonstração toda vez que ela mudar (idempotente).
+$demoUserPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(12))
 
 function Write-Etapa([string]$texto) {
     Write-Host ""
@@ -100,40 +114,62 @@ $comandoIdentity = @(
     "`$env:ConnectionStrings__IdentityDb = '$identityDb'"
     "`$env:UserStore__Provider = 'Persisted'"
     "`$env:UserStore__SeedDemoUsers = 'true'"
+    "`$env:UserStore__DemoUserPassword = '$demoUserPassword'"
+    "`$env:Jwt__SigningKey = '$jwtSigningKey'"
     "`$env:ASPNETCORE_ENVIRONMENT = 'Development'"
     "`$Host.UI.RawUI.WindowTitle = 'IDENTITY (servidor gRPC) — 5080 REST / 5081 gRPC'"
     'dotnet run --project src/Identity/TodoList.Identity.Api --no-launch-profile'
 ) -join '; '
 
-# AllowAnonymousCreate é o modo provisório de BE-29: a identidade vem do header
-# X-User-Id porque a autenticação (BE-13/API Gateway) ainda não existe. Só para
-# ambiente local e de demonstração — nunca em ambiente exposto.
+# O Tasks não tem mais gatilho REST próprio (BE-35): só é alcançável por gRPC,
+# pelo Gateway. A identidade do dono da tarefa chega pela metadata gRPC
+# x-user-id, preenchida pelo Gateway depois de validar o token (D-34) — o
+# Tasks não recebe, e não precisa de, nenhuma variável de autenticação.
 $comandoTasks = @(
     "Set-Location '$root'"
     "`$env:ConnectionStrings__TasksDb = '$tasksDb'"
-    "`$env:Tasks__AllowAnonymousCreate = 'true'"
     "`$env:ASPNETCORE_ENVIRONMENT = 'Development'"
-    "`$Host.UI.RawUI.WindowTitle = 'TASKS (cliente gRPC) — 5100 REST'"
+    "`$Host.UI.RawUI.WindowTitle = 'TASKS (servidor gRPC) — 5101 gRPC'"
     'dotnet run --project src/Tasks/TodoList.Tasks.Api --no-launch-profile'
+) -join '; '
+
+# O Gateway é a única borda REST (D-32): nenhuma variável de conexão com banco,
+# nenhuma chave Jwt:* — ele nunca valida token localmente, só pergunta ao
+# Identity via ValidateToken (D-31). Os endereços gRPC default de
+# appsettings.Development.json (localhost:5081/5101) já apontam para os dois
+# processos acima, então nenhuma variável de Backends:* é necessária aqui.
+$comandoGateway = @(
+    "Set-Location '$root'"
+    "`$env:ASPNETCORE_ENVIRONMENT = 'Development'"
+    "`$Host.UI.RawUI.WindowTitle = 'GATEWAY (borda REST) — 8080 HTTP'"
+    'dotnet run --project src/Gateway/TodoList.Gateway.Api --no-launch-profile'
 ) -join '; '
 
 Write-Etapa 'Abrindo o Identity Service em uma janela separada'
 Start-Process pwsh -ArgumentList '-NoExit', '-Command', $comandoIdentity
 Wait-Endpoint 'http://localhost:5080/health' 'Identity'
 
-# O Identity precisa estar no ar ANTES do Tasks. Não é obrigatório para o Tasks
-# iniciar — ele só falha na primeira criação, com 503 (D-28) —, mas subir fora de
-# ordem faz o primeiro teste do ensaio dar 503 e parecer defeito.
+# O Identity precisa estar no ar ANTES do Tasks e do Gateway. Não é obrigatório
+# para o Tasks/Gateway iniciarem — eles só falham na primeira chamada, com 503
+# (D-28) —, mas subir fora de ordem faz o primeiro teste do ensaio dar 503 e
+# parecer defeito.
 Write-Etapa 'Abrindo o Tasks Service em uma janela separada'
 Start-Process pwsh -ArgumentList '-NoExit', '-Command', $comandoTasks
 Wait-Endpoint 'http://localhost:5100/health' 'Tasks'
 
+Write-Etapa 'Abrindo o API Gateway em uma janela separada'
+Start-Process pwsh -ArgumentList '-NoExit', '-Command', $comandoGateway
+Wait-Endpoint 'http://localhost:8080/health' 'Gateway'
+
 Write-Host ""
 Write-Host 'Ambiente no ar.' -ForegroundColor Green
 Write-Host ''
-Write-Host '  Identity  http://localhost:5080  (REST)   http://localhost:5081 (gRPC h2c)'
-Write-Host '  Tasks     http://localhost:5100  (REST)'
+Write-Host '  Identity  http://localhost:5080  (REST /health)   http://localhost:5081 (gRPC h2c)'
+Write-Host '  Tasks     http://localhost:5100  (REST /health)   http://localhost:5101 (gRPC h2c)'
+Write-Host '  Gateway   http://localhost:8080  (REST — a única borda pública, D-32)'
 Write-Host ''
-Write-Host '  Próximo passo:  ./scripts/demo-curl.ps1'
-Write-Host '  Para encerrar:  feche as duas janelas (Ctrl+C) e rode  docker compose down'
+Write-Host "  Senha dos usuários de demonstração (Login, BE-33): $demoUserPassword" -ForegroundColor Yellow
+Write-Host ''
+Write-Host "  Próximo passo:  ./scripts/demo-t2.ps1 -DemoPassword $demoUserPassword"
+Write-Host '  Para encerrar:  feche as três janelas (Ctrl+C) e rode  docker compose down'
 Write-Host ''
