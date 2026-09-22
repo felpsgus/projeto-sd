@@ -9,32 +9,31 @@ using Xunit;
 namespace TodoList.Identity.UnitTests.Security;
 
 /// <summary>
-/// <see cref="JwtOptions"/> (BE-08) — CA-02 (issuer/audience/chave ausentes
-/// falham o start) e CA-03 (chave menor que 32 bytes falha, 32 bytes passa),
-/// no mesmo padrão de <see cref="OptionsValidationTests"/>: sobe um
-/// <see cref="IHost"/> mínimo com <c>ValidateOnStart</c> de verdade, não
-/// chama <c>Validate</c> diretamente.
+/// <see cref="JwtOptions"/> (BE-08, RS256 desde BE-40/D-38) — CA-03 (sem
+/// <c>PrivateKeyPath</c>), CA-04 (arquivo inexistente), CA-05 (arquivo que
+/// não é PEM PKCS8) e CA-06 (chave RSA menor que 2048 bits), no mesmo padrão
+/// de <see cref="OptionsValidationTests"/>: sobe um <see cref="IHost"/>
+/// mínimo com <c>ValidateOnStart</c> de verdade, não chama <c>Validate</c>
+/// diretamente. Nenhuma chave de teste é versionada — geradas em memória
+/// (<see cref="TestRsaKeyFile"/>) e gravadas num arquivo temporário só para o
+/// teste que precisa de um caminho real.
 /// </summary>
 public class JwtOptionsValidationTests
 {
-    private const string ValidSigningKey = "01234567890123456789012345678901"; // 33 bytes ASCII
-
-    [Fact] // CA-02
-    public async Task Host_SemNenhumaChaveDeJwt_FalhaAoIniciar()
+    [Fact] // CA-03
+    public async Task Host_SemNenhumaConfiguracaoDeJwt_FalhaAoIniciar()
     {
         var act = () => StartHostAsync(settings: []);
 
         await act.Should().ThrowAsync<OptionsValidationException>();
     }
 
-    [Fact] // CA-02
+    [Fact] // CA-03
     public async Task Host_SemIssuer_FalhaAoIniciarComMensagemNomeandoAChave()
     {
-        var settings = new Dictionary<string, string?>
-        {
-            [$"{JwtOptions.SectionName}:{nameof(JwtOptions.Audience)}"] = "todolist",
-            [$"{JwtOptions.SectionName}:{nameof(JwtOptions.SigningKey)}"] = ValidSigningKey,
-        };
+        using var chave = TestRsaKeyFile.Create();
+        var settings = ValidSettings(chave.Path);
+        settings.Remove($"{JwtOptions.SectionName}:{nameof(JwtOptions.Issuer)}");
 
         var act = () => StartHostAsync(settings);
 
@@ -42,14 +41,12 @@ public class JwtOptionsValidationTests
             .Which.Message.Should().Contain("Jwt:Issuer");
     }
 
-    [Fact] // CA-02
+    [Fact] // CA-03
     public async Task Host_SemAudience_FalhaAoIniciarComMensagemNomeandoAChave()
     {
-        var settings = new Dictionary<string, string?>
-        {
-            [$"{JwtOptions.SectionName}:{nameof(JwtOptions.Issuer)}"] = "todolist-identity",
-            [$"{JwtOptions.SectionName}:{nameof(JwtOptions.SigningKey)}"] = ValidSigningKey,
-        };
+        using var chave = TestRsaKeyFile.Create();
+        var settings = ValidSettings(chave.Path);
+        settings.Remove($"{JwtOptions.SectionName}:{nameof(JwtOptions.Audience)}");
 
         var act = () => StartHostAsync(settings);
 
@@ -57,8 +54,8 @@ public class JwtOptionsValidationTests
             .Which.Message.Should().Contain("Jwt:Audience");
     }
 
-    [Fact] // CA-02
-    public async Task Host_SemSigningKey_FalhaAoIniciarComMensagemNomeandoAChave()
+    [Fact] // CA-03 — PrivateKeyPath ausente
+    public async Task Host_SemPrivateKeyPath_FalhaAoIniciarComMensagemNomeandoAChave()
     {
         var settings = new Dictionary<string, string?>
         {
@@ -69,27 +66,61 @@ public class JwtOptionsValidationTests
         var act = () => StartHostAsync(settings);
 
         (await act.Should().ThrowAsync<OptionsValidationException>())
-            .Which.Message.Should().Contain("Jwt:SigningKey");
+            .Which.Message.Should().Contain("Jwt:PrivateKeyPath");
     }
 
-    [Fact] // CA-03 — mensagem nomeia a chave, nunca o valor recebido
-    public async Task Host_ComSigningKeyMenorQue32Bytes_FalhaAoIniciar()
+    [Fact] // CA-04 — arquivo inexistente
+    public async Task Host_ComPrivateKeyPathApontandoParaArquivoInexistente_FalhaAoIniciar()
     {
-        var chaveCurta = new string('a', 31);
-        var settings = ValidSettings(signingKey: chaveCurta);
+        var caminhoInexistente = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"nao-existe-{Guid.NewGuid():N}.pem");
+        var settings = ValidSettings(caminhoInexistente);
 
         var act = () => StartHostAsync(settings);
 
         var assertion = await act.Should().ThrowAsync<OptionsValidationException>();
-        assertion.Which.Message.Should().Contain("Jwt:SigningKey");
-        assertion.Which.Message.Should().NotContain(chaveCurta, "a mensagem de erro nunca expõe o valor da chave");
+        assertion.Which.Message.Should().Contain("Jwt:PrivateKeyPath");
+        assertion.Which.Message.Should().NotContain(caminhoInexistente, "a mensagem nunca expõe o caminho resolvido");
     }
 
-    [Fact] // CA-03
-    public async Task Host_ComSigningKeyDe32Bytes_IniciaSemErro()
+    [Fact] // CA-05 — arquivo existe, mas não é PEM PKCS8
+    public async Task Host_ComPrivateKeyPathApontandoParaTextoArbitrario_FalhaAoIniciar()
     {
-        var chaveMinima = new string('a', 32);
-        var settings = ValidSettings(signingKey: chaveMinima);
+        var caminho = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"nao-e-um-pem-{Guid.NewGuid():N}.pem");
+        await File.WriteAllTextAsync(caminho, "isto não é um PEM, é só texto qualquer");
+        try
+        {
+            var settings = ValidSettings(caminho);
+
+            var act = () => StartHostAsync(settings);
+
+            var assertion = await act.Should().ThrowAsync<OptionsValidationException>();
+            assertion.Which.Message.Should().Contain("Jwt:PrivateKeyPath");
+            assertion.Which.Message.Should().NotContain("não é um PEM, é só texto qualquer", "a mensagem nunca expõe o conteúdo do arquivo");
+        }
+        finally
+        {
+            File.Delete(caminho);
+        }
+    }
+
+    [Fact] // CA-06 — chave RSA de 1024 bits
+    public async Task Host_ComChaveRsaDe1024Bits_FalhaAoIniciarComMensagemIndicandoOMinimo()
+    {
+        using var chave = TestRsaKeyFile.Create(keySizeInBits: 1024);
+        var settings = ValidSettings(chave.Path);
+
+        var act = () => StartHostAsync(settings);
+
+        var assertion = await act.Should().ThrowAsync<OptionsValidationException>();
+        assertion.Which.Message.Should().Contain("Jwt:PrivateKeyPath");
+        assertion.Which.Message.Should().Contain("2048");
+    }
+
+    [Fact] // CA-06 — chave RSA de 2048 bits inicia sem erro
+    public async Task Host_ComChaveRsaDe2048Bits_IniciaSemErro()
+    {
+        using var chave = TestRsaKeyFile.Create(keySizeInBits: 2048);
+        var settings = ValidSettings(chave.Path);
 
         using var host = await StartHostAsync(settings);
 
@@ -99,7 +130,9 @@ public class JwtOptionsValidationTests
     [Fact]
     public async Task Host_ComConfiguracaoValidaCompleta_IniciaSemErro()
     {
-        using var host = await StartHostAsync(ValidSettings(ValidSigningKey));
+        using var chave = TestRsaKeyFile.Create();
+
+        using var host = await StartHostAsync(ValidSettings(chave.Path));
 
         var options = host.Services.GetRequiredService<IOptions<JwtOptions>>().Value;
         options.Issuer.Should().Be("todolist-identity");
@@ -110,11 +143,11 @@ public class JwtOptionsValidationTests
         await host.StopAsync();
     }
 
-    private static Dictionary<string, string?> ValidSettings(string signingKey) => new()
+    private static Dictionary<string, string?> ValidSettings(string privateKeyPath) => new()
     {
         [$"{JwtOptions.SectionName}:{nameof(JwtOptions.Issuer)}"] = "todolist-identity",
         [$"{JwtOptions.SectionName}:{nameof(JwtOptions.Audience)}"] = "todolist",
-        [$"{JwtOptions.SectionName}:{nameof(JwtOptions.SigningKey)}"] = signingKey,
+        [$"{JwtOptions.SectionName}:{nameof(JwtOptions.PrivateKeyPath)}"] = privateKeyPath,
     };
 
     private static async Task<IHost> StartHostAsync(Dictionary<string, string?> settings)

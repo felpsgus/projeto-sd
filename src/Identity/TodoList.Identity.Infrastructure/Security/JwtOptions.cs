@@ -1,22 +1,22 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text;
 
 namespace TodoList.Identity.Infrastructure.Security;
 
 /// <summary>
 /// Configuração de emissão/validação de access token JWT (BE-08, D-02,
-/// D-31), seção <c>Jwt</c>, validada na inicialização — mesmo padrão de
-/// <see cref="PasswordHashingOptions"/> (BE-06). <see cref="SigningKey"/>
-/// nunca é versionada: o <c>appsettings.json</c> do Identity declara
-/// <see cref="Issuer"/>/<see cref="Audience"/>, mas não a chave (ver README,
-/// seção "Configuração").
+/// D-38), seção <c>Jwt</c>, validada na inicialização — mesmo padrão de
+/// <see cref="PasswordHashingOptions"/> (BE-06). RS256 substitui o desenho
+/// HS256 original (D-31): a chave privada em <see cref="PrivateKeyPath"/>
+/// nunca é versionada, só o caminho do arquivo PEM é configuração — e nem
+/// esse caminho aparece em <c>appsettings.json</c> compartilhado (ver
+/// README, seção "Configuração").
 /// </summary>
 public sealed class JwtOptions : IValidatableObject
 {
     public const string SectionName = "Jwt";
 
-    /// <summary>Tamanho mínimo de <see cref="SigningKey"/>, em bytes UTF-8 (CA-03 de BE-08).</summary>
-    public const int MinimumSigningKeyLengthInBytes = 32;
+    /// <summary>Tamanho mínimo da chave RSA, em bits (CA-06 de BE-40).</summary>
+    public const int MinimumKeySizeInBits = 2048;
 
     public const int DefaultAccessTokenMinutes = 15;
 
@@ -29,13 +29,19 @@ public sealed class JwtOptions : IValidatableObject
     public string Audience { get; init; } = string.Empty;
 
     /// <summary>
-    /// Chave simétrica de assinatura HS256. Obrigatória e com no mínimo
-    /// <see cref="MinimumSigningKeyLengthInBytes"/> bytes em UTF-8 — validado
-    /// em <see cref="Validate"/>, nunca por <c>[Required]</c>/<c>[MinLength]</c>
-    /// simples, para a mensagem de erro nomear só a chave de configuração
-    /// (<c>Jwt:SigningKey</c>), nunca o valor recebido.
+    /// Caminho de um arquivo PEM PKCS#8 com a chave privada RSA (D-38).
+    /// Obrigatório — validado em <see cref="Validate"/>, nunca por
+    /// <c>[Required]</c> simples, para a mensagem de erro nomear só a chave
+    /// de configuração (<c>Jwt:PrivateKeyPath</c>), nunca o conteúdo do
+    /// arquivo. Um caminho relativo é resolvido contra o
+    /// <c>ContentRootPath</c> do host — não contra o diretório corrente —
+    /// por um <c>PostConfigure&lt;JwtOptions&gt;</c> registrado em
+    /// <c>Program.cs</c> (a única camada que conhece
+    /// <c>IHostEnvironment</c>). Por isso a propriedade tem <c>set</c>, não
+    /// <c>init</c>: é a exceção a essa convenção nas Options do Identity.
     /// </summary>
-    public string SigningKey { get; init; } = string.Empty;
+    [Required(ErrorMessage = "Jwt:PrivateKeyPath é obrigatório.")]
+    public string PrivateKeyPath { get; set; } = string.Empty;
 
     /// <summary>Duração do access token, em minutos (D-02). Padrão 15, faixa 1–60 (RN-AUTH-11).</summary>
     [Range(1, 60, ErrorMessage = "Jwt:AccessTokenMinutes deve estar entre 1 e 60.")]
@@ -46,26 +52,59 @@ public sealed class JwtOptions : IValidatableObject
     public int RefreshTokenDays { get; init; } = DefaultRefreshTokenDays;
 
     /// <summary>
-    /// CA-02/CA-03: <see cref="SigningKey"/> ausente ou menor que
-    /// <see cref="MinimumSigningKeyLengthInBytes"/> bytes falha a
-    /// inicialização com uma mensagem que nomeia <c>Jwt:SigningKey</c> — o
-    /// valor da chave nunca aparece na mensagem.
+    /// CA-03 a CA-06 de BE-40: <see cref="PrivateKeyPath"/> ausente,
+    /// apontando para arquivo inexistente, ilegível, não parseável como PEM
+    /// PKCS8 ou com chave RSA menor que <see cref="MinimumKeySizeInBits"/>
+    /// bits falha a inicialização com uma mensagem que nomeia
+    /// <c>Jwt:PrivateKeyPath</c> — nunca o conteúdo do arquivo, nem o
+    /// caminho resolvido.
     /// </summary>
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (string.IsNullOrEmpty(SigningKey))
+        if (string.IsNullOrEmpty(PrivateKeyPath))
         {
             yield return new ValidationResult(
-                "Jwt:SigningKey é obrigatória (variável de ambiente/secret — nunca versionada).",
-                [nameof(SigningKey)]);
+                "Jwt:PrivateKeyPath é obrigatório (caminho de um arquivo PEM PKCS8 de chave privada RSA).",
+                [nameof(PrivateKeyPath)]);
             yield break;
         }
 
-        if (Encoding.UTF8.GetByteCount(SigningKey) < MinimumSigningKeyLengthInBytes)
+        var (rsa, failure) = RsaPrivateKeyLoader.TryLoad(PrivateKeyPath);
+
+        using (rsa)
         {
-            yield return new ValidationResult(
-                $"Jwt:SigningKey deve ter no mínimo {MinimumSigningKeyLengthInBytes} bytes em UTF-8.",
-                [nameof(SigningKey)]);
+            switch (failure)
+            {
+                case RsaPrivateKeyLoadFailure.None:
+                    if (rsa!.KeySize < MinimumKeySizeInBits)
+                    {
+                        yield return new ValidationResult(
+                            $"Jwt:PrivateKeyPath aponta para uma chave RSA menor que o mínimo exigido " +
+                            $"({MinimumKeySizeInBits} bits).",
+                            [nameof(PrivateKeyPath)]);
+                    }
+
+                    break;
+
+                case RsaPrivateKeyLoadFailure.FileNotFound:
+                    yield return new ValidationResult(
+                        "Jwt:PrivateKeyPath aponta para um arquivo que não existe.",
+                        [nameof(PrivateKeyPath)]);
+                    break;
+
+                case RsaPrivateKeyLoadFailure.Unreadable:
+                    yield return new ValidationResult(
+                        "Jwt:PrivateKeyPath aponta para um arquivo que não pôde ser lido (permissão).",
+                        [nameof(PrivateKeyPath)]);
+                    break;
+
+                case RsaPrivateKeyLoadFailure.InvalidPem:
+                default:
+                    yield return new ValidationResult(
+                        "Jwt:PrivateKeyPath não aponta para um PEM PKCS8 de chave privada RSA válido.",
+                        [nameof(PrivateKeyPath)]);
+                    break;
+            }
         }
     }
 }

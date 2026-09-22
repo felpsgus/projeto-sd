@@ -13,6 +13,7 @@ using TodoList.Identity.Application.Security;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
+using TodoList.Identity.UnitTests.Security;
 using Xunit;
 
 namespace TodoList.Identity.UnitTests;
@@ -22,7 +23,7 @@ namespace TodoList.Identity.UnitTests;
 /// <see cref="IUserRepository"/> e <see cref="IAccessTokenValidator"/>
 /// substituídos — BE-26 (CA-05 a CA-09), BE-33 e BE-34.
 /// </summary>
-public class IdentityGrpcServiceTests
+public class IdentityGrpcServiceTests : IDisposable
 {
     private static readonly Guid _activeUserId = Guid.Parse("30000000-0000-0000-0000-000000000001");
     private static readonly Guid _inactiveUserId = Guid.Parse("30000000-0000-0000-0000-000000000002");
@@ -36,6 +37,7 @@ public class IdentityGrpcServiceTests
     private readonly IAccessTokenValidator _accessTokenValidator = Substitute.For<IAccessTokenValidator>();
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 10 }));
     private readonly FakeTimeProvider _timeProvider = new(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
+    private readonly TestRsaKeyFile _jwtKeyFile = TestRsaKeyFile.Create();
     private readonly User _registeredUser;
 
     public IdentityGrpcServiceTests()
@@ -255,11 +257,17 @@ public class IdentityGrpcServiceTests
         await _userRepository.DidNotReceive().GetByEmailAsync(Arg.Any<Email>(), Arg.Any<CancellationToken>());
     }
 
+    public void Dispose()
+    {
+        _jwtKeyFile.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     private IdentityGrpcService CreateService(string provider = UserStoreOptions.PersistedProvider, ILogger<IdentityGrpcService>? logger = null)
     {
-        var tokenService = new JwtTokenService(
-            Options.Create(new JwtOptions { Issuer = "todolist-identity", Audience = "todolist", SigningKey = "01234567890123456789012345678901" }),
-            _timeProvider);
+        var jwtOptions = Options.Create(new JwtOptions { Issuer = "todolist-identity", Audience = "todolist", PrivateKeyPath = _jwtKeyFile.Path });
+        var signingKeyProvider = new RsaSigningKeyProvider(jwtOptions);
+        var tokenService = new JwtTokenService(jwtOptions, _timeProvider, signingKeyProvider);
         var dummyPasswordHash = new DummyPasswordHash(_passwordHasher);
         var loginHandler = new LoginHandler(_userRepository, _passwordHasher, tokenService, dummyPasswordHash);
         var userStoreOptions = Options.Create(new UserStoreOptions { Provider = provider });

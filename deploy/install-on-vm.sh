@@ -77,10 +77,12 @@ for arquivo in /etc/todolist/identity.env /etc/todolist/tasks.env /etc/todolist/
         chmod 600 "$arquivo"
         chown root:root "$arquivo"
         # TROQUE_ESTA_SENHA cobre a connection string e a UserStore__DemoUserPassword
-        # do identity.env; TROQUE_ESTA_CHAVE cobre a Jwt__SigningKey. O gateway.env
-        # não tem segredo (D-31), mas passa pelo mesmo portão por consistência e
-        # para pegar o caso de alguém copiar o .example sem editar os endereços.
-        if grep -qE 'TROQUE_ESTA_SENHA|TROQUE_ESTA_CHAVE' "$arquivo"; then
+        # do identity.env e do tasks.env. Desde BE-40 (D-38/RS256) não existe mais
+        # TROQUE_ESTA_CHAVE — a chave JWT não é uma variável de .env, é o par de
+        # arquivos PEM gerado logo abaixo, na própria VM. O gateway.env não tem
+        # segredo, mas passa pelo mesmo portão por consistência e para pegar o
+        # caso de alguém copiar o .example sem editar os endereços.
+        if grep -qE 'TROQUE_ESTA_SENHA' "$arquivo"; then
             echo "    ATENÇÃO: $arquivo ainda tem um valor placeholder." >&2
             faltando=1
         fi
@@ -91,6 +93,36 @@ if [[ $faltando -eq 1 ]]; then
     echo "" >&2
     echo "Crie os arquivos de ambiente a partir de deploy/*.env.example antes de continuar." >&2
     exit 1
+fi
+
+echo "==> Chave JWT RS256 (BE-40, D-38)"
+# Idempotente e deliberadamente silenciosa: se o par já existe, não regera —
+# trocar a chave invalida todo token já emitido (D-38, "Rotação de chave fica
+# fora do escopo desta task"). Gerada SEMPRE na própria VM, nunca copiada de
+# um ambiente de teste ou de outro lugar (BE-40, seção "Chaves").
+JWT_DIR=/etc/todolist/jwt
+if [[ ! -f "$JWT_DIR/private.pem" ]]; then
+    mkdir -p "$JWT_DIR"
+    chown root:root "$JWT_DIR"
+    chmod 0755 "$JWT_DIR"
+
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$JWT_DIR/private.pem"
+    openssl pkey -in "$JWT_DIR/private.pem" -pubout -out "$JWT_DIR/public.pem"
+
+    # private.pem: só a unit do Identity a recebe, via LoadCredential= (as três
+    # units rodam como o MESMO usuário todolist, então permissão por dono não
+    # isolaria a chave do Gateway/Tasks — dono root e 0400 é o que isola).
+    chown root:root "$JWT_DIR/private.pem"
+    chmod 0400 "$JWT_DIR/private.pem"
+
+    # public.pem não é segredo — só verifica, não assina. Modo 0444: legível
+    # por qualquer processo da VM, lido direto pelo Gateway.
+    chown root:root "$JWT_DIR/public.pem"
+    chmod 0444 "$JWT_DIR/public.pem"
+
+    echo "    par gerado em $JWT_DIR (nunca impresso, nunca versionado)"
+else
+    echo "    já existe: $JWT_DIR/private.pem (não regerado — trocar a chave invalida tokens emitidos)"
 fi
 
 echo "==> Instalando units do systemd"

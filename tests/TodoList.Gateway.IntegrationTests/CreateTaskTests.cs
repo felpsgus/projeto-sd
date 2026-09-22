@@ -20,8 +20,9 @@ using FakeTaskReply = Fakes::TodoList.Gateway.IntegrationTests.Fakes.FakeTaskRep
 namespace TodoList.Gateway.IntegrationTests;
 
 /// <summary>
-/// BE-36 — <c>POST /api/tasks</c>: CA-01, CA-04 a CA-08, CA-16 a CA-18,
-/// CA-25, CA-26 e o repasse de metadata (<c>x-user-id</c>, <c>x-client-date</c>).
+/// BE-36/BE-40 — <c>POST /api/tasks</c>: CA-01, CA-04 a CA-08, CA-16 a CA-18,
+/// CA-20, CA-23, CA-25, CA-26 e o repasse de metadata (<c>x-user-id</c>,
+/// <c>x-client-date</c>).
 /// </summary>
 public class CreateTaskTests : IClassFixture<GatewayApiFactory>
 {
@@ -32,7 +33,6 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
     public CreateTaskTests(GatewayApiFactory factory)
     {
         _factory = factory;
-        _factory.Identity.ValidateTokenHandler = _ => (true, AuthenticatedUserId);
     }
 
     [Fact] // CA-01, CA-04
@@ -64,6 +64,10 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
         body.Title.Should().Be("Comprar leite");
         body.Priority.Should().Be("Medium");
         body.Status.Should().Be("Pending");
+
+        // CA-20, BE-40: autenticação é local (AddJwtBearer) — nenhuma chamada
+        // gRPC ValidateToken acontece no caminho de uma requisição autenticada.
+        _factory.Identity.ValidateTokenCallCount.Should().Be(0);
     }
 
     [Fact] // CA-05
@@ -155,7 +159,7 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
         body.Should().Contain(errorCode);
     }
 
-    [Theory] // CA-18
+    [Theory] // CA-18, CA-23 (BE-40): token RS256 válido chega ao Tasks — quem falha é o Tasks/ValidateUser
     [InlineData(StatusCode.Unavailable)]
     [InlineData(StatusCode.DeadlineExceeded)]
     public async Task CreateTask_TasksIndisponivelOuDeadline_Retorna503ComRetryAfter(StatusCode statusCode)
@@ -171,8 +175,8 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
         response.Headers.RetryAfter.Should().NotBeNull();
     }
 
-    [Fact] // CA-25 — traceparent chega às duas chamadas gRPC de saída
-    public async Task CreateTask_TraceparentDaRequisicaoDeEntrada_ChegaAoValidateTokenEAoCreateTask()
+    [Fact] // CA-25 — traceparent chega à chamada gRPC de saída ao Tasks
+    public async Task CreateTask_TraceparentDaRequisicaoDeEntrada_ChegaAoCreateTask()
     {
         var now = DateTimeOffset.UtcNow;
         _factory.Tasks.CreateTaskHandler = request =>
@@ -189,7 +193,9 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        _factory.Identity.LastValidateTokenRequestHeaders!.Get("traceparent").Should().NotBeNull();
+        // BE-40: autenticação é local (AddJwtBearer) — não há mais uma
+        // chamada ValidateToken ao Identity de onde propagar traceparent;
+        // só a chamada ao Tasks é relevante aqui.
         _factory.Tasks.LastCreateTaskRequestHeaders!.Get("traceparent").Should().NotBeNull();
     }
 
@@ -217,8 +223,14 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
 
     private HttpClient AuthenticatedClient()
     {
+        // BE-40: token RS256 de verdade, assinado com a chave que o Gateway
+        // deste fixture está configurado para validar (GatewayApiFactory) —
+        // o Gateway não pergunta mais ao Identity (CA-20), então um "token
+        // qualquer" não passaria pelo AddJwtBearer.
+        var token = JwtTestTokens.CreateValid(_factory.SigningKey, AuthenticatedUserId);
+
         var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "token-de-teste");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         return client;
     }

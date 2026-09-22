@@ -13,6 +13,10 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="7.2.2" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.83.0" />
+    <!-- BE-40: JwtTestTokens forja RS256/HS256/alg=none diretamente, sem
+         depender do Identity de verdade — mesmo pacote/versão que o Identity
+         usa para emitir (TodoList.Identity.Infrastructure). -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />

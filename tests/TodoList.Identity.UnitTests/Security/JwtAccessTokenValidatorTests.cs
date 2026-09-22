@@ -1,7 +1,10 @@
+using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
 using Xunit;
@@ -9,16 +12,15 @@ using Xunit;
 namespace TodoList.Identity.UnitTests.Security;
 
 /// <summary>
-/// <see cref="JwtAccessTokenValidator"/> (BE-08) — CA-01, CA-07 a CA-10, e
-/// entradas malformadas (nulo/vazio/lixo) nunca lançam exceção. O CA-07 usa
-/// <see cref="FakeTimeProvider"/> tanto para emitir quanto para validar —
-/// nunca um token cujo <c>exp</c> já esteja no passado real (nota técnica de
-/// BE-08/BE-34: a armadilha de tempo do <c>JsonWebTokenHandler</c>).
+/// <see cref="JwtAccessTokenValidator"/> (BE-08, RS256 desde BE-40/D-38) —
+/// CA-01, CA-07 a CA-10 (agora com chave RSA), e as novas rejeições exigidas
+/// por D-38: HS256, <c>alg=none</c> e RS256 assinado por outra chave privada
+/// nunca validam — sempre <c>valid=false</c>, nunca exceção. Entradas
+/// malformadas (nulo/vazio/lixo) também nunca lançam. Todas as chaves são
+/// geradas em memória (<see cref="TestRsaKeyFile"/>), nenhuma versionada.
 /// </summary>
 public class JwtAccessTokenValidatorTests
 {
-    private const string SigningKey = "01234567890123456789012345678901"; // 32 bytes
-    private const string OutraChave = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; // 32 bytes, diferente
     private const string Issuer = "todolist-identity";
     private const string Audience = "todolist";
 
@@ -27,9 +29,10 @@ public class JwtAccessTokenValidatorTests
     [Fact] // CA-01
     public async Task ValidateAsync_ComTokenGeradoPeloProprioServico_RetornaValidoComUserId()
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
-        var (tokenService, validator) = CreatePair(timeProvider);
+        var (tokenService, validator, _) = CreatePair(chave.Path, timeProvider);
 
         var accessToken = tokenService.GenerateAccessToken(user);
         var result = await validator.ValidateAsync(accessToken.Token, CancellationToken.None);
@@ -41,9 +44,10 @@ public class JwtAccessTokenValidatorTests
     [Fact] // CA-07 — 1 segundo antes do exp, aceito
     public async Task ValidateAsync_UmSegundoAntesDoExp_Aceita()
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
-        var (tokenService, validator) = CreatePair(timeProvider);
+        var (tokenService, validator, _) = CreatePair(chave.Path, timeProvider);
 
         var accessToken = tokenService.GenerateAccessToken(user);
 
@@ -56,9 +60,10 @@ public class JwtAccessTokenValidatorTests
     [Fact] // CA-07 — 1 segundo depois do exp, rejeitado (ClockSkew zero)
     public async Task ValidateAsync_UmSegundoAposOExp_Rejeita()
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
-        var (tokenService, validator) = CreatePair(timeProvider);
+        var (tokenService, validator, _) = CreatePair(chave.Path, timeProvider);
 
         var accessToken = tokenService.GenerateAccessToken(user);
 
@@ -69,14 +74,16 @@ public class JwtAccessTokenValidatorTests
         result.UserId.Should().BeNull();
     }
 
-    [Fact] // CA-08 — assinado com outra chave
-    public async Task ValidateAsync_ComTokenAssinadoComOutraChave_Rejeita()
+    [Fact] // CA-08/CA-10 (D-38) — RS256 assinado por OUTRA chave privada RSA
+    public async Task ValidateAsync_ComTokenAssinadoComOutraChaveRsa_Rejeita()
     {
+        using var chaveEmitida = TestRsaKeyFile.Create();
+        using var chaveOutra = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
 
-        var tokenServiceComOutraChave = CreateTokenService(timeProvider, signingKey: OutraChave);
-        var validator = CreateValidator(timeProvider, signingKey: SigningKey);
+        var (tokenServiceComOutraChave, _, _) = CreatePair(chaveOutra.Path, timeProvider);
+        var (_, validator, _) = CreatePair(chaveEmitida.Path, timeProvider);
 
         var accessToken = tokenServiceComOutraChave.GenerateAccessToken(user);
         var result = await validator.ValidateAsync(accessToken.Token, CancellationToken.None);
@@ -84,14 +91,41 @@ public class JwtAccessTokenValidatorTests
         result.IsValid.Should().BeFalse();
     }
 
+    [Fact] // D-38 — token HS256 (mesmo com uma chave "parecida") é rejeitado
+    public async Task ValidateAsync_ComTokenHS256_Rejeita()
+    {
+        using var chave = TestRsaKeyFile.Create();
+        var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
+        var (_, validator, _) = CreatePair(chave.Path, timeProvider);
+
+        var hs256Token = CreateHs256Token(timeProvider);
+        var result = await validator.ValidateAsync(hs256Token, CancellationToken.None);
+
+        result.IsValid.Should().BeFalse();
+    }
+
+    [Fact] // D-38 — token com alg=none e sem assinatura é rejeitado
+    public async Task ValidateAsync_ComTokenAlgNone_Rejeita()
+    {
+        using var chave = TestRsaKeyFile.Create();
+        var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
+        var (_, validator, _) = CreatePair(chave.Path, timeProvider);
+
+        var noneToken = CreateUnsignedToken(timeProvider);
+        var result = await validator.ValidateAsync(noneToken, CancellationToken.None);
+
+        result.IsValid.Should().BeFalse();
+    }
+
     [Fact] // CA-09 — issuer diferente
     public async Task ValidateAsync_ComIssuerDiferente_Rejeita()
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
 
-        var tokenServiceComOutroIssuer = CreateTokenService(timeProvider, issuer: "outro-issuer");
-        var validator = CreateValidator(timeProvider, issuer: Issuer);
+        var (tokenServiceComOutroIssuer, _, _) = CreatePair(chave.Path, timeProvider, issuer: "outro-issuer");
+        var (_, validator, _) = CreatePair(chave.Path, timeProvider, issuer: Issuer);
 
         var accessToken = tokenServiceComOutroIssuer.GenerateAccessToken(user);
         var result = await validator.ValidateAsync(accessToken.Token, CancellationToken.None);
@@ -102,11 +136,12 @@ public class JwtAccessTokenValidatorTests
     [Fact] // CA-09 — audience diferente
     public async Task ValidateAsync_ComAudienceDiferente_Rejeita()
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
 
-        var tokenServiceComOutraAudience = CreateTokenService(timeProvider, audience: "outra-audience");
-        var validator = CreateValidator(timeProvider, audience: Audience);
+        var (tokenServiceComOutraAudience, _, _) = CreatePair(chave.Path, timeProvider, audience: "outra-audience");
+        var (_, validator, _) = CreatePair(chave.Path, timeProvider, audience: Audience);
 
         var accessToken = tokenServiceComOutraAudience.GenerateAccessToken(user);
         var result = await validator.ValidateAsync(accessToken.Token, CancellationToken.None);
@@ -117,9 +152,10 @@ public class JwtAccessTokenValidatorTests
     [Fact] // CA-10 — payload alterado quebra a assinatura
     public async Task ValidateAsync_ComPayloadAlterado_Rejeita()
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
         var user = CreateUser(timeProvider);
-        var (tokenService, validator) = CreatePair(timeProvider);
+        var (tokenService, validator, _) = CreatePair(chave.Path, timeProvider);
 
         var accessToken = tokenService.GenerateAccessToken(user);
         var partes = accessToken.Token.Split('.');
@@ -141,8 +177,9 @@ public class JwtAccessTokenValidatorTests
     [InlineData("a.b.c")]
     public async Task ValidateAsync_ComTokenMalformado_RetornaInvalidoSemLancar(string? tokenMalformado)
     {
+        using var chave = TestRsaKeyFile.Create();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
-        var validator = CreateValidator(timeProvider);
+        var (_, validator, _) = CreatePair(chave.Path, timeProvider);
 
         var act = async () => await validator.ValidateAsync(tokenMalformado, CancellationToken.None);
 
@@ -152,26 +189,9 @@ public class JwtAccessTokenValidatorTests
     private static User CreateUser(FakeTimeProvider timeProvider) =>
         User.Create(_email, "Ada Lovelace", "hash-qualquer", timeProvider).Value;
 
-    private static (JwtTokenService TokenService, JwtAccessTokenValidator Validator) CreatePair(FakeTimeProvider timeProvider) =>
-        (CreateTokenService(timeProvider), CreateValidator(timeProvider));
-
-    private static JwtTokenService CreateTokenService(
+    private static (JwtTokenService TokenService, JwtAccessTokenValidator Validator, RsaSigningKeyProvider SigningKeyProvider) CreatePair(
+        string privateKeyPath,
         FakeTimeProvider timeProvider,
-        string signingKey = SigningKey,
-        string issuer = Issuer,
-        string audience = Audience,
-        int accessTokenMinutes = JwtOptions.DefaultAccessTokenMinutes) =>
-        new(Options.Create(new JwtOptions
-        {
-            Issuer = issuer,
-            Audience = audience,
-            SigningKey = signingKey,
-            AccessTokenMinutes = accessTokenMinutes,
-        }), timeProvider);
-
-    private static JwtAccessTokenValidator CreateValidator(
-        FakeTimeProvider timeProvider,
-        string signingKey = SigningKey,
         string issuer = Issuer,
         string audience = Audience)
     {
@@ -179,11 +199,46 @@ public class JwtAccessTokenValidatorTests
         {
             Issuer = issuer,
             Audience = audience,
-            SigningKey = signingKey,
+            PrivateKeyPath = privateKeyPath,
         });
 
-        var validationParameters = new JwtValidationParameters(options, timeProvider);
+        var signingKeyProvider = new RsaSigningKeyProvider(options);
+        var tokenService = new JwtTokenService(options, timeProvider, signingKeyProvider);
+        var validationParameters = new JwtValidationParameters(options, timeProvider, signingKeyProvider);
+        var validator = new JwtAccessTokenValidator(validationParameters, NullLogger<JwtAccessTokenValidator>.Instance);
 
-        return new JwtAccessTokenValidator(validationParameters, NullLogger<JwtAccessTokenValidator>.Instance);
+        return (tokenService, validator, signingKeyProvider);
+    }
+
+    /// <summary>Token HS256 forjado à mão, fora de <see cref="JwtTokenService"/> (que só emite RS256) — usado para provar a rejeição exigida por D-38.</summary>
+    private static string CreateHs256Token(FakeTimeProvider timeProvider)
+    {
+        var chaveSimetrica = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("uma-chave-simetrica-de-32-bytes!"));
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = Issuer,
+            Audience = Audience,
+            IssuedAt = timeProvider.GetUtcNow().UtcDateTime,
+            Expires = timeProvider.GetUtcNow().AddMinutes(15).UtcDateTime,
+            SigningCredentials = new SigningCredentials(chaveSimetrica, SecurityAlgorithms.HmacSha256),
+            Claims = new Dictionary<string, object> { [JwtRegisteredClaimNames.Sub] = Guid.NewGuid().ToString() },
+        };
+
+        return new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false }.CreateToken(descriptor);
+    }
+
+    /// <summary>Token sem assinatura (<c>alg=none</c>) — usado para provar a rejeição exigida por D-38.</summary>
+    private static string CreateUnsignedToken(FakeTimeProvider timeProvider)
+    {
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = Issuer,
+            Audience = Audience,
+            IssuedAt = timeProvider.GetUtcNow().UtcDateTime,
+            Expires = timeProvider.GetUtcNow().AddMinutes(15).UtcDateTime,
+            Claims = new Dictionary<string, object> { [JwtRegisteredClaimNames.Sub] = Guid.NewGuid().ToString() },
+        };
+
+        return new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false }.CreateToken(descriptor);
     }
 }

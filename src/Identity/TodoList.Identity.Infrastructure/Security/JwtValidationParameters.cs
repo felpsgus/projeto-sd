@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -6,28 +5,30 @@ namespace TodoList.Identity.Infrastructure.Security;
 
 /// <summary>
 /// Fonte única dos <see cref="TokenValidationParameters"/> usados para
-/// validar um access token JWT (BE-08). Construído uma vez, a partir de
-/// <see cref="JwtOptions"/> e do <see cref="TimeProvider"/> do processo, e
-/// registrado como singleton (ver <see cref="ServiceCollectionExtensions"/>).
+/// validar um access token JWT (BE-08, RS256 desde D-38). Construído uma
+/// vez, a partir de <see cref="JwtOptions"/>, do <see cref="RsaSigningKeyProvider"/>
+/// (chave pública) e do <see cref="TimeProvider"/> do processo, e registrado
+/// como singleton (ver <see cref="ServiceCollectionExtensions"/>).
 ///
 /// <para>
 /// <b>Reuso obrigatório.</b> Hoje o único consumidor é
 /// <see cref="JwtAccessTokenValidator"/> (por sua vez usado por
-/// <c>IdentityGrpcService.ValidateToken</c>, BE-34). Quando o Bearer entrar
-/// no pipeline HTTP do próprio Identity (fora do recorte do T2, ver D-36),
-/// ele <b>DEVE</b> consumir esta mesma instância — nunca recriar um segundo
-/// <see cref="TokenValidationParameters"/> com issuer/audience/chave/
-/// <see cref="TokenValidationParameters.ClockSkew"/> divergentes.
+/// <c>IdentityGrpcService.ValidateToken</c>, BE-34) — sem consumidor externo
+/// desde que o Gateway passou a validar localmente com a chave pública
+/// (D-38). Quando o Bearer entrar no pipeline HTTP do próprio Identity (fora
+/// do recorte do T2, ver D-36), ele <b>DEVE</b> consumir esta mesma
+/// instância — nunca recriar um segundo <see cref="TokenValidationParameters"/>
+/// com issuer/audience/chave/<see cref="TokenValidationParameters.ClockSkew"/>
+/// divergentes.
 /// </para>
 /// </summary>
 public sealed class JwtValidationParameters
 {
     public TokenValidationParameters Parameters { get; }
 
-    public JwtValidationParameters(IOptions<JwtOptions> options, TimeProvider timeProvider)
+    public JwtValidationParameters(IOptions<JwtOptions> options, TimeProvider timeProvider, RsaSigningKeyProvider signingKeyProvider)
     {
         var jwtOptions = options.Value;
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
 
         Parameters = new TokenValidationParameters
         {
@@ -36,8 +37,21 @@ public sealed class JwtValidationParameters
             ValidateAudience = true,
             ValidAudience = jwtOptions.Audience,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = signingKey,
-            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            IssuerSigningKey = signingKeyProvider.PublicKey,
+
+            // Só RS256 (D-38): recusa qualquer outro algoritmo, inclusive
+            // "none" e HS256 — mesmo que o token venha com assinatura
+            // sintaticamente válida para outro algoritmo. Sem isto, um token
+            // HS256 "assinado" usando a representação textual da chave
+            // pública (que não é secreta) passaria a validação.
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
+
+            // RequireSignedTokens/RequireExpirationTime são redundantes com
+            // RS256 + ValidateLifetime, mas explícitos por defesa em
+            // profundidade — mesma lógica de listar ValidAlgorithms mesmo
+            // sabendo que o Identity só emite RS256 (nota técnica de BE-40).
+            RequireSignedTokens = true,
+            RequireExpirationTime = true,
 
             // ClockSkew padrão do framework é 5 minutos — inaceitável para um
             // token de 15 (D-02): um token "expirado" continuaria sendo

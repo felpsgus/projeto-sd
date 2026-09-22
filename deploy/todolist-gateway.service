@@ -22,10 +22,17 @@ Group=todolist
 WorkingDirectory=/opt/todolist/gateway
 ExecStart=/opt/todolist/gateway/TodoList.Gateway.Api
 
-# O Gateway nao guarda segredo nenhum (nao valida JWT localmente, D-31) — este
-# arquivo so tem os enderecos gRPC internos, mas segue o mesmo padrao dos outros
-# dois units por consistencia e porque pode ganhar valor sensivel no futuro.
+# O Gateway nao guarda segredo nenhum: desde BE-40 (D-38) ele valida o JWT
+# localmente (AddJwtBearer) com a chave PUBLICA, que nao e segredo — fica em
+# /etc/todolist/jwt/public.pem, modo 0444 (qualquer usuario da VM pode ler,
+# inclusive o todolist), gerada por install-on-vm.sh junto da privada. Este
+# arquivo tem os enderecos gRPC internos e Jwt__PublicKeyPath.
 EnvironmentFile=/etc/todolist/gateway.env
+
+# Chave publica JWT (BE-40, D-38). Nao e segredo (so verifica, nao assina), por
+# isso nao precisa de LoadCredential= como a privada do Identity — o caminho
+# fixo e suficiente.
+Environment=Jwt__PublicKeyPath=/etc/todolist/jwt/public.pem
 
 Restart=always
 RestartSec=5

@@ -8,6 +8,7 @@ using TodoList.Identity.Application.Security;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
+using TodoList.Identity.UnitTests.Security;
 using Xunit;
 
 namespace TodoList.Identity.UnitTests;
@@ -20,13 +21,14 @@ namespace TodoList.Identity.UnitTests;
 /// falha produzem exatamente o mesmo <see cref="TodoList.SharedKernel.Error"/>,
 /// e o tempo de resposta não denuncia qual delas ocorreu.
 /// </summary>
-public class LoginHandlerTests
+public class LoginHandlerTests : IDisposable
 {
     private const string RegisteredEmail = "ada@exemplo.com";
     private const string CorrectPassword = "senha-correta-123";
 
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 200 }));
     private readonly FakeTimeProvider _timeProvider = new(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
+    private readonly TestRsaKeyFile _jwtKeyFile = TestRsaKeyFile.Create();
     private readonly User _activeUser;
     private readonly User _inactiveUser;
 
@@ -154,6 +156,12 @@ public class LoginHandlerTests
         return stopwatch.Elapsed.TotalMilliseconds / rounds;
     }
 
+    public void Dispose()
+    {
+        _jwtKeyFile.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     private LoginHandler CreateHandler(params User[] users)
     {
         var repository = Substitute.For<IUserRepository>();
@@ -167,9 +175,9 @@ public class LoginHandlerTests
             .GetByEmailAsync(Arg.Is<Email>(e => users.All(u => u.Email.Value != e.Value)), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        var tokenService = new JwtTokenService(
-            Options.Create(new JwtOptions { Issuer = "todolist-identity", Audience = "todolist", SigningKey = "01234567890123456789012345678901" }),
-            _timeProvider);
+        var jwtOptions = Options.Create(new JwtOptions { Issuer = "todolist-identity", Audience = "todolist", PrivateKeyPath = _jwtKeyFile.Path });
+        var signingKeyProvider = new RsaSigningKeyProvider(jwtOptions);
+        var tokenService = new JwtTokenService(jwtOptions, _timeProvider, signingKeyProvider);
         var dummyPasswordHash = new DummyPasswordHash(_passwordHasher);
 
         return new LoginHandler(repository, _passwordHasher, tokenService, dummyPasswordHash);

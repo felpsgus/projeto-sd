@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -9,11 +8,11 @@ namespace TodoList.Identity.Infrastructure.Security;
 
 /// <summary>
 /// Implementação de <see cref="ITokenService"/> (BE-08) com
-/// <see cref="JsonWebTokenHandler"/>, HS256 e chave simétrica de
-/// <see cref="JwtOptions.SigningKey"/> (D-31 — a chave nunca sai deste
-/// serviço). Sem estado mutável (a chave é lida uma vez do
-/// <see cref="IOptions{TOptions}"/>) e thread-safe — registrado como
-/// singleton (ver <see cref="ServiceCollectionExtensions"/>).
+/// <see cref="JsonWebTokenHandler"/>, RS256 e a chave privada de
+/// <see cref="RsaSigningKeyProvider"/> (D-38 — a chave privada nunca sai
+/// deste serviço; só a pública é distribuída, ao Gateway). Sem estado
+/// mutável (a chave é lida uma vez, no singleton <see cref="RsaSigningKeyProvider"/>)
+/// e thread-safe — registrado como singleton (ver <see cref="ServiceCollectionExtensions"/>).
 /// </summary>
 public sealed class JwtTokenService : ITokenService
 {
@@ -31,13 +30,16 @@ public sealed class JwtTokenService : ITokenService
     private readonly TimeProvider _timeProvider;
     private readonly SigningCredentials _signingCredentials;
 
-    public JwtTokenService(IOptions<JwtOptions> options, TimeProvider timeProvider)
+    public JwtTokenService(IOptions<JwtOptions> options, TimeProvider timeProvider, RsaSigningKeyProvider signingKeyProvider)
     {
         _options = options.Value;
         _timeProvider = timeProvider;
 
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey));
-        _signingCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+        // kid no header (CA-01/CA-02 de BE-40): SigningCredentials com uma
+        // RsaSecurityKey cujo KeyId já vem preenchido (RsaSigningKeyProvider)
+        // faz o JsonWebTokenHandler escrever "kid" automaticamente — nenhum
+        // código aqui precisa tocar no header manualmente.
+        _signingCredentials = new SigningCredentials(signingKeyProvider.PrivateKey, SecurityAlgorithms.RsaSha256);
     }
 
     public AccessToken GenerateAccessToken(User user)

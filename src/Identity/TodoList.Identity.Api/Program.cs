@@ -42,8 +42,12 @@ builder.Services
 builder.Services.AddIdentityPersistence(builder.Configuration);
 
 // Hashing de senha (BE-06): PasswordHashingOptions validado no start +
-// IPasswordHasher singleton (Pbkdf2PasswordHasher).
-builder.Services.AddIdentitySecurity(builder.Configuration);
+// IPasswordHasher singleton (Pbkdf2PasswordHasher). JWT RS256 (BE-08, D-38):
+// JwtOptions validado no start + RsaSigningKeyProvider/JwtTokenService/
+// JwtAccessTokenValidator singletons. builder.Environment é passado para que
+// um Jwt:PrivateKeyPath relativo seja resolvido contra o ContentRootPath do
+// host, não o diretório corrente (ver PostConfigure em ServiceCollectionExtensions).
+builder.Services.AddIdentitySecurity(builder.Configuration, builder.Environment);
 
 // Seleção do store de usuários por configuração (BE-26). "InMemory" não tem
 // dependência escopada, então pode ser Singleton de verdade (uma instância só

@@ -4,16 +4,31 @@ using Xunit;
 namespace TodoList.Gateway.IntegrationTests;
 
 /// <summary>
-/// BE-36, CA-15/D-31 — varredura: nenhuma chave <c>Jwt:*</c>/<c>Jwt__*</c> nem
-/// <c>SigningKey</c> existe em <c>src/Gateway/**</c> — a chave de assinatura
-/// do JWT nunca sai do Identity.
+/// BE-40, D-38 — varredura: nenhum arquivo de <c>src/Gateway/**</c> contém
+/// <c>PrivateKey</c> (em qualquer caixa — o Gateway nunca tem motivo
+/// legítimo para mencionar uma chave privada, só a pública) nem as formas de
+/// configuração <c>Jwt:SigningKey</c>/<c>Jwt__SigningKey</c> (o desenho HS256
+/// anterior, D-31). <c>Jwt:Issuer</c>, <c>Jwt:Audience</c> e
+/// <c>Jwt:PublicKeyPath</c> continuam permitidas — são exatamente as três
+/// chaves de configuração que o Gateway precisa (CA-17).
+///
+/// <para>
+/// <b>Por que não bane a palavra "SigningKey" pura.</b> Diferente de
+/// "PrivateKey", "SigningKey" aparece de forma legítima e inevitável em
+/// <c>TokenValidationParameters.IssuerSigningKey</c>/
+/// <c>ValidateIssuerSigningKey</c> — propriedades do framework usadas para
+/// carregar a chave <b>pública</b> (nunca um segredo) no <c>AddJwtBearer</c>.
+/// Banir a palavra toda geraria falso positivo nessa API sem cobrir nenhum
+/// risco novo; as formas específicas de configuração
+/// (<c>Jwt:SigningKey</c>/<c>Jwt__SigningKey</c>) continuam banidas.
+/// </para>
 /// </summary>
 public class SecretScanTests
 {
-    private static readonly string[] _forbiddenTokens = ["Jwt:", "Jwt__", "SigningKey"];
+    private static readonly string[] _forbiddenTokens = ["Jwt:SigningKey", "Jwt__SigningKey", "PrivateKey"];
     private static readonly string[] _scannedExtensions = [".cs", ".json"];
 
-    [Fact] // CA-15
+    [Fact] // CA-17
     public void GatewaySourceTree_NaoContemNenhumaChaveDeAssinaturaDeJwt()
     {
         var gatewayRoot = FindGatewaySourceRoot();
@@ -32,7 +47,11 @@ public class SecretScanTests
 
             foreach (var token in _forbiddenTokens)
             {
-                content.Should().NotContain(token, $"'{token}' não deve aparecer em {file} (D-31: a chave de assinatura nunca sai do Identity)");
+                // NotContainEquivalentOf: comparação ignorando caixa (CA-17
+                // exige banir "PrivateKey" "em qualquer caixa").
+                content.Should().NotContainEquivalentOf(
+                    token,
+                    $"'{token}' não deve aparecer em {file} (D-38: a chave de assinatura — a metade privada — nunca sai do Identity)");
             }
         }
     }

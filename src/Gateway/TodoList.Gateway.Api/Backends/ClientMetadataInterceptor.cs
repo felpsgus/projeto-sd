@@ -10,10 +10,10 @@ namespace TodoList.Gateway.Api.Backends;
 /// Interceptor de <b>cliente</b> (BE-36, D-34), registrado só no cliente
 /// gRPC do Tasks (<c>.AddInterceptor&lt;ClientMetadataInterceptor&gt;()</c> em
 /// <see cref="ServiceCollectionExtensions.AddBackendGrpcClients"/>) — nunca
-/// no do Identity: <c>ValidateToken</c> roda dentro do próprio
-/// <see cref="Authentication.IdentityTokenAuthenticationHandler"/>, antes de
-/// existir um <see cref="ClaimsPrincipal"/> autenticado para extrair o claim
-/// <c>sub</c>.
+/// no do Identity: o único RPC restante do Identity é <c>Login</c> (BE-40,
+/// D-38), chamado antes de existir um <see cref="ClaimsPrincipal"/>
+/// autenticado do qual extrair o claim <c>sub</c> (o próprio login é quem
+/// produz a identidade, não quem já a tem).
 ///
 /// <para>
 /// Acrescenta, em toda chamada de saída ao Tasks:
@@ -83,7 +83,7 @@ public sealed class ClientMetadataInterceptor : Interceptor
         }
 
         var httpContext = _httpContextAccessor.HttpContext;
-        var userId = httpContext?.User.FindFirst(IdentityClaimTypes.Subject)?.Value;
+        var userId = httpContext?.User.FindFirst(JwtClaimTypes.Subject)?.Value;
 
         if (!string.IsNullOrEmpty(userId))
         {

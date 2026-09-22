@@ -67,9 +67,10 @@ nunca hardcoded no código):
 | Identity | gRPC (`IdentityService.ValidateUser`, `ValidateToken`) | `5081` | HTTP/2 (h2c) |
 | Tasks | HTTP/REST | `5100` | HTTP/1.1 |
 
-> **Antes do primeiro `dotnet run` do Identity:** configure `Jwt:SigningKey` via `dotnet user-secrets`
-> (BE-08) — sem ela a inicialização falha de propósito (CA-02). Veja a seção
-> ["Access token JWT: `Jwt:SigningKey` nunca versionada"](#access-token-jwt-jwtsigningkey-nunca-versionada-be-08)
+> **Antes do primeiro `dotnet run` do Identity:** gere o par de chaves RSA (BE-40, RS256) com
+> `./scripts/new-jwt-keys.ps1` e aponte `Jwt:PrivateKeyPath` para o `private.pem` gerado — sem
+> ela a inicialização falha de propósito (CA-03/CA-04/CA-05/CA-06). Veja a seção
+> ["Chaves JWT RS256: `private.pem`/`public.pem` nunca versionados"](#chaves-jwt-rs256-privatepempublicpem-nunca-versionados-be-40)
 > mais abaixo.
 
 Em dois terminais separados, a partir da raiz do repositório:
@@ -110,11 +111,14 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
 - **`ValidateUser`** — consulta o usuário pelo id; nunca lança nem devolve erro gRPC para id
   malformado ou usuário inexistente (resposta negativa, status `OK`).
 - **`ValidateToken`** (BE-34) — valida assinatura, issuer, audience e expiração de um access token
-  JWT, reaproveitando os mesmos `TokenValidationParameters` de BE-08 (D-31). É o único caminho para
-  validar um token fora do Identity — a chave de assinatura HS256 não sai daqui. Não consulta o
-  store de usuários: não checa `IsActive` (ver nota técnica de BE-34 — decisão deliberada, não
-  omissão). Nunca lança nem devolve erro gRPC para entrada malformada — sempre `OK` com
-  `valid=false`.
+  JWT, reaproveitando os mesmos `TokenValidationParameters` que assinam o token (BE-08, agora
+  RS256). Não consulta o store de usuários: não checa `IsActive` (ver nota técnica de BE-34 —
+  decisão deliberada, não omissão). Nunca lança nem devolve erro gRPC para entrada malformada —
+  sempre `OK` com `valid=false`. **Desde BE-40 (D-38), o Gateway não chama mais este RPC** — ele
+  valida o JWT localmente com a chave pública (`AddJwtBearer`), o que o requisito de middleware do
+  T2 exige. `ValidateToken` continua existindo e funcionando (ver "Rodando o T2" e a seção de
+  chaves abaixo), só que sem consumidor ativo nesta etapa — fica registrado como capacidade do
+  Identity, não como o mecanismo de autenticação do sistema.
 - **`Login`** (BE-33, recorte de BE-09 — D-36) — troca e-mail e senha por um access token. Exige
   `UserStore:Provider=Persisted` (ver seção seguinte). Nunca revela, por resposta ou por tempo, qual
   das causas de falha ocorreu (e-mail inexistente, senha errada, usuário inativo) — sempre
@@ -153,8 +157,8 @@ Nunca chama `EnsureCreated()`/`Migrate()`: pressupõe que a migration do BE-04 (
 aplicada (seção seguinte).
 
 **Senha real (BE-33).** Com `SeedDemoUsers=true`, `UserStore:DemoUserPassword` passa a ser
-**obrigatória** — sem ela, a inicialização **falha** (mesmo padrão de `Jwt:SigningKey`, BE-08). É a
-senha em texto puro dos dois usuários de demonstração, lida só na inicialização e nunca versionada
+**obrigatória** — sem ela, a inicialização **falha** (mesmo padrão de `Jwt:PrivateKeyPath`, BE-40).
+É a senha em texto puro dos dois usuários de demonstração, lida só na inicialização e nunca versionada
 (user-secrets/variável de ambiente):
 
 ```powershell
@@ -226,41 +230,64 @@ Sem a connection string configurada, cada serviço ainda **sobe normalmente** �
 (`/health/ready`) fica degradado (CA-03) e qualquer operação real de banco falha ao ser tentada. Nada
 resolve o `DbContext` de forma antecipada no startup.
 
-### Access token JWT: `Jwt:SigningKey` nunca versionada (BE-08)
+### Chaves JWT RS256: `private.pem`/`public.pem` nunca versionados (BE-40)
 
-Diferente da connection string, `Jwt:SigningKey` **não tem esse alívio**: sem ela o Identity **falha
-ao iniciar** (CA-02) — é a chave HS256 que assina e valida o access token (D-31), e ela nunca sai do
-Identity. `appsettings.json` só declara `Jwt:Issuer` e `Jwt:Audience`; a chave é sempre configuração
-externa, do mesmo jeito que a connection string:
+Desde BE-40 (D-38, emenda a D-31), o JWT é **RS256**, não HS256: o Identity assina com uma chave
+**privada** que nunca sai dele; o Gateway valida localmente (`AddJwtBearer`) com a **pública**
+correspondente. Nenhuma das duas é uma string curta em `user-secrets`/variável de ambiente — são
+arquivos PEM:
+
+| Chave | Serviço | O que é | Obrigatória |
+|---|---|---|---|
+| `Jwt:PrivateKeyPath` | Identity | Caminho de um PEM PKCS8, RSA ≥ 2048 bits | sim — falha a inicialização sem ela |
+| `Jwt:PublicKeyPath` | Gateway | Caminho de um PEM SubjectPublicKeyInfo (a pública correspondente) | sim — falha a inicialização sem ela |
+
+`appsettings.json` de cada serviço só declara `Jwt:Issuer`/`Jwt:Audience` (e, no Gateway, também não
+declara caminho nenhum) — o caminho da chave é sempre configuração externa. **O Tasks Service não
+recebe, e não deve receber, nenhuma chave `Jwt:*`** (D-38): ele não sabe nada sobre tokens; a
+identidade do dono chega pela metadata gRPC `x-user-id` (D-34).
+
+**Gerar o par localmente:**
 
 ```powershell
-dotnet user-secrets set "Jwt:SigningKey" "<chave gerada abaixo>" --project src/Identity/TodoList.Identity.Api
+./scripts/new-jwt-keys.ps1
 ```
 
-Gere uma chave aleatória de 48 bytes (bem acima do mínimo de 32 exigido por CA-03) com:
+Grava `private.pem` e `public.pem` em `.secrets/jwt/` na raiz do repositório (pasta ignorada pelo
+git — `.gitignore` tem `.secrets/` e `*.pem`), usando `System.Security.Cryptography.RSA` puro, sem
+depender de `openssl` estar instalado. Não sobrescreve um par existente sem `-Force` — trocar a
+chave invalida todo token já emitido (sem rotação nesta etapa, D-38).
+
+Aponte os dois serviços para os arquivos gerados:
 
 ```powershell
-[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+dotnet user-secrets set "Jwt:PrivateKeyPath" "$PWD/.secrets/jwt/private.pem" --project src/Identity/TodoList.Identity.Api
 ```
-
-No CI (ou qualquer ambiente sem `user-secrets`), a mesma chave vem de variável de ambiente:
 
 ```powershell
-$env:Jwt__SigningKey = "<chave gerada acima>"
+$env:Jwt__PublicKeyPath = "$PWD/.secrets/jwt/public.pem"
 ```
 
-`./scripts/demo-local.ps1` já faz isso sozinho — gera uma chave aleatória a cada execução e a passa por
-`Jwt__SigningKey` só para o processo do Identity que ele sobe, nunca gravada em disco. O **Tasks
-Service não recebe nem referencia** `Jwt:SigningKey` (D-31): uma varredura de arquitetura
-(`ArchitectureTests.CodigoDoTasks_NaoReferenciaJwtSigningKey`, CA-14 de BE-08) falha o build se
-`Jwt:`, `Jwt__` ou `SigningKey` aparecerem em qualquer código ou `appsettings*.json` de `src/Tasks` ou
-em `deploy/tasks.env.example`. O API Gateway (T2, ainda não implementado) entra nessa mesma varredura
-quando existir (BE-36).
+(`appsettings.Development.json` de cada serviço já aponta, por padrão, para
+`../../../.secrets/jwt/{private,public}.pem` — caminho relativo resolvido contra o content root de
+cada projeto — então normalmente nem é preciso configurar nada além de gerar o par uma vez.)
 
-> **Implantação (VM/nuvem):** o processo do Identity em produção também precisa de `Jwt__SigningKey`
-> como variável de ambiente do serviço (systemd/unit file) — fora do escopo desta task (BE-37), mas é
-> o mesmo mecanismo acima, só que a chave é gerada uma vez e guardada no secret manager do ambiente,
-> não redistribuída a cada deploy.
+`./scripts/demo-local.ps1` já faz isso sozinho — gera o par uma vez (se ainda não existir em
+`.secrets/jwt/`) e passa `Jwt__PrivateKeyPath`/`Jwt__PublicKeyPath` (caminhos absolutos) só para os
+processos de Identity e Gateway que ele sobe. O **Tasks Service não recebe nenhuma variável
+`Jwt__*`** — uma varredura de arquitetura (CA-18 de BE-40) falha o build se `Jwt:`/`Jwt__` aparecer
+em qualquer código ou `appsettings*.json` de `src/Tasks`, `deploy/tasks.env.example` ou no serviço
+`tasks` do `docker-compose.yml`. A mesma varredura cobre o Gateway do lado oposto (CA-17): ele só
+pode ter `Jwt:Issuer`, `Jwt:Audience` e `Jwt:PublicKeyPath` — nunca `Jwt:PrivateKeyPath` nem
+`Jwt:SigningKey`.
+
+> **Implantação (VM):** a chave não viaja do seu ambiente de desenvolvimento para a VM — ela é
+> gerada direto lá, uma vez, por `deploy/install-on-vm.sh` (`openssl genpkey`/`openssl pkey
+> -pubout`), com `private.pem` `root:0400` entregue só à unit do Identity via `LoadCredential=` do
+> systemd (as três units rodam como o mesmo usuário `todolist`, então isolamento por dono de
+> arquivo não bastaria) e `public.pem` `root:0444`, legível por qualquer processo — inclusive o
+> Gateway. Ver [`deploy/README.md`](deploy/README.md) e
+> [`deploy/ANATOMIA-DOS-SCRIPTS.md`](deploy/ANATOMIA-DOS-SCRIPTS.md).
 
 ### Migrations: `dotnet ef`, uma base por serviço
 
@@ -754,11 +781,12 @@ REST de negócio — `POST /api/tasks` (BE-29) foi removido, e `/api/tasks` deix
 | `ConnectionStrings:TasksDb` | Tasks | — (nunca versionada, CA-11 de BE-02) | sim para operar o banco² | `ConnectionStrings__TasksDb` |
 | `ASPNETCORE_URLS` | ambos | — | não | já é variável de ambiente — alternativa/complemento a `Kestrel:Endpoints:*`, padrão do ASP.NET Core |
 | `Tasks:MaxActivePerUser` | Tasks | `500` | não (`null` desativa o limite) | `Tasks__MaxActivePerUser` |
-| `UserStore:Provider` | Identity | `InMemory` | não (tem padrão) | `UserStore__Provider` |
+| `UserStore:Provider` | Identity | `Persisted` (D-39, desde BE-40) | não (tem padrão) | `UserStore__Provider` |
 | `UserStore:DemoUserPassword` | Identity | — (nunca versionada) | sim, se `SeedDemoUsers=true` (BE-33) | `UserStore__DemoUserPassword` |
-| `Jwt:Issuer` | Identity | `todolist-identity` | sim | `Jwt__Issuer` |
-| `Jwt:Audience` | Identity | `todolist` | sim | `Jwt__Audience` |
-| `Jwt:SigningKey` | Identity | — (nunca versionada, CA-02/CA-03 de BE-08, D-31) | sim | `Jwt__SigningKey` — ver seção acima |
+| `Jwt:Issuer` | Identity, Gateway | `todolist-identity` | sim | `Jwt__Issuer` |
+| `Jwt:Audience` | Identity, Gateway | `todolist` | sim | `Jwt__Audience` |
+| `Jwt:PrivateKeyPath` | Identity | — (nunca versionada, PEM PKCS8 RSA ≥ 2048 bits, CA-03 a CA-06 de BE-40, D-38) | sim | `Jwt__PrivateKeyPath` — ver seção acima |
+| `Jwt:PublicKeyPath` | Gateway | — (nunca versionada, PEM SubjectPublicKeyInfo, CA-16 de BE-40, D-38) | sim | `Jwt__PublicKeyPath` — ver seção acima |
 | `Jwt:AccessTokenMinutes` | Identity | `15` (D-02) | não (tem padrão, faixa 1–60) | `Jwt__AccessTokenMinutes` |
 | `Jwt:RefreshTokenDays` | Identity | `7` (D-10) | não (tem padrão, faixa 1–90; usado só pela futura BE-10) | `Jwt__RefreshTokenDays` |
 
@@ -838,10 +866,13 @@ tipos compartilhados com os backends.
   vencimento — os mesmos limites de RN-TASK-02/03/04, duplicados de propósito como defesa em profundidade)
   e traduz para `CreateTask` (Tasks); sucesso devolve **201** com `Location: /api/tasks/{id}`.
 - `GET /health` (anônimo) — liveness simples, não depende de Identity/Tasks estarem de pé.
-- Autenticação via `IdentityTokenAuthenticationHandler`: todo endpoint exige token por padrão (fallback
-  policy); só `/health`, `POST /api/auth/login` e a documentação OpenAPI/Scalar (Development) são
-  anônimos. O Bearer é validado por `ValidateToken` (gRPC) — a chave de assinatura do JWT nunca sai do
-  Identity (D-31); o Gateway não tem, e não deve ganhar, nenhuma chave `Jwt:*`.
+- Autenticação via `AddJwtBearer` (BE-40, D-38 — substituiu o `IdentityTokenAuthenticationHandler`
+  original de BE-36): todo endpoint exige token por padrão (fallback policy); só `/health`,
+  `POST /api/auth/login` e a documentação OpenAPI/Scalar (Development) são anônimos. O Bearer é
+  validado **localmente**, com a chave pública (`Jwt:PublicKeyPath`) — o Gateway não pergunta mais
+  ao Identity a cada requisição (`ValidateToken` deixou de ter esse consumidor). A chave de
+  assinatura continua nunca saindo do Identity (D-31/D-38); o Gateway só tem a metade que verifica,
+  nunca a que assina.
 - Indisponibilidade do Identity ou do Tasks nunca vira 401/400 "normal" — vira **503** com `Retry-After`
   (D-28): "não consegui perguntar" é uma causa diferente de "credencial inválida" ou "payload inválido".
 - Erros de negócio do Tasks (`RpcException`) são traduzidos por `GrpcErrorMapping` (D-35): `NotFound` →
@@ -861,8 +892,10 @@ Chaves de configuração (`appsettings.json`/`appsettings.Development.json`, val
 |---|---|---|
 | `Backends:IdentityGrpcAddress` | `http://localhost:5081` | Endereço gRPC (h2c local) do Identity Service |
 | `Backends:TasksGrpcAddress` | `http://localhost:5101` | Endereço gRPC (h2c local) do Tasks Service |
-| `Backends:IdentityGrpcTimeoutSeconds` | `2` | Deadline de `ValidateToken`/`Login` |
+| `Backends:IdentityGrpcTimeoutSeconds` | `2` | Deadline de `Login` (`ValidateToken` deixou de ser chamado pelo Gateway desde BE-40) |
 | `Backends:TasksGrpcTimeoutSeconds` | `5` | Deadline de `CreateTask` — maior que o do Identity porque o Tasks faz, dentro dele, uma chamada aninhada ao Identity com deadline próprio de 2s |
+| `Jwt:Issuer` / `Jwt:Audience` | `todolist-identity` / `todolist` | Já vêm em `appsettings.json` — mesmo valor do Identity |
+| `Jwt:PublicKeyPath` | — (obrigatória, sem padrão, BE-40/D-38) | Caminho do PEM SubjectPublicKeyInfo usado por `AddJwtBearer` para validar a assinatura RS256 localmente — ver seção de chaves acima |
 
 ### Como subir localmente (Identity + Tasks + Gateway)
 
@@ -927,12 +960,15 @@ externo da VM (BE-39 CA-04, verificação **de fora**, não de `127.0.0.1` dentr
 VM, o equivalente é [`deploy/smoke.sh`](deploy/smoke.sh) — ver [`deploy/README.md`](deploy/README.md) para
 o runbook completo de implantação e o roteiro cronometrado de apresentação.
 
-### 1. Pré-requisitos e Postgres
+### 1. Pré-requisitos, chaves JWT e Postgres
 
 Os mesmos da seção anterior: Postgres de desenvolvimento por `docker compose`, migrations do Identity
-**antes** das do Tasks (a FK cruzada `tasks.tasks.owner_id → identity.users(id)` exige isso).
+**antes** das do Tasks (a FK cruzada `tasks.tasks.owner_id → identity.users(id)` exige isso) — e, desde
+BE-40, o par de chaves RS256 (seção "Chaves JWT RS256" acima):
 
 ```powershell
+./scripts/new-jwt-keys.ps1    # gera .secrets/jwt/{private,public}.pem — pula se já existir
+
 docker compose up -d
 
 $env:ConnectionStrings__IdentityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
@@ -953,18 +989,19 @@ $env:ConnectionStrings__IdentityDb = "Host=localhost;Port=5432;Database=todolist
 $env:UserStore__Provider = "Persisted"
 $env:UserStore__SeedDemoUsers = "true"
 $env:UserStore__DemoUserPassword = "<gerada por você, nunca versionada>"
-$env:Jwt__SigningKey = "<gerada por você, nunca versionada>"
+$env:Jwt__PrivateKeyPath = "$PWD/.secrets/jwt/private.pem"
 dotnet run --project src/Identity/TodoList.Identity.Api
 ```
 
 ```powershell
-# terminal 2 — Tasks: gRPC em 5101, REST (só /health) em 5100
+# terminal 2 — Tasks: gRPC em 5101, REST (só /health) em 5100 — nenhuma variável Jwt:* (D-38)
 $env:ConnectionStrings__TasksDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
 dotnet run --project src/Tasks/TodoList.Tasks.Api
 ```
 
 ```powershell
 # terminal 3 — Gateway: REST em 8080 — a única borda pública (D-32)
+$env:Jwt__PublicKeyPath = "$PWD/.secrets/jwt/public.pem"
 dotnet run --project src/Gateway/TodoList.Gateway.Api
 ```
 
@@ -1011,15 +1048,26 @@ Agora procure, nos três painéis de log (Gateway, Tasks, Identity), o mesmo tra
 Saída literal de uma execução real contra os três serviços locais — exit code `0`. Qualquer status
 divergente faz o script sair com `1` (BE-39 CA-02).
 
-### 4. Evidência de log: o mesmo `traceId` nos três serviços (passo 5)
+### 4. Evidência de log: o mesmo `traceId` nos serviços envolvidos (passo 5)
 
-O par sucesso é o par login (passo 3) + criação (passo 5). Abaixo, os logs reais do passo 5 — a mesma
-requisição atravessa Gateway → Identity (`ValidateToken`), Gateway → Tasks (`CreateTask`), e Tasks →
-Identity (`ValidateUser`), e as **três** paradas carregam o mesmo `traceId`
-(`00-2d5590b724dcaf24a7e19108dbc1d95c-...`):
+> **Nota (BE-40).** O trecho de log abaixo é da execução do T2 **antes** de BE-40 — capturado
+> quando o Gateway ainda perguntava `ValidateToken` ao Identity por gRPC a cada requisição (D-31
+> original). Desde BE-40 (D-38), essa chamada **não existe mais**: o Gateway valida o JWT
+> localmente com `AddJwtBearer` e a chave pública, sem round-trip de rede — é exatamente o que o
+> requisito de middleware do T2 exige. A cadeia de chamadas gRPC de um `POST /api/tasks`
+> autenticado passa a ser só **Gateway → Tasks (`CreateTask`)** e, dentro dela, **Tasks →
+> Identity (`ValidateUser`)** — duas paradas de log, não três. Esta seção fica pendente de
+> recaptura com uma execução real pós-BE-40 (mesmo espírito do "[PENDENTE — medir...]" já registrado
+> em `deploy/README.md`); a evidência abaixo continua válida para entender o formato do `traceId`
+> correlacionado, só a contagem de saltos que mudou.
+
+O par sucesso é o par login (passo 3) + criação (passo 5). Abaixo, os logs reais do passo 5, de uma
+execução anterior a BE-40 — a mesma requisição atravessava Gateway → Identity (`ValidateToken`),
+Gateway → Tasks (`CreateTask`), e Tasks → Identity (`ValidateUser`), e as **três** paradas
+carregavam o mesmo `traceId` (`00-2d5590b724dcaf24a7e19108dbc1d95c-...`):
 
 ```text
-# terminal 3 (Gateway)
+# terminal 3 (Gateway) — ATÉ BE-40: chamava ValidateToken; DESDE BE-40: valida local, sem esta linha
 info: TodoList.Gateway.Api.Backends.IdentityBackend[432667118]
       Chamada gRPC de saída: backend=Identity, rpc=ValidateToken, statusCode=OK, durationMs=52.2405,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
@@ -1027,7 +1075,8 @@ info: TodoList.Gateway.Api.Backends.TasksBackend[432667118]
       Chamada gRPC de saída: backend=Tasks, rpc=CreateTask, statusCode=OK, durationMs=820.0457,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
 
-# terminal 1 (Identity) — respondeu ValidateToken (chamado pelo Gateway) e ValidateUser (chamado pelo Tasks)
+# terminal 1 (Identity) — ATÉ BE-40: respondia ValidateToken (Gateway) e ValidateUser (Tasks);
+# DESDE BE-40: só ValidateUser — ValidateToken perdeu o consumidor
 info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1049219497]
       ValidateToken: valid=True, durationMs=33.7856,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
@@ -1035,7 +1084,7 @@ info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1561142135]
       ValidateUser: userId=10000000-0000-0000-0000-000000000001, exists=True, active=True, durationMs=15.7272,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-ed399fb3ceb26372-00
 
-# terminal 2 (Tasks) — chamou o Identity de novo (ValidateUser) antes de gravar
+# terminal 2 (Tasks) — chamou o Identity de novo (ValidateUser) antes de gravar — não muda com BE-40
 info: TodoList.Tasks.Infrastructure.Identity.GrpcIdentityGateway[1561142135]
       ValidateUser (Identity gRPC): userId=10000000-0000-0000-0000-000000000001, statusCode=OK, durationMs=126.395,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-ed399fb3ceb26372-00
@@ -1045,9 +1094,13 @@ info: TodoList.Tasks.Api.Grpc.TasksGrpcService[1138808421]
 ```
 
 Note os **dois** pares de `traceId` (mesmo prefixo de 32 caracteres — o trace W3C — com dois sufixos de
-span diferentes): um para o salto Gateway→Identity/Gateway→Tasks, outro para o salto interno Tasks→Identity,
-que o Tasks abre como filho da chamada que recebeu. É essa cadeia de três saltos, não apenas o par que já
-existia no T1, que a comunicação REST→gRPC do T2 precisa deixar auditável (nota técnica de BE-39).
+span diferentes): um para o salto Gateway→Tasks, outro para o salto interno Tasks→Identity, que o Tasks
+abre como filho da chamada que recebeu. Até BE-40 havia um terceiro salto (Gateway→Identity,
+`ValidateToken`) compartilhando o primeiro `traceId`; desde BE-40 esse salto não existe mais — a
+validação de assinatura é local, sem chamada de rede —, então a cadeia observável em produção passa a
+ter dois saltos gRPC, não três. É essa correlação de `traceId` entre Gateway e Tasks/Identity, qualquer
+que seja o número de saltos, que a comunicação REST→gRPC do T2 precisa deixar auditável (nota técnica
+de BE-39).
 
 Contra a VM, o comando equivalente para achar essas linhas é:
 
@@ -1072,10 +1125,14 @@ Retry-After: 5
  "errorCode":"identity.unavailable","traceId":"0HNOG09J8NE3D:00000001"}
 ```
 
-Verificado com o Identity de fato encerrado (BE-39 CA-07): nunca `401` (o Gateway não confunde "não
-consegui perguntar ao Identity" com "a credencial é inválida" — D-28, agora aplicado à validação de
-token) nem `500`. `./scripts/demo-t2.ps1 -IncluindoIndisponibilidade` automatiza esta verificação
-localmente, com o Identity já parado antes de rodar.
+Verificado com o Identity de fato encerrado (BE-39 CA-07, CA-23 de BE-40): nunca `401` nem `500`.
+**A causa mudou com BE-40 (D-38), o status observado não**: até BE-40, o 503 vinha do Gateway não
+conseguir perguntar `ValidateToken` ao Identity ("não consegui validar o token"); desde BE-40, o
+Gateway valida o token sozinho — com o Identity fora do ar, um token válido emitido antes da queda
+ainda passa pela validação local e a chamada chega ao Tasks, que devolve 503 ao tentar `ValidateUser`
+contra um Identity que não responde ("não consegui confirmar o dono"). `./scripts/demo-t2.ps1
+-IncluindoIndisponibilidade` automatiza esta verificação localmente, com o Identity já parado antes
+de rodar.
 
 ### 6. Requisito do `t2.md` → passo do roteiro → evidência (BE-39 CA-01)
 
@@ -1083,8 +1140,8 @@ localmente, com o Identity já parado antes de rodar.
 |---|---|---|
 | **1. REST público** — pelo menos um endpoint REST adequado ao tema | Passos 3 e 5 (`POST /api/auth/login`, `POST /api/tasks`) contra `http://<host>:8080` | Seção 3 acima — respostas HTTP reais do Gateway, porta única 8080 |
 | **2. Validação na borda** — 400 em payload inválido, 201 em sucesso | Passo 4 (título vazio → 400) e passo 5 (título válido → 201 + `Location`) | Seção 3 acima — `CreateTaskHttpRequestValidator` rejeita antes de qualquer chamada gRPC (seção "O que ele faz" da API Gateway acima) |
-| **3. Segurança** — 401 com token ausente ou inválido | Passos 1 (sem token) e 2 (token lixo) — dois caminhos de código distintos no middleware (CA-05) | Seção 3 acima — `IdentityTokenAuthenticationHandler`, mesmo corpo `auth.unauthorized` nos dois |
-| **4. Tradução e delegação de protocolo** — JSON → gRPC binário para o backend | Passo 5, evidência de log | Seção 4 acima — `traceId` correlacionado em Gateway (`ValidateToken`/`CreateTask`), Tasks (`CreateTask`/`ValidateUser (Identity gRPC)`) e Identity (`ValidateToken`/`ValidateUser`) |
+| **3. Segurança** — 401 com token ausente ou inválido | Passos 1 (sem token) e 2 (token lixo) — dois caminhos de código distintos no middleware (CA-05) | Seção 3 acima — `AddJwtBearer` (BE-40, D-38, substitui `IdentityTokenAuthenticationHandler`), mesmo corpo `auth.unauthorized` nos dois — validado localmente com a chave pública, sem round-trip ao Identity, atendendo ao requisito 6 do enunciado ("middleware de autenticação configurado no próprio Gateway") |
+| **4. Tradução e delegação de protocolo** — JSON → gRPC binário para o backend | Passo 5, evidência de log | Seção 4 acima — `traceId` correlacionado em Gateway (`CreateTask`), Tasks (`CreateTask`/`ValidateUser (Identity gRPC)`) e Identity (`ValidateUser`); a validação do JWT deixou de ser uma chamada gRPC do Gateway ao Identity desde BE-40 |
 
 O passo 6 (usuário inativo → 401 idêntico ao de senha errada, RN-AUTH-09) e o caminho de indisponibilidade
 (seção 5) não mapeiam para um requisito numerado do enunciado, mas são obrigatórios no script (BE-39
@@ -1112,25 +1169,38 @@ Isso produz `artifacts/sql/01-identity.sql` e `artifacts/sql/02-tasks.sql` — s
 falha explicitamente com uma mensagem apontando para este comando (em vez de subir "vazio" e mascarar o
 problema).
 
-### Segredos: `.env`
+### Segredos: `.env` e chaves JWT
 
-Os segredos do Identity (`Jwt__SigningKey`, `UserStore__DemoUserPassword`) vêm de um `.env` na raiz,
-**nunca versionado** — o `.gitignore` já ignora `*.env`/`.env.*` (com exceção explícita de `.env.example`,
+O segredo restante do Identity (`UserStore__DemoUserPassword`) vem de um `.env` na raiz, **nunca
+versionado** — o `.gitignore` já ignora `*.env`/`.env.*` (com exceção explícita de `.env.example`,
 que É versionado, só com placeholders):
 
 ```powershell
 cp .env.example .env
 ```
 
-Preencha `.env` com valores gerados por você (nunca reaproveitados de outro ambiente):
+Preencha `.env` com um valor gerado por você (nunca reaproveitado de outro ambiente):
 
 ```powershell
-# Jwt__SigningKey — mínimo 32 bytes em UTF-8 (JwtOptions.Validate)
-openssl rand -base64 48
-
 # UserStore__DemoUserPassword — qualquer senha de desenvolvimento; é a mesma
 # que você passa depois para scripts/demo-t2.ps1 -DemoPassword
 ```
+
+**Chaves JWT RS256 (BE-40, D-38) — pré-requisito adicional do perfil `full`.** Diferente de
+`UserStore__DemoUserPassword`, as chaves não vão no `.env`: o `docker-compose.yml` as monta via
+`secrets:` de nível superior, a partir de `.secrets/jwt/{private,public}.pem` (mesma pasta usada
+pelo fluxo `dotnet run`, ignorada pelo git). Gere o par antes de subir a stack — se você já rodou
+`scripts/demo-local.ps1` ou `scripts/new-jwt-keys.ps1` antes, ele já existe e este passo é um no-op:
+
+```powershell
+./scripts/new-jwt-keys.ps1
+```
+
+`identity` recebe só `jwt_private` (`Jwt__PrivateKeyPath=/run/secrets/jwt_private`); `gateway`
+recebe só `jwt_public` (`Jwt__PublicKeyPath=/run/secrets/jwt_public`); `tasks` não recebe nenhuma.
+Sem Swarm, um secret de arquivo do compose é um bind mount comum — o arquivo aparece em
+`/run/secrets/<nome>` dentro do container com a permissão do arquivo no host, e os três serviços já
+rodam como usuário não-root (`$APP_UID`, ver `Dockerfile` de cada um).
 
 ### Subir a stack
 

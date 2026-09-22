@@ -39,13 +39,6 @@ $root = Split-Path -Parent $PSScriptRoot
 $identityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=$PostgresPassword"
 $tasksDb = $identityDb
 
-# Jwt:SigningKey (BE-08) NUNCA é versionada — nem aqui. Uma chave aleatória de
-# 48 bytes por execução, só para esta demonstração local; passada ao processo
-# do Identity por variável de ambiente (Jwt__SigningKey), nunca gravada em
-# appsettings*.json. O Tasks Service não recebe esta variável (D-31, CA-14 de
-# BE-08): ele não valida JWT.
-$jwtSigningKey = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
-
 # UserStore:DemoUserPassword (BE-33) também NUNCA é versionada. Senha aleatória
 # por execução, impressa no console para o roteiro de login — o seed regrava o
 # hash dos dois usuários de demonstração toda vez que ela mudar (idempotente).
@@ -76,6 +69,25 @@ function Wait-Endpoint([string]$url, [string]$nome, [int]$tentativas = 60) {
 }
 
 Set-Location $root
+
+# JWT RS256 (BE-40, D-38): o Identity assina com a chave privada, o Gateway
+# valida localmente com a pública — nenhuma chave sai daqui como variável
+# aleatória por execução, porque a mesma chave precisa existir nos dois
+# processos. Em vez disso, gera (uma vez) um par RSA 2048 persistido em
+# .secrets/jwt/ (ignorado pelo git, ver .gitignore) e reaproveita nas execuções
+# seguintes. O Tasks Service não recebe nenhuma das duas variáveis abaixo (D-38,
+# CA-18 de BE-40): ele não sabe nada sobre tokens.
+$jwtKeysDir = Join-Path $root '.secrets/jwt'
+$jwtPrivateKeyPath = Join-Path $jwtKeysDir 'private.pem'
+$jwtPublicKeyPath = Join-Path $jwtKeysDir 'public.pem'
+
+if (-not (Test-Path $jwtPrivateKeyPath) -or -not (Test-Path $jwtPublicKeyPath)) {
+    Write-Etapa 'Gerando o par de chaves JWT RS256 (primeira execução, .secrets/jwt/)'
+    & (Join-Path $PSScriptRoot 'new-jwt-keys.ps1') -OutDir $jwtKeysDir
+}
+else {
+    Write-Host "    Reaproveitando par de chaves JWT existente em $jwtKeysDir" -ForegroundColor DarkGray
+}
 
 Write-Etapa 'Subindo o Postgres de desenvolvimento (docker compose)'
 docker compose up -d
@@ -115,7 +127,7 @@ $comandoIdentity = @(
     "`$env:UserStore__Provider = 'Persisted'"
     "`$env:UserStore__SeedDemoUsers = 'true'"
     "`$env:UserStore__DemoUserPassword = '$demoUserPassword'"
-    "`$env:Jwt__SigningKey = '$jwtSigningKey'"
+    "`$env:Jwt__PrivateKeyPath = '$jwtPrivateKeyPath'"
     "`$env:ASPNETCORE_ENVIRONMENT = 'Development'"
     "`$Host.UI.RawUI.WindowTitle = 'IDENTITY (servidor gRPC) — 5080 REST / 5081 gRPC'"
     'dotnet run --project src/Identity/TodoList.Identity.Api --no-launch-profile'
@@ -133,13 +145,16 @@ $comandoTasks = @(
     'dotnet run --project src/Tasks/TodoList.Tasks.Api --no-launch-profile'
 ) -join '; '
 
-# O Gateway é a única borda REST (D-32): nenhuma variável de conexão com banco,
-# nenhuma chave Jwt:* — ele nunca valida token localmente, só pergunta ao
-# Identity via ValidateToken (D-31). Os endereços gRPC default de
-# appsettings.Development.json (localhost:5081/5101) já apontam para os dois
-# processos acima, então nenhuma variável de Backends:* é necessária aqui.
+# O Gateway é a única borda REST (D-32) e, desde BE-40 (D-38), valida o JWT
+# localmente com AddJwtBearer e a chave PÚBLICA — não pergunta mais ao Identity
+# via ValidateToken a cada requisição. Nenhuma variável de conexão com banco;
+# Jwt:Issuer/Jwt:Audience já vêm de appsettings.json, só Jwt:PublicKeyPath
+# precisa vir daqui. Os endereços gRPC default de appsettings.Development.json
+# (localhost:5081/5101) já apontam para os dois processos acima, então nenhuma
+# variável de Backends:* é necessária aqui.
 $comandoGateway = @(
     "Set-Location '$root'"
+    "`$env:Jwt__PublicKeyPath = '$jwtPublicKeyPath'"
     "`$env:ASPNETCORE_ENVIRONMENT = 'Development'"
     "`$Host.UI.RawUI.WindowTitle = 'GATEWAY (borda REST) — 8080 HTTP'"
     'dotnet run --project src/Gateway/TodoList.Gateway.Api --no-launch-profile'

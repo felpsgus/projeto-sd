@@ -178,11 +178,17 @@ done
 
 Este bloco é o mais importante do script sob o ponto de vista de segurança, e
 **recusa continuar** em dois casos: arquivo ausente, ou algum placeholder ainda
-presente. Desde o T2 o `identity.env` carrega dois placeholders distintos —
-`TROQUE_ESTA_SENHA` (connection string e `UserStore__DemoUserPassword`) e
-`TROQUE_ESTA_CHAVE` (`Jwt__SigningKey`) — e o `gateway.env` entra na mesma
-checagem por consistência, ainda que não tenha segredo nenhum (D-31): é o
+presente. Desde o T2 o `identity.env` carrega o placeholder `TROQUE_ESTA_SENHA`
+(connection string e `UserStore__DemoUserPassword`) — e o `gateway.env` entra
+na mesma checagem por consistência, ainda que não tenha segredo nenhum: é o
 mesmo portão, para não haver um quarto arquivo com regra própria.
+
+> **BE-40 mudou onde a chave JWT vive.** Até o T2, havia um segundo placeholder
+> aqui, `TROQUE_ESTA_CHAVE` (`Jwt__SigningKey`, HS256). Desde BE-40 (RS256,
+> D-38) a chave deixou de ser uma variável de `.env`: é um par de arquivos PEM
+> em `/etc/todolist/jwt/`, gerado por este mesmo script logo depois do portão
+> dos segredos (seção 1.7 abaixo) — nunca copiado, nunca placeholder para
+> conferir.
 
 Ele também **corrige as permissões toda vez**: `600` (só o dono lê e escreve) e
 dono `root`. Repare na consequência prática: o arquivo com a senha do Postgres é
@@ -194,7 +200,61 @@ arquivos. Os segredos são criados uma vez, à mão, e sobrevivem intactos a
 qualquer número de redeploys. Um script que gerasse `.env` sozinho acabaria, mais
 cedo ou mais tarde, com um segredo dentro do repositório.
 
-### 1.7 Subir na ordem, e esperar
+### 1.7 A chave JWT: gerada uma vez, na própria VM (BE-40)
+
+```bash
+JWT_DIR=/etc/todolist/jwt
+if [[ ! -f "$JWT_DIR/private.pem" ]]; then
+    mkdir -p "$JWT_DIR"
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$JWT_DIR/private.pem"
+    openssl pkey -in "$JWT_DIR/private.pem" -pubout -out "$JWT_DIR/public.pem"
+    chmod 0400 "$JWT_DIR/private.pem"
+    chmod 0444 "$JWT_DIR/public.pem"
+fi
+```
+
+Este bloco é a contrapartida do "portão dos segredos" acima, só que para uma
+chave em vez de uma senha — e o motivo de ela **não** viver num `.env` é
+diferente dos outros segredos. `Jwt__PrivateKeyPath` (Identity) e
+`Jwt__PublicKeyPath` (Gateway) são *caminhos de arquivo*, não os próprios
+segredos: o conteúdo sensível é o `private.pem`, e o jeito de restringir quem o
+lê é permissão de sistema de arquivos — algo que um `.env`, por si só, não
+oferece.
+
+**Por que isolar por permissão de arquivo, e não confiar no usuário do
+serviço.** As três units rodam como o **mesmo** usuário `todolist`
+(`User=todolist` nos três `.service`). Se `private.pem` fosse
+`todolist:todolist`, o processo do Gateway e o do Tasks — que rodam com essa
+mesma identidade de sistema operacional — conseguiriam ler o arquivo tão bem
+quanto o Identity, mesmo sem nenhuma linha de configuração apontando para ele.
+A separação vem de dono `root` + modo `0400`: só `root` pode ler, e é o
+systemd (que processa a unit como root antes de fazer `setuid` para
+`todolist`) quem consegue repassar o conteúdo — via `LoadCredential=`, não via
+permissão herdada pelo processo final.
+
+**`LoadCredential=jwt-private:/etc/todolist/jwt/private.pem`** (no unit do
+Identity, não neste script) é o mecanismo do systemd (≥ 248 — presente em
+Debian 12 e Ubuntu 24.04, as duas distros-alvo) que copia o arquivo para um
+diretório de credenciais efêmero, exposto **só** ao processo daquela unit
+específica; `%d` no unit resolve para esse diretório em runtime
+(`Environment=Jwt__PrivateKeyPath=%d/jwt-private`). Um `EnvironmentFile=`
+comum não serviria aqui pelo motivo oposto do de sempre: ele não expande nada
+— `%d` só existe dentro do próprio arquivo de unit, então o caminho tem que
+estar na diretiva `Environment=`, não em `identity.env`.
+
+`public.pem` não passa por `LoadCredential=` — não é segredo (só verifica
+assinatura, não assina nada), então o caminho fixo
+`/etc/todolist/jwt/public.pem`, modo `0444`, é suficiente; o
+`todolist-gateway.service` a lê direto de lá via `Environment=`.
+
+**Idempotência com consequência de segurança, não só de conveniência.** O
+`if [[ ! -f ... ]]` não é só "não regerar à toa" — é "nunca trocar a chave
+sem decisão explícita". Trocar a chave privada invalida instantaneamente todo
+access token já emitido (D-38, sem rotação/`kid` secundário nesta etapa); um
+script que regenerasse o par a cada deploy derrubaria toda sessão em
+andamento a cada `sudo ./install-on-vm.sh`.
+
+### 1.8 Subir na ordem, e esperar
 
 ```bash
 systemctl enable --now todolist-identity.service
@@ -437,19 +497,25 @@ Valores que merecem atenção:
   escutar em `localhost` e ficaria **inalcançável de fora da VM**. (O
   `publish.ps1` remove esse arquivo do pacote dos três serviços justamente para
   tornar o acidente impossível.)
-- `UserStore__Provider=Persisted` — com o padrão `InMemory`, o Identity aprovaria
-  por gRPC um dono que não existe em `identity.users`, e a criação quebraria só no
-  `INSERT`, na FK cruzada. Falha tardia, no pior momento.
-- `Jwt__SigningKey` (novo no T2, só em `identity.env`) — obrigatória, gerada na
-  VM (`openssl rand -base64 48`), nunca versionada. É a chave que assina e
-  valida os tokens; trocá-la invalida toda sessão em andamento (D-31: o Identity
-  é a única autoridade sobre tokens, a chave nunca sai dele).
+- `UserStore__Provider=Persisted` — padrão desde BE-40/D-39 (era `InMemory` até o
+  T2). Com `InMemory` (hoje restrito a teste), o Identity aprovaria por gRPC um
+  dono que não existe em `identity.users`, e a criação quebraria só no `INSERT`,
+  na FK cruzada. Falha tardia, no pior momento — e, no T2, `InMemory` em
+  ambiente de deploy também violaria a proibição de dado em memória na demo.
+- **Não existe mais `Jwt__SigningKey` em nenhum `.env`.** Desde BE-40 (RS256,
+  D-38) a chave não é variável de ambiente: `Jwt__PrivateKeyPath` (Identity) e
+  `Jwt__PublicKeyPath` (Gateway) são caminhos para os PEMs gerados por
+  `install-on-vm.sh` em `/etc/todolist/jwt/` (seção 1.7 acima) — o primeiro
+  chega via `LoadCredential=` do unit do Identity, o segundo via `Environment=`
+  do unit do Gateway. Trocar a chave ainda invalida toda sessão em andamento
+  (isso não mudou); o que mudou é onde ela mora e quem pode lê-la.
 - `UserStore__DemoUserPassword` (novo no T2, só em `identity.env`) — obrigatória
   quando `UserStore__SeedDemoUsers=true` (D-36); é a senha em texto puro que o
   seed usa para gerar o hash dos usuários de demonstração.
 - `Backends__IdentityGrpcAddress` / `Backends__TasksGrpcAddress` (novo no T2, só
   em `gateway.env`) — os dois endereços gRPC internos, sempre `127.0.0.1`
-  (D-33). Este é o único `.env` sem nenhum segredo — nenhuma chave `Jwt:*` (D-31).
+  (D-33). Este continua sendo o único `.env` sem segredo (a chave pública do
+  Gateway não é segredo, e de todo modo mora no unit, não aqui — BE-40).
 - `Tasks__AllowAnonymousCreate` — **caiu no T2** (BE-35). O gatilho HTTP
   provisório do Tasks foi removido; a identidade agora chega só por gRPC, na
   metadata `x-user-id` preenchida pelo Gateway (D-34).
@@ -464,11 +530,13 @@ estoura o deadline, ele devolve `503 identity.unavailable` e não persiste nada 
 fail-closed (D-28). O roteiro de apresentação demonstra isso ao vivo.
 
 **"Quem valida o token, e por que o Tasks não faz isso sozinho?"**
-Só o Identity — via RPC `ValidateToken` — porque a chave de assinatura (HS256)
-nunca sai dele: distribuí-la tornaria qualquer consumidor um emissor em
-potencial (D-31). O Gateway chama `ValidateToken` a cada requisição de entrada;
-o Tasks nunca vê o JWT, só a identidade já resolvida na metadata `x-user-id`
-(D-34).
+Desde BE-40 (RS256, D-38), o **Gateway** valida localmente, com `AddJwtBearer`
+e a chave pública — ele não pergunta mais ao Identity a cada requisição
+(`ValidateToken` deixou de ter consumidor nesse caminho). O que continua igual
+ao desenho original (D-31): só o Identity tem a chave que **assina**; a chave
+pública do Gateway só verifica, nunca poderia forjar um token. O Tasks nunca
+vê o JWT nos dois desenhos, só a identidade já resolvida na metadata
+`x-user-id` (D-34).
 
 **"Por que o Identity e o Tasks não são acessíveis de fora da VM?"**
 Porque os dois confiam no chamador para saber quem é o usuário (D-30/D-34) —
@@ -482,9 +550,12 @@ VPC, para confirmar que **não** respondem.
 Tasks, Gateway).
 
 **"Onde estão os segredos (senha do banco, chave JWT, senha de demonstração)?"**
-Em `/etc/todolist/*.env` na VM, `600 root:root`, fora do repositório.
-`install-on-vm.sh` se recusa a instalar se algum `.env` faltar ou ainda tiver um
-placeholder (`TROQUE_ESTA_SENHA` ou `TROQUE_ESTA_CHAVE`).
+Senha do banco e senha de demonstração: em `/etc/todolist/*.env` na VM, `600
+root:root`, fora do repositório — `install-on-vm.sh` se recusa a instalar se
+algum `.env` faltar ou ainda tiver o placeholder `TROQUE_ESTA_SENHA`. A chave
+JWT (desde BE-40) não é um `.env`: é `/etc/todolist/jwt/private.pem`, `root:root
+0400`, que só chega ao processo do Identity via `LoadCredential=` do systemd —
+nem o `.env` nem o unit em si guardam o conteúdo da chave.
 
 **"Por que o Tasks fala com o Identity, e o Gateway fala com os dois, em `127.0.0.1`?"**
 Os três rodam na mesma VM, então o salto gRPC é interno. Isso mantém 5081 e 5101

@@ -23,6 +23,18 @@ ExecStart=/opt/todolist/identity/TodoList.Identity.Api
 # qualquer usuário da VM, e nunca no repositório.
 EnvironmentFile=/etc/todolist/identity.env
 
+# Chave privada JWT RS256 (BE-40, D-38). As três units rodam como o MESMO
+# usuário `todolist` — permissão de arquivo por dono não isola a chave privada
+# do Gateway nem do Tasks (nenhum dos dois deveria conseguir lê-la). Por isso
+# ela não é só mais uma linha em identity.env: fica em /etc/todolist/jwt/private.pem
+# com dono root e modo 0400 (gerado por install-on-vm.sh), e chega SÓ a esta
+# unit via LoadCredential= do systemd (>= 248 — Debian 12/Ubuntu 24.04 têm),
+# que copia o arquivo para um diretório de credenciais exposto apenas ao
+# processo desta unit. EnvironmentFile= não expande variáveis (%d não seria
+# substituído se estivesse lá dentro), por isso o caminho vai aqui no unit.
+LoadCredential=jwt-private:/etc/todolist/jwt/private.pem
+Environment=Jwt__PrivateKeyPath=%d/jwt-private
+
 Restart=always
 RestartSec=5
 

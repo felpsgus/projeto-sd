@@ -282,10 +282,17 @@ nunca recria os `.env` — o T2 usa exatamente esse mecanismo. Reinstalar do zer
 os usuários já semeados e obrigaria recriar segredos que já estão corretos.
 
 **O que muda:** um terceiro serviço (o API Gateway) passa a existir, `Tasks__AllowAnonymousCreate`
-sai do Tasks e o Identity passa a exigir chave JWT e senha de demonstração explícitas. O banco
-**já tem** as linhas de `identity.users` com o hash placeholder do T1 — nada precisa ser
-recriado; o seed, ao rodar de novo, vê que a senha não confere com o hash armazenado e o
-regrava (BE-33 CA-09). **Não há migration nova.**
+sai do Tasks e o Identity passa a exigir senha de demonstração explícita. O banco **já tem** as
+linhas de `identity.users` com o hash placeholder do T1 — nada precisa ser recriado; o seed, ao
+rodar de novo, vê que a senha não confere com o hash armazenado e o regrava (BE-33 CA-09). **Não
+há migration nova.**
+
+> **Emenda (BE-40, 21/09/2026) — JWT deixou de ser HS256 (chave em `.env`) e virou RS256 (par de
+> arquivos PEM gerado pelo próprio `install-on-vm.sh`).** Se você já tinha uma VM do T2 com
+> `Jwt__SigningKey` em `identity.env` de uma execução anterior desta seção, remova essa linha —
+> ela não existe mais em nenhum `appsettings*.json`/`.env` do Identity, e uma linha
+> `Jwt__SigningKey` esquecida não quebra nada sozinha (o Identity simplesmente ignora uma
+> variável que `JwtOptions` não lê mais), mas é lixo que confunde numa auditoria.
 
 1. **Firewall e IP** — se ainda não feito: seção 1 (regra `todolist-allow-gateway`, revisão de
    `todolist-allow-grpc-internal`) e seção 1.1 (IP estático).
@@ -296,14 +303,9 @@ regrava (BE-33 CA-09). **Não há migration nova.**
    sudo nano /etc/todolist/identity.env
    ```
 
-   Acrescente (gerando a chave **na própria VM**, nunca reaproveitando algo de teste):
-
-   ```bash
-   openssl rand -base64 48    # cole o resultado em Jwt__SigningKey abaixo
-   ```
+   Acrescente (sem chave JWT nenhuma aqui — ela deixou de ser configuração de `.env`, ver passo 4):
 
    ```
-   Jwt__SigningKey=<a chave gerada acima>
    Jwt__Issuer=todolist-identity
    Jwt__Audience=todolist
    UserStore__DemoUserPassword=<uma senha de demonstração — nunca versione este valor>
@@ -314,7 +316,8 @@ regrava (BE-33 CA-09). **Não há migration nova.**
    ```
 
    Remova a linha `Tasks__AllowAnonymousCreate=true` (e o comentário acima dela) — o gatilho
-   REST provisório foi removido (BE-35); o Tasks agora é só gRPC.
+   REST provisório foi removido (BE-35); o Tasks agora é só gRPC. O Tasks não recebe, e nunca deve
+   ganhar, nenhuma chave `Jwt:*` (BE-40, D-38).
 
    ```bash
    sudo cp ~/todolist-deploy/gateway.env.example /etc/todolist/gateway.env
@@ -323,7 +326,8 @@ regrava (BE-33 CA-09). **Não há migration nova.**
    ```
 
    O `gateway.env` só tem endereços — nenhum segredo a preencher, mas confira os dois
-   endereços `127.0.0.1` antes de seguir.
+   endereços `127.0.0.1` antes de seguir. `Jwt__PublicKeyPath` também não vai neste arquivo: já
+   vem fixado em `todolist-gateway.service` (`Environment=`), instalado no passo 4.
 
 3. **Empacotar e subir**, do mesmo jeito do T1:
 
@@ -352,6 +356,31 @@ regrava (BE-33 CA-09). **Não há migration nova.**
    esperando o `/health` de cada um antes de seguir para o próximo — a mesma lógica de espera
    por condição que já existia entre Identity e Tasks, estendida a mais um salto. É a mesma
    ordem para qualquer restart manual depois:
+
+   **Novo nesta execução (BE-40, D-38):** antes de instalar as units, o script gera — só se
+   `/etc/todolist/jwt/private.pem` ainda não existir — o par de chaves RSA 2048 com `openssl
+   genpkey`/`openssl pkey -pubout`, direto na VM. `private.pem` fica `root:root 0400` e só chega
+   à unit do Identity via `LoadCredential=`; `public.pem` fica `root:root 0444`, legível por
+   qualquer processo da VM (inclusive o Gateway, que a lê direto do caminho fixo). É idempotente
+   e silencioso: numa segunda execução (redeploy) o script vê que o par já existe e **não
+   regera** — trocar a chave invalidaria toda sessão em andamento.
+
+   **Verificação manual obrigatória (CA-25 de BE-40) — registre no PR.** As três units rodam como
+   o mesmo usuário `todolist`; a garantia de que o Gateway e o Tasks não conseguem ler a chave
+   privada do Identity não vem de rodarem como usuários diferentes (não rodam), vem de
+   `private.pem` ser `root:0400` e só a unit do Identity recebê-la via `LoadCredential=`. Confirme
+   isso de fato, depois do install:
+
+   ```bash
+   sudo -u todolist cat /etc/todolist/jwt/private.pem
+   # esperado: Permission denied — se isso imprimir o PEM, a permissão 0400/root
+   # não foi aplicada e a chave está exposta ao mesmo usuário que roda Gateway e Tasks.
+   ```
+
+   ```bash
+   ls -l /etc/todolist/jwt/
+   # esperado: private.pem -r-------- root root ; public.pem -r--r--r-- root root
+   ```
 
    ```bash
    sudo systemctl restart todolist-identity && sleep 2 \
@@ -476,12 +505,17 @@ este agente — só preparado no repositório):
 - [ ] Reservar o IP estático da `maquina-1-psd` (seção 1.1).
 - [ ] Subir o novo `todolist-deploy.tar.gz` (`scripts/publish.ps1` + upload pelo SSH do
       navegador).
-- [ ] Editar os três `.env` na VM com os segredos reais: `identity.env` (`Jwt__SigningKey`
-      gerada com `openssl rand -base64 48`, `Jwt__Issuer`/`Jwt__Audience`,
-      `UserStore__DemoUserPassword`), `tasks.env` (remover `Tasks__AllowAnonymousCreate`),
-      `gateway.env` (criado a partir do `.example`, sem segredo).
+- [ ] Editar os três `.env` na VM com os segredos reais: `identity.env` (`Jwt__Issuer`/
+      `Jwt__Audience`, `UserStore__DemoUserPassword` — sem `Jwt__SigningKey`, que não existe
+      mais, BE-40), `tasks.env` (remover `Tasks__AllowAnonymousCreate`), `gateway.env` (criado a
+      partir do `.example`, sem segredo).
 - [ ] Rodar `sudo ./install-on-vm.sh` e confirmar as três units `active` na ordem
-      Identity → Tasks → Gateway.
+      Identity → Tasks → Gateway. O script gera o par de chaves RS256 em
+      `/etc/todolist/jwt/` na primeira execução (BE-40, D-38) — confira que
+      `private.pem` ficou `root:root 0400` e `public.pem` `root:root 0444`.
+- [ ] **CA-25 de BE-40** — confirmar que `sudo -u todolist cat /etc/todolist/jwt/private.pem`
+      **falha** com `Permission denied` (o usuário que roda as três units não consegue ler a
+      chave privada do Identity) e registrar o resultado no PR.
 - [ ] Verificar de fora da VPC: `curl --max-time 3` no IP externo confirma que 8080 responde e
       que 5080/5081/5100/5101 **não** respondem (seção 1).
 - [ ] `DEMO_PASSWORD=... ./smoke.sh` verde contra `http://<IP_EXTERNO>:8080`.

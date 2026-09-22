@@ -11,9 +11,11 @@ namespace TodoList.Gateway.Api.Backends;
 /// gerado a partir de <c>identity.proto</c> (BE-36) — único ponto do Gateway
 /// que conhece <c>TodoList.Contracts.Identity.V1</c> (CA-04). Nunca deixa uma
 /// <see cref="RpcException"/> escapar: indisponibilidade vira
-/// <see cref="BackendUnavailableException"/> (D-28, CA-13/CA-24); qualquer
-/// outro status inesperado vira <see cref="BackendCallException"/>, para que
-/// <see cref="ErrorHandling.GrpcErrorMapping"/> decida o HTTP.
+/// <see cref="BackendUnavailableException"/> (D-28, CA-24); qualquer outro
+/// status inesperado vira <see cref="BackendCallException"/>, para que
+/// <see cref="ErrorHandling.GrpcErrorMapping"/> decida o HTTP. Desde
+/// BE-40/D-38, <c>Login</c> é o único RPC chamado daqui — <c>ValidateToken</c>
+/// saiu com a autenticação passando a ser local (<c>AddJwtBearer</c>).
 /// </summary>
 public sealed partial class IdentityBackend : IIdentityBackend
 {
@@ -31,32 +33,6 @@ public sealed partial class IdentityBackend : IIdentityBackend
         _client = client;
         _options = options.Value;
         _logger = logger;
-    }
-
-    public async Task<TokenValidation> ValidateTokenAsync(string accessToken, CancellationToken cancellationToken)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
-
-        try
-        {
-            var callOptions = new CallOptions(
-                headers: BuildTraceparentHeaders(traceId),
-                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
-                cancellationToken: cancellationToken);
-
-            var response = await _client.ValidateTokenAsync(new ValidateTokenRequest { AccessToken = accessToken }, callOptions);
-
-            Log.CallSucceeded(_logger, BackendName, "ValidateToken", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            return new TokenValidation(response.Valid, response.UserId);
-        }
-        catch (RpcException ex)
-        {
-            Log.CallFailed(_logger, BackendName, "ValidateToken", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            throw ToBackendException(ex);
-        }
     }
 
     public async Task<LoginOutcome> LoginAsync(string email, string password, CancellationToken cancellationToken)

@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
 using Scalar.AspNetCore;
@@ -37,15 +36,15 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 // só no cliente do Tasks, dentro deste método.
 builder.Services.AddBackendGrpcClients(builder.Configuration);
 
-// ── Autenticação (BE-36, D-31) ───────────────────────────────────────────
-// IdentityTokenAuthenticationHandler chama ValidateToken via gRPC — a chave
-// de assinatura do JWT nunca sai do Identity (D-31). Fallback policy exige
-// usuário autenticado por padrão; AllowAnonymous é opt-out explícito
-// (/health, POST /api/auth/login, OpenAPI/Scalar).
-builder.Services
-    .AddAuthentication(IdentityAuthenticationDefaults.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, IdentityTokenAuthenticationHandler>(
-        IdentityAuthenticationDefaults.SchemeName, options => { });
+// ── Autenticação (BE-40, D-38) ───────────────────────────────────────────
+// AddJwtBearer valida o token localmente, com a chave pública RSA carregada
+// de Jwt:PublicKeyPath — a chave de assinatura (privada) nunca sai do
+// Identity (D-31/D-38); o Gateway só recebe a metade que verifica. Substitui
+// o esquema "IdentityToken"/IdentityTokenAuthenticationHandler (que perguntava
+// via gRPC ValidateToken a cada requisição), removido por esta task. Fallback
+// policy exige usuário autenticado por padrão; AllowAnonymous é opt-out
+// explícito (/health, POST /api/auth/login, OpenAPI/Scalar).
+builder.Services.AddGatewayJwtAuthentication(builder.Configuration, builder.Environment);
 
 builder.Services.AddAuthorizationBuilder()
     .SetFallbackPolicy(new AuthorizationPolicyBuilder()

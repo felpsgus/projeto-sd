@@ -8,6 +8,7 @@
 // (<c>FakeIdentityService</c>, <c>FakeTasksService</c>, <c>FakeGrpcHost&lt;&gt;</c>).
 extern alias Fakes;
 
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -36,6 +37,25 @@ namespace TodoList.Gateway.IntegrationTests;
 /// </summary>
 public sealed class GatewayApiFactory : WebApplicationFactory<Program>
 {
+    // BE-40, D-38: par RSA 2048 gerado por INSTÂNCIA (uma por classe de
+    // teste, via IClassFixture<>) — nunca um único par estático
+    // compartilhado por todo o processo. Motivo (descoberto por
+    // instabilidade intermitente, IDX10517/ObjectDisposedException): o
+    // provedor de assinatura do Microsoft.IdentityModel faz cache por
+    // CONTEÚDO da chave, não por identidade do objeto RSA. Com um par
+    // compartilhado, o JwtPublicKeyProvider de UM host (que carrega sua
+    // própria cópia da chave pública do arquivo e a descarta no Dispose,
+    // corretamente) invalidava, ao ser encerrado, o cache de assinatura de
+    // OUTRO host ainda vivo que carregou "o mesmo" conteúdo de chave — daí a
+    // falha aparecer só quando várias classes rodavam na mesma suíte. Com uma
+    // chave de conteúdo único por classe, os caches nunca colidem entre
+    // hosts. A instância de RSA aqui NUNCA é descartada explicitamente por
+    // este fixture — mesmo padrão do Identity real (RsaSigningKeyProvider),
+    // que mantém a chave viva por toda a vida do processo/host.
+    public RSA SigningKey { get; } = RSA.Create(2048);
+
+    private readonly string _publicKeyPath;
+
     public FakeIdentityService Identity { get; } = new();
 
     public FakeTasksService Tasks { get; } = new();
@@ -51,6 +71,7 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
     {
         _identityHost = new FakeIdentityServiceHost(Identity);
         _tasksHost = new FakeTasksServiceHost(Tasks);
+        _publicKeyPath = WritePublicKeyToTempFile(SigningKey);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -70,6 +91,13 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
                 ["Backends:TasksGrpcAddress"] = "http://fake-tasks",
                 ["Backends:IdentityGrpcTimeoutSeconds"] = "2",
                 ["Backends:TasksGrpcTimeoutSeconds"] = "5",
+
+                // BE-40: sobrepõe o Jwt:PublicKeyPath de appsettings.Development.json
+                // (que aponta para .secrets/jwt/, gerado só na VM/dev local) —
+                // os testes nunca dependem de uma chave gerada fora do processo.
+                ["Jwt:Issuer"] = JwtTestTokens.DefaultIssuer,
+                ["Jwt:Audience"] = JwtTestTokens.DefaultAudience,
+                ["Jwt:PublicKeyPath"] = _publicKeyPath,
             });
         });
 
@@ -99,5 +127,20 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
             _identityHost.Dispose();
             _tasksHost.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Grava a metade pública de <paramref name="signingKey"/> como PEM
+    /// SubjectPublicKeyInfo num arquivo temporário exclusivo desta instância
+    /// — nunca apagado explicitamente (é responsabilidade do SO limpar o
+    /// diretório temporário; um arquivo por classe de teste é uma fração
+    /// desprezível do disco).
+    /// </summary>
+    private static string WritePublicKeyToTempFile(RSA signingKey)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"gateway-tests-jwt-public-{Guid.NewGuid():N}.pem");
+        File.WriteAllText(path, signingKey.ExportSubjectPublicKeyInfoPem());
+
+        return path;
     }
 }

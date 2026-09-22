@@ -9,6 +9,26 @@ namespace TodoList.Gateway.UnitTests;
 /// <summary>BE-36, CA-20/CA-21 — o Gateway não conhece Identity/Tasks/SharedKernel além dos dois .proto (D-33).</summary>
 public class ArchitectureTests
 {
+    [Fact] // BE-40, CA-19
+    public void GatewayAssembly_NaoContemMaisOEsquemaIdentityTokenNemOHandler()
+    {
+        var gatewayAssembly = typeof(IIdentityBackend).Assembly;
+
+        var typeNames = gatewayAssembly.GetTypes()
+            .Select(type => type.FullName)
+            .Where(name => name is not null)
+            .Cast<string>()
+            .ToList();
+
+        typeNames.Should().NotContain(
+            name => name.Contains("IdentityTokenAuthenticationHandler", StringComparison.Ordinal),
+            "IdentityTokenAuthenticationHandler foi removido por BE-40/D-38 — AddJwtBearer substitui o esquema ValidateToken/gRPC");
+
+        typeNames.Should().NotContain(
+            name => name.Contains("IdentityAuthenticationDefaults", StringComparison.Ordinal),
+            "o esquema \"IdentityToken\" foi removido por BE-40/D-38 — o esquema atual é JwtBearerDefaults.AuthenticationScheme");
+    }
+
     private static readonly string[] _forbiddenAssemblyPrefixes =
     [
         "TodoList.Identity",
