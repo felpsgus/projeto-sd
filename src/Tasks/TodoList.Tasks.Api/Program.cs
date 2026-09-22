@@ -30,6 +30,15 @@ builder.Services
     .Bind(builder.Configuration.GetSection(TaskOptions.SectionName))
     .ValidateOnStart();
 
+// BE-41 (D-09): tamanho de página, lido pelo ListTasksHandler. Criada aqui
+// porque BE-22 (que vai reaproveitar o mesmo tipo) ainda não foi implementada
+// (nota técnica de BE-41).
+builder.Services
+    .AddOptions<PagingOptions>()
+    .Bind(builder.Configuration.GetSection(PagingOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 // BE-35 (D-30 fechada, D-34): ICurrentUser/IClientDate são abstrações de
 // Application — a escolha de implementação é decidida uma vez, aqui, na
 // borda. CallerIdentityCurrentUser é a ÚNICA implementação registrada (CA-10)
@@ -40,6 +49,10 @@ builder.Services.AddScoped<IClientDate, HttpContextClientDate>();
 builder.Services.AddScoped<ICurrentUser, CallerIdentityCurrentUser>();
 
 builder.Services.AddScoped<CreateTaskHandler>();
+
+// BE-41 (recorte de BE-22/BE-18): listagem e consulta por id.
+builder.Services.AddScoped<ListTasksHandler>();
+builder.Services.AddScoped<GetTaskHandler>();
 
 // Cliente gRPC do Identity (BE-27), consumido a partir desta etapa (BE-28)
 // por CreateTaskHandler via IIdentityGateway.

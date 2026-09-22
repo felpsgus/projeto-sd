@@ -34,7 +34,11 @@ public sealed class ValidationFilter<TRequest> : IEndpointFilter
 
         if (!validationResult.IsValid)
         {
-            return Results.ValidationProblem(validationResult.ToDictionary());
+            // Correção adjacente (BE-41): ToDictionary() do FluentValidation
+            // devolve as chaves em PascalCase ("Title", "DueDate"); o resto do
+            // corpo já é camelCase, então normaliza aqui — ponto único, ver
+            // ValidationErrorKeyNormalizer.
+            return Results.ValidationProblem(ValidationErrorKeyNormalizer.ToCamelCaseKeys(validationResult.ToDictionary()));
         }
 
         return await next(context);

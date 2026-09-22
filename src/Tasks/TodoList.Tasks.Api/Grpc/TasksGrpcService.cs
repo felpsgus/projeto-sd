@@ -7,7 +7,11 @@ using TodoList.Tasks.Api.Security;
 using TodoList.Tasks.Application.Security;
 using ApplicationCreateTaskRequest = TodoList.Tasks.Application.Tasks.CreateTaskRequest;
 using CreateTaskHandler = TodoList.Tasks.Application.Tasks.CreateTaskHandler;
+using GetTaskHandler = TodoList.Tasks.Application.Tasks.GetTaskHandler;
+using ListTasksHandler = TodoList.Tasks.Application.Tasks.ListTasksHandler;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
+using ProtoListTasksRequest = TodoList.Contracts.Tasks.V1.ListTasksRequest;
 
 namespace TodoList.Tasks.Api.Grpc;
 
@@ -36,17 +40,23 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
 {
     private readonly IValidator<ApplicationCreateTaskRequest> _validator;
     private readonly CreateTaskHandler _handler;
+    private readonly ListTasksHandler _listTasksHandler;
+    private readonly GetTaskHandler _getTaskHandler;
     private readonly ICurrentUser _currentUser;
     private readonly ILogger<TasksGrpcService> _logger;
 
     public TasksGrpcService(
         IValidator<ApplicationCreateTaskRequest> validator,
         CreateTaskHandler handler,
+        ListTasksHandler listTasksHandler,
+        GetTaskHandler getTaskHandler,
         ICurrentUser currentUser,
         ILogger<TasksGrpcService> logger)
     {
         _validator = validator;
         _handler = handler;
+        _listTasksHandler = listTasksHandler;
+        _getTaskHandler = getTaskHandler;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -98,6 +108,80 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
 
+    /// <summary>
+    /// BE-41, recorte de BE-22 — só tarefas do dono corrente (CA-02), não
+    /// removidas (CA-03), ordenadas por criação decrescente (CA-05),
+    /// paginadas no banco (CA-11). <c>page</c>/<c>page_size</c> fora dos
+    /// limites viram <see cref="StatusCode.InvalidArgument"/> pelo próprio
+    /// <see cref="ListTasksHandler.HandleAsync"/> (CA-07), traduzido aqui
+    /// pelo mesmo <see cref="ResultGrpcStatus"/> de <see cref="CreateTask"/> —
+    /// sem validação duplicada neste método.
+    /// </summary>
+    public override async Task<ListTasksReply> ListTasks(ProtoListTasksRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+        var ownerId = _currentUser.Id;
+
+        var applicationRequest = TaskGrpcMapping.ToApplicationRequest(request);
+        var result = await _listTasksHandler.HandleAsync(applicationRequest, context.CancellationToken);
+
+        if (result.IsFailure)
+        {
+            var failure = result.ToRpcException();
+            Log.ListTasksCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw failure;
+        }
+
+        Log.ListTasksCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return TaskGrpcMapping.ToListTasksReply(result.Value);
+    }
+
+    /// <summary>
+    /// BE-41, recorte de BE-18 — <c>id</c> em formato inválido é
+    /// <see cref="StatusCode.InvalidArgument"/> (nunca <c>NotFound</c>: são
+    /// causas diferentes, mesma distinção de <c>due_date</c> em
+    /// <see cref="CreateTask"/>); tarefa inexistente, de outro dono ou
+    /// removida são o mesmo <see cref="StatusCode.NotFound"/>
+    /// (RN-AUTZ-03, CA-13 a CA-16) — a indistinguibilidade vem inteira de
+    /// <see cref="GetTaskHandler"/>, este método não adiciona nem remove
+    /// nenhum detalhe.
+    /// </summary>
+    public override async Task<TaskReply> GetTask(ProtoGetTaskRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+        var ownerId = _currentUser.Id;
+
+        if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
+            };
+            var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
+            Log.GetTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidId;
+        }
+
+        var result = await _getTaskHandler.HandleAsync(taskId, context.CancellationToken);
+
+        if (result.IsFailure)
+        {
+            var failure = result.ToRpcException();
+            Log.GetTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw failure;
+        }
+
+        Log.GetTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return TaskGrpcMapping.ToTaskReply(result.Value);
+    }
+
     private static partial class Log
     {
         // Mesmo padrão de GrpcIdentityGateway.Log: ownerId, statusCode,
@@ -107,5 +191,15 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
             Level = LogLevel.Information,
             Message = "CreateTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
         public static partial void CreateTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "ListTasks: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void ListTasksCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "GetTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void GetTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
     }
 }

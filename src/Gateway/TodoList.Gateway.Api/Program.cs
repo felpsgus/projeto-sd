@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.Json;
 using Scalar.AspNetCore;
 using TodoList.Gateway.Api.Authentication;
 using TodoList.Gateway.Api.Backends;
+using TodoList.Gateway.Api.Configuration;
 using TodoList.Gateway.Api.Endpoints;
 using TodoList.Gateway.Api.ErrorHandling;
 
@@ -29,6 +30,17 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+// ── Paginação (BE-41, D-09/D-33) ─────────────────────────────────────────
+// Cópia própria do Gateway dos mesmos limites do Tasks (Paging:DefaultPageSize/
+// MaxPageSize) — o Gateway não referencia o projeto do Tasks (D-33), então
+// esta duplicação é deliberada; a do Tasks continua sendo a autoridade final
+// (defesa em profundidade, CA-19).
+builder.Services
+    .AddOptions<PagingOptions>()
+    .Bind(builder.Configuration.GetSection(PagingOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // ── Backends (BE-36, D-32) ──────────────────────────────────────────────
 // Únicos clientes gRPC do Gateway — Identity e Tasks, endereços validados na

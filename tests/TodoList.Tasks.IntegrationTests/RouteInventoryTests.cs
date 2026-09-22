@@ -12,8 +12,9 @@ namespace TodoList.Tasks.IntegrationTests;
 /// <see cref="WebApplicationFactory{TEntryPoint}"/> e falha se qualquer coisa
 /// além de <c>/health</c>, <c>/health/ready</c> e os RPCs gRPC esperados
 /// (<c>tasks.v1.TasksService/CreateTask</c>,
-/// <c>grpc.health.v1.Health/Check</c>, <c>grpc.health.v1.Health/Watch</c>)
-/// aparecer.
+/// <c>tasks.v1.TasksService/ListTasks</c>, <c>tasks.v1.TasksService/GetTask</c>
+/// (BE-41), <c>grpc.health.v1.Health/Check</c>,
+/// <c>grpc.health.v1.Health/Watch</c>) aparecer.
 /// </summary>
 public class RouteInventoryTests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -23,6 +24,8 @@ public class RouteInventoryTests : IClassFixture<WebApplicationFactory<Program>>
         "/health/",
         "/health/ready",
         "/tasks.v1.TasksService/CreateTask",
+        "/tasks.v1.TasksService/ListTasks",
+        "/tasks.v1.TasksService/GetTask",
         "/grpc.health.v1.Health/Check",
         "/grpc.health.v1.Health/Watch",
         // Catch-all gerado pelo próprio Grpc.AspNetCore.Server para method

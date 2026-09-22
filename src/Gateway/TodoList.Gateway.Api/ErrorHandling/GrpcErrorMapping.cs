@@ -4,6 +4,7 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TodoList.Gateway.Api.Backends;
+using TodoList.Gateway.Api.Validation;
 
 namespace TodoList.Gateway.Api.ErrorHandling;
 
@@ -66,7 +67,13 @@ public static class GrpcErrorMapping
             ? JsonSerializer.Deserialize<Dictionary<string, string[]>>(validationErrorsJson) ?? []
             : [];
 
-        return Results.ValidationProblem(errors, statusCode: StatusCodes.Status400BadRequest, extensions: ErrorCodeExtensions(errorCode));
+        // Correção adjacente (BE-41): o trailer "validation-errors" do Tasks
+        // traz as chaves em PascalCase (TaskGrpcMapping.DueDateFieldName =
+        // nameof(...)); normaliza aqui pelo mesmo ponto único que
+        // ValidationFilter<T> usa para o caminho local (ValidationErrorKeyNormalizer).
+        var camelCaseErrors = ValidationErrorKeyNormalizer.ToCamelCaseKeys(errors);
+
+        return Results.ValidationProblem(camelCaseErrors, statusCode: StatusCodes.Status400BadRequest, extensions: ErrorCodeExtensions(errorCode));
     }
 
     private static IResult ToProblem(int statusCode, string title, string detail, string? errorCode) =>

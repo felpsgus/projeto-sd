@@ -3,6 +3,7 @@ using Google.Protobuf.WellKnownTypes;
 using TodoList.Gateway.Api.Backends;
 using TodoList.Gateway.Api.Contracts;
 using Xunit;
+using ProtoListTasksReply = TodoList.Contracts.Tasks.V1.ListTasksReply;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
@@ -103,5 +104,57 @@ public class TaskTranslationTests
         response.DueDate.Should().BeNull();
         response.CompletedAt.Should().BeNull();
         response.Status.Should().Be("Pending");
+    }
+
+    [Fact] // BE-41, CA-17
+    public void ToProtoRequest_ListTasksHttpRequest_CopiaPageEPageSize()
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(2, 50));
+
+        proto.Page.Should().Be(2);
+        proto.PageSize.Should().Be(50);
+    }
+
+    [Fact] // BE-41, CA-17/CA-24
+    public void ToHttpResponse_ListTasksReply_TraduzItensEPaginacao()
+    {
+        var now = Timestamp.FromDateTime(DateTime.UtcNow);
+        var reply = new ProtoListTasksReply { Page = 1, PageSize = 20, TotalCount = 1 };
+        reply.Items.Add(new ProtoTaskReply
+        {
+            Id = "11111111-1111-1111-1111-111111111111",
+            Title = "Título",
+            Priority = ProtoTaskPriority.Medium,
+            Status = ProtoTaskStatus.Pending,
+            IsOverdue = false,
+            CreatedAt = now,
+            UpdatedAt = now,
+        });
+
+        var response = TaskTranslation.ToHttpResponse(reply);
+
+        response.Page.Should().Be(1);
+        response.PageSize.Should().Be(20);
+        response.TotalCount.Should().Be(1);
+        response.Items.Should().ContainSingle();
+        response.Items[0].Title.Should().Be("Título");
+    }
+
+    [Fact] // BE-41, CA-17
+    public void ToHttpResponse_ListTasksReplySemItens_DevolveListaVazia()
+    {
+        var reply = new ProtoListTasksReply { Page = 1, PageSize = 20, TotalCount = 0 };
+
+        var response = TaskTranslation.ToHttpResponse(reply);
+
+        response.Items.Should().BeEmpty();
+    }
+
+    [Fact] // BE-41, CA-20/CA-22
+    public void ToProtoGetTaskRequest_CopiaOId()
+    {
+        var proto = TaskTranslation.ToProtoGetTaskRequest("11111111-1111-1111-1111-111111111111");
+
+        proto.Id.Should().Be("11111111-1111-1111-1111-111111111111");
     }
 }

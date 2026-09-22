@@ -28,6 +28,12 @@ internal sealed class TasksGrpcTestClient : IDisposable
     private static readonly Method<CreateTaskRequest, TaskReply> _createTaskMethod =
         CreateMethod<CreateTaskRequest, TaskReply>("CreateTask");
 
+    private static readonly Method<ListTasksRequest, ListTasksReply> _listTasksMethod =
+        CreateMethod<ListTasksRequest, ListTasksReply>("ListTasks");
+
+    private static readonly Method<GetTaskRequest, TaskReply> _getTaskMethod =
+        CreateMethod<GetTaskRequest, TaskReply>("GetTask");
+
     private readonly GrpcChannel _channel;
     private readonly CallInvoker _invoker;
     private readonly Health.HealthClient _healthClient;
@@ -61,6 +67,18 @@ internal sealed class TasksGrpcTestClient : IDisposable
         CreateTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
         _invoker.AsyncUnaryCall(
             _createTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>BE-41: mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>ListTasks</c>.</summary>
+    public AsyncUnaryCall<ListTasksReply> ListTasksAsync(
+        ListTasksRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _listTasksMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>BE-41: mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>GetTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> GetTaskAsync(
+        GetTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _getTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
 
     /// <summary>gRPC Health Checking Protocol (BE-35, D-37, CA-14) — sem <c>service</c> específico, o mesmo que o probe do Cloud Run consulta.</summary>
     public AsyncUnaryCall<HealthCheckResponse> CheckHealthAsync() =>

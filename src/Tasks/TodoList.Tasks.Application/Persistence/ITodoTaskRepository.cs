@@ -49,4 +49,30 @@ public interface ITodoTaskRepository
     /// uso de listagem (BE-22). Já respeita o filtro global de soft delete.
     /// </summary>
     public IQueryable<TodoTask> Query();
+
+    /// <summary>
+    /// Página de tarefas do dono, não removidas, ordenadas por criação
+    /// decrescente com desempate por <see cref="TodoTask.Id"/> (BE-41,
+    /// recorte de BE-22 — RN-LIST-01, RN-LIST-06 parcial, RN-LIST-07).
+    /// <paramref name="page"/> é 1-based; a implementação aplica
+    /// <c>WHERE</c>/<c>ORDER BY</c>/<c>LIMIT</c>/<c>OFFSET</c> no banco (CA-11)
+    /// — nunca materializa mais linhas que <paramref name="pageSize"/> além
+    /// da contagem. <see cref="ListByOwnerAsync"/> não valida
+    /// <paramref name="page"/>/<paramref name="pageSize"/>: essa validação é
+    /// do caso de uso (<c>ListTasksHandler</c>), que só chega até aqui com
+    /// valores já dentro da faixa permitida.
+    /// </summary>
+    public Task<(IReadOnlyList<TodoTask> Items, int TotalCount)> ListByOwnerAsync(
+        Guid ownerId, int page, int pageSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Único método de resolução de uma tarefa específica por id (BE-41,
+    /// recorte de BE-18) — filtra <b>sempre</b> por <paramref name="ownerId"/>
+    /// e por não-removida na própria query (RN-AUTZ-02). Tarefa inexistente,
+    /// de outro dono ou removida devolvem <c>null</c> indistintamente; quem
+    /// traduz isso em <c>TaskErrors.NotFound</c> é o caso de uso
+    /// (<c>GetTaskHandler</c>), não este método. Não existe (e não deve
+    /// existir) outro método público de leitura por id sem o filtro de dono.
+    /// </summary>
+    public Task<TodoTask?> GetOwnedTaskAsync(Guid ownerId, Guid taskId, CancellationToken cancellationToken = default);
 }

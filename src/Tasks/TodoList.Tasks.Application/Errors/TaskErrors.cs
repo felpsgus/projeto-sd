@@ -54,4 +54,36 @@ public static class TaskErrors
         "task.active_limit_reached",
         $"Você atingiu o limite de {limit} tarefas ativas. Conclua ou remova alguma tarefa antes de criar uma nova.",
         ErrorType.Conflict);
+
+    /// <summary>
+    /// BE-41 (RN-AUTZ-03, recorte de BE-18) — devolvido por
+    /// <see cref="GetTaskHandler"/> para tarefa inexistente, de outro dono ou
+    /// removida. As três causas produzem exatamente este <see cref="Error"/>,
+    /// de propósito: distinguir qualquer uma delas no transporte revelaria a
+    /// existência (ou não) do recurso a quem não é dono.
+    /// </summary>
+    public static readonly Error NotFound = new(
+        "task.not_found",
+        "Tarefa não encontrada.",
+        ErrorType.NotFound);
+
+    /// <summary>
+    /// BE-41 (recorte de BE-22, D-09) — <c>page</c> menor que 1.
+    /// Segunda linha de defesa: o Gateway já valida isso na borda (CA-19),
+    /// mas o Tasks não confia só nisso (nota técnica de BE-41).
+    /// </summary>
+    public static readonly Error InvalidPage = new(
+        "task.invalid_page",
+        "O parâmetro 'page' deve ser maior ou igual a 1.",
+        ErrorType.Validation);
+
+    /// <summary>
+    /// BE-41 (recorte de BE-22, D-09) — <c>pageSize</c> fora de
+    /// 1–<see cref="Tasks.PagingOptions.MaxPageSize"/>. O limite entra na
+    /// mensagem, mesmo padrão de <see cref="ActiveLimitReached"/>.
+    /// </summary>
+    public static Error InvalidPageSize(int maxPageSize) => new(
+        "task.invalid_page_size",
+        $"O parâmetro 'pageSize' deve estar entre 1 e {maxPageSize}.",
+        ErrorType.Validation);
 }

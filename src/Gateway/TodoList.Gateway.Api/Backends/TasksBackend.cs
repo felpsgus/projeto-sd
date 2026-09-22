@@ -59,6 +59,60 @@ public sealed partial class TasksBackend : ITasksBackend
         }
     }
 
+    /// <summary>Chama <c>ListTasks</c> (BE-41, CA-17) — mesmo padrão de deadline/log/tradução de erro de <see cref="CreateTaskAsync"/>.</summary>
+    public async Task<ListTasksHttpResponse> ListTasksAsync(ListTasksHttpRequest request, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var reply = await _client.ListTasksAsync(
+                TaskTranslation.ToProtoRequest(request),
+                deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            Log.CallSucceeded(_logger, BackendName, "ListTasks", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return TaskTranslation.ToHttpResponse(reply);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "ListTasks", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                ? new BackendUnavailableException(BackendName, ex)
+                : new BackendCallException(ex);
+        }
+    }
+
+    /// <summary>Chama <c>GetTask</c> (BE-41, CA-20/CA-21) — mesmo padrão de deadline/log/tradução de erro de <see cref="CreateTaskAsync"/>.</summary>
+    public async Task<TaskHttpResponse> GetTaskAsync(string id, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var reply = await _client.GetTaskAsync(
+                TaskTranslation.ToProtoGetTaskRequest(id),
+                deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            Log.CallSucceeded(_logger, BackendName, "GetTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return TaskTranslation.ToHttpResponse(reply);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "GetTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                ? new BackendUnavailableException(BackendName, ex)
+                : new BackendCallException(ex);
+        }
+    }
+
     private static partial class Log
     {
         // Mesmo padrão de IdentityBackend.Log (BE-36, CA-26) — nunca o

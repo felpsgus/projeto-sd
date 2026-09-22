@@ -2,8 +2,13 @@ using System.Globalization;
 using Google.Protobuf.WellKnownTypes;
 using TodoList.Tasks.Domain.Tasks;
 using ApplicationCreateTaskRequest = TodoList.Tasks.Application.Tasks.CreateTaskRequest;
+using ApplicationListTasksRequest = TodoList.Tasks.Application.Tasks.ListTasksRequest;
+using ApplicationListTasksResponse = TodoList.Tasks.Application.Tasks.ListTasksResponse;
 using ApplicationTaskResponse = TodoList.Tasks.Application.Tasks.TaskResponse;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
+using ProtoListTasksReply = TodoList.Contracts.Tasks.V1.ListTasksReply;
+using ProtoListTasksRequest = TodoList.Contracts.Tasks.V1.ListTasksRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
@@ -31,6 +36,13 @@ public static class TaskGrpcMapping
     /// <c>"Title"</c>, não <c>"title"</c>).
     /// </summary>
     public const string DueDateFieldName = nameof(ApplicationCreateTaskRequest.DueDate);
+
+    /// <summary>
+    /// Nome do campo usado no dicionário de erros (mesmo formato de
+    /// <see cref="DueDateFieldName"/>) quando <see cref="ProtoGetTaskRequest.Id"/>
+    /// não é um <see cref="Guid"/> válido (BE-41).
+    /// </summary>
+    public const string TaskIdFieldName = "Id";
 
     /// <summary>
     /// Converte o request gerado pelo proto no request da Application
@@ -112,6 +124,56 @@ public static class TaskGrpcMapping
         }
 
         return reply;
+    }
+
+    /// <summary>
+    /// Converte o request de <c>ListTasks</c> (BE-41) — cópia direta de
+    /// campos, sem <see cref="TaskGrpcMappingResult"/>: ao contrário de
+    /// <c>due_date</c> em <see cref="ToApplicationRequest(ProtoCreateTaskRequest)"/>,
+    /// não há formato para rejeitar aqui — <c>page</c>/<c>page_size</c> fora
+    /// da faixa são validados pelo <c>ListTasksHandler</c> (CA-07), não por
+    /// este mapeamento.
+    /// </summary>
+    public static ApplicationListTasksRequest ToApplicationRequest(ProtoListTasksRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new ApplicationListTasksRequest(request.Page, request.PageSize);
+    }
+
+    /// <summary>
+    /// Converte o <see cref="ApplicationListTasksResponse"/> na
+    /// <see cref="ProtoListTasksReply"/> devolvida ao chamador (BE-41), com
+    /// cada item passando por <see cref="ToTaskReply"/> — o mesmo mapeamento
+    /// de <c>CreateTask</c>, sem duplicação.
+    /// </summary>
+    public static ProtoListTasksReply ToListTasksReply(ApplicationListTasksResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+
+        var reply = new ProtoListTasksReply
+        {
+            Page = response.Page,
+            PageSize = response.PageSize,
+            TotalCount = response.TotalCount,
+        };
+
+        reply.Items.AddRange(response.Items.Select(ToTaskReply));
+
+        return reply;
+    }
+
+    /// <summary>
+    /// Tenta converter <see cref="ProtoGetTaskRequest.Id"/> num
+    /// <see cref="Guid"/> — um valor que não parseia é erro de validação
+    /// (BE-41, nota técnica: não é papel deste RPC decidir 400 de rota vs.
+    /// 404, isso é do Gateway), nunca uma exceção não tratada.
+    /// </summary>
+    public static bool TryParseTaskId(ProtoGetTaskRequest request, out Guid taskId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Guid.TryParse(request.Id, out taskId);
     }
 
     private static TaskPriority ToDomainPriority(ProtoTaskPriority priority) => priority switch

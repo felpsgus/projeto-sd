@@ -1,5 +1,8 @@
 using TodoList.Gateway.Api.Contracts;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
+using ProtoListTasksReply = TodoList.Contracts.Tasks.V1.ListTasksReply;
+using ProtoListTasksRequest = TodoList.Contracts.Tasks.V1.ListTasksRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
@@ -62,6 +65,40 @@ public static class TaskTranslation
             reply.CreatedAt.ToDateTimeOffset(),
             reply.UpdatedAt.ToDateTimeOffset());
     }
+
+    /// <summary>
+    /// Converte o request já validado e resolvido de <c>GET /api/tasks</c>
+    /// (BE-41, CA-17/CA-19) no request proto — <see cref="ListTasksHttpRequest.Page"/>/
+    /// <see cref="ListTasksHttpRequest.PageSize"/> chegam aqui já com os
+    /// padrões do Gateway aplicados (nunca <c>0</c>), então o Tasks nunca
+    /// precisa aplicar o próprio padrão numa chamada vinda do Gateway — só
+    /// num chamador gRPC direto (defesa em profundidade, D-09).
+    /// </summary>
+    public static ProtoListTasksRequest ToProtoRequest(ListTasksHttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new ProtoListTasksRequest
+        {
+            Page = request.Page,
+            PageSize = request.PageSize,
+        };
+    }
+
+    /// <summary>Converte a resposta de <c>ListTasks</c> (BE-41) no DTO HTTP devolvido ao cliente (CA-17/CA-24).</summary>
+    public static ListTasksHttpResponse ToHttpResponse(ProtoListTasksReply reply)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+
+        return new ListTasksHttpResponse(
+            reply.Items.Select(ToHttpResponse).ToList(),
+            reply.Page,
+            reply.PageSize,
+            reply.TotalCount);
+    }
+
+    /// <summary>Converte o id de rota (já validado como Guid pelo endpoint, CA-22) no request proto de <c>GetTask</c> (BE-41).</summary>
+    public static ProtoGetTaskRequest ToProtoGetTaskRequest(string id) => new() { Id = id };
 
     private static ProtoTaskPriority ToProtoPriority(string? priority) => priority?.Trim().ToUpperInvariant() switch
     {

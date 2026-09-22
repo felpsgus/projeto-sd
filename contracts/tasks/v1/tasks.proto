@@ -12,6 +12,16 @@ service TasksService {
   // Cria uma tarefa (RN-TASK-10) em nome do usuário identificado pela
   // metadata gRPC "x-user-id" (D-34) — nunca por campo desta mensagem.
   rpc CreateTask (CreateTaskRequest) returns (TaskReply);
+  // Lista as tarefas do dono identificado por "x-user-id" (BE-41, recorte
+  // estrito de BE-22): só as não removidas, ordenadas por criação
+  // decrescente, paginadas. Sem filtro, busca ou ordenação configurável —
+  // isso é escopo pleno de BE-22, não desta task.
+  rpc ListTasks (ListTasksRequest) returns (ListTasksReply);
+  // Consulta uma tarefa específica pelo mesmo método único de resolução de
+  // BE-18: filtra por dono e não-removida na própria query. Tarefa
+  // inexistente e tarefa de outro dono devolvem o mesmo NotFound
+  // (RN-AUTZ-03) — nunca um status que distinga os dois casos.
+  rpc GetTask (GetTaskRequest) returns (TaskReply);
 }
 
 message CreateTaskRequest {
@@ -64,4 +74,32 @@ message TaskReply {
   google.protobuf.Timestamp created_at = 9;
   // Data/hora da última alteração (RN-TASK-14).
   google.protobuf.Timestamp updated_at = 10;
+}
+
+// Request de ListTasks (BE-41, recorte de BE-22/RN-LIST-07). Ambos os campos
+// aceitam o valor 0 (default do proto3 para int32) como "não informado" — o
+// Tasks Service aplica page=1 e page_size=Paging:DefaultPageSize nesse caso
+// (D-09). Fora dos limites (page/page_size negativos, ou page_size acima de
+// Paging:MaxPageSize) é erro de validação, nunca truncamento silencioso.
+message ListTasksRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+// Reply de ListTasks. total_count é o total de tarefas do dono (não
+// removidas), não o total da página (BE-41, CA-08) — o cliente calcula
+// totalPages a partir dele, se precisar.
+message ListTasksReply {
+  repeated TaskReply items = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_count = 4;
+}
+
+// Request de GetTask. Id como string (mesmo formato de TaskReply.id) — o
+// Tasks Service rejeita um valor que não seja um Guid válido como erro de
+// validação; não é papel deste RPC decidir 400 vs. 404 de rota, isso é do
+// Gateway (BE-41, nota técnica).
+message GetTaskRequest {
+  string id = 1;
 }
