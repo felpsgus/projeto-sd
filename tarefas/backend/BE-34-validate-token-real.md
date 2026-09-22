@@ -64,3 +64,5 @@
 ## Decisões em aberto
 
 - **D-31** — A chave de assinatura não sai do Identity; `ValidateToken` é o único caminho de validação externa. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+> **Emenda (21/09/2026).** Com [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md)/**D-38**, `ValidateToken` passa a validar com a parte pública de uma chave **RS256** (era HS256, mesma chave de BE-08) — os CAs desta task continuam válidos como comportamento (CA-01 a CA-10 seguem verdadeiros, só a álgebra de assinatura por trás muda), mas o **consumidor principal muda**: o **Gateway deixa de chamar `ValidateToken`** — ele passa a validar o JWT localmente via `AddJwtBearer` com a chave pública. `ValidateToken` continua existindo e correto no Identity, mas sem chamador ativo na etapa do T2; a nota técnica "consumidor esperado: o middleware de autenticação do API Gateway" (acima) está **superada por BE-40/D-38**.

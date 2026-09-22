@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTH-14, RN-AUTH-15, RN-AUTH-16, RN-AUTH-17, RN-AUTH-18, RN-AUTH-19 |
 | **Estimativa** | G |
 
+> **Recorte do T2 (21/09/2026):** entra **muito reduzido**. Só o interceptor de autenticação (anexa `Authorization: Bearer` a toda requisição para a API, exceto `login`) e a distinção 401/403 (um 401 encerra a sessão local e leva ao login com "sessão expirada"; um 403 não). **Sem renovação automática, nem proativa nem reativa** — não existe `POST /api/auth/refresh` no T2 (D-36), então não há o que renovar, não há single-flight a implementar e não há detecção de reuso a proteger. Isso não é um corte de esforço: é a task inteira reduzida à sua metade mais simples. Sem dependência de backend além do que [FE-05](FE-05-estado-sessao.md) já usa.
+
 ## Objetivo
 
 O usuário nunca é interrompido pela expiração do access token: as requisições levam o token automaticamente e, quando ele expira, a renovação acontece de forma transparente — uma única vez, mesmo com várias requisições simultâneas.

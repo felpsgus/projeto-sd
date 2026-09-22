@@ -8,6 +8,10 @@
 | **Regras cobertas** | habilita todas as chamadas de API |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **parcial**. Tipos e serviços só de login (`LoginRequest`/`LoginHttpResponse`, sem `RegisterRequest`/`UserResponse`/`ChangePasswordRequest`/`DeleteAccountRequest`) e de tarefas (criar, listar, obter — sem `UpdateTaskRequest`). Mantém o interceptor de `X-Client-Date` (FD-17) e `ProblemDetails`/catálogo de erros do recorte. **Fica para depois:** mock de API completo para os fluxos fora de escopo, `withCredentials`/cookie de refresh (não existem no T2 — não há `RefreshRequest`, ver nota abaixo). Depende de [BE-33](../backend/BE-33-login-minimo-grpc.md)/[BE-36](../backend/BE-36-api-gateway.md) (login e criar tarefa) e de [BE-41](../backend/BE-41-listar-e-consultar-tarefas-grpc.md) (listar/obter tarefa).
+>
+> **Contrato real extraído do Gateway (`src/Gateway/TodoList.Gateway.Api/Contracts/`):** `LoginHttpRequest { email, password }` (nomes exatos: `Email`, `Password`, serializados em camelCase pelo Gateway); resposta 200 `LoginHttpResponse { accessToken, expiresAt }` — **sem `refreshToken`**, o que já é compatível com FD-01 no T2. `CreateTaskHttpRequest { title, description, priority, dueDate }`, todos string (inclusive `priority`/`dueDate`, para caírem em erro de validação por campo em vez de erro de binding). Resposta de erro 400 usa `Results.ValidationProblem`, cujas chaves de `errors` são o **nome C# da propriedade em PascalCase** (`Title`, `Description`, `Priority`, `DueDate`), não camelCase — o mapeamento de FE-03 precisa casar com essa grafia exata.
+
 ## Objetivo
 
 Todo endpoint do backend tem um tipo TypeScript correspondente e um único ponto de acesso HTTP. Nenhuma feature monta URL ou tipa resposta na mão.

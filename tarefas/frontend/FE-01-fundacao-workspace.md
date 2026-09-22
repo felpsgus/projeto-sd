@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma diretamente (habilita todas) |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **integral**, incluindo o `.nvmrc` fixando Node 22 LTS ou 24 LTS (o Node local hoje é v16 — atualizar antes de começar) e, como acréscimo do T2, o `proxy.conf.json` de desenvolvimento apontando `/api` para `http://localhost:8080` (mesma origem que o nginx reproduzirá em produção — ver emenda de **FD-16** em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md)). Ver [README](README.md#recorte-do-t2-entrega-de-22102026).
+
 ## Objetivo
 
 Existe um workspace Angular 22 zoneless que compila, roda, passa no lint e executa testes — com as versões de ferramenta fixadas e a estrutura de pastas definida.

@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-TASK-06, RN-TASK-08, RN-TASK-09, RN-TASK-16, RN-AUTZ-02, RN-AUTZ-03 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de concluir/reabrir tarefa.
+
 ## Objetivo
 
 Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela responde na hora, e volta atrás sozinha se o servidor recusar.

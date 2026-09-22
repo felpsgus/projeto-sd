@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma de negócio — implementa as seções 4, 5 e 6 de `CONVENCOES-CODIGO.md` |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **só o build de produção**: `lint` → `format:check` → `test` → `build`. **Fica para depois:** pipeline de CI completo, gates de cobertura (75%/80%), varredura de dependências (`npm audit`), varredura de segredos, teste antivazamento automatizado, `budgets` de bundle, cabeçalhos de segurança documentados. Sem dependência de backend.
+
 ## Objetivo
 
 Todo PR do frontend passa por um pipeline que compila, verifica lint e formatação, roda os testes, mede cobertura contra os pisos definidos e varre dependências vulneráveis — e o build de produção é publicável.

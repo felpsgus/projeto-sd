@@ -197,6 +197,8 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 **Afeta:** [BE-08](BE-08-emissao-jwt.md), [BE-13](BE-13-protecao-endpoints.md), [BE-25](BE-25-contrato-grpc-identity.md), [BE-26](BE-26-identity-servidor-grpc.md).
 
+> **Emenda (21/09/2026) — ver D-38.** O enunciado do T2 mudou e passou a exigir middleware de JWT **no próprio Gateway** (requisito 6 de `t2.md`), o que é incompatível com HS256 (chave simétrica = quem valida também assina). **D-38** substitui HS256+`ValidateToken` por RS256 com chave assimétrica, mantendo o objetivo original de D-31 ("só o Identity emite") por outro mecanismo. O texto acima permanece como registro histórico do raciocínio até 20/09/2026.
+
 ### D-32 — A origem única passa a ser o API Gateway; os serviços não são alcançáveis pelo navegador
 
 **O problema:** **D-21** / **FD-16** fecharam "front e API na mesma origem", e disso dependem três coisas — `SameSite=Strict` sem token anti-CSRF, ausência de configuração de CORS, e o cookie de refresh com `Path=/api/auth` (**D-20**). Com dois serviços em portas diferentes, o frontend passaria a falar com **duas** origens, e as três premissas caem de uma vez.
@@ -215,6 +217,8 @@ Com isso: `/api/auth/*` e `/api/tasks` voltam a ser rotas da **mesma** origem, `
 **Enquanto o Gateway não existe:** nada a fazer no frontend, que não é tocado nesta etapa. O acesso direto ao Tasks é o gatilho provisório de [BE-29](BE-29-gatilho-http-criar-tarefa.md), em ambiente local. **NÃO DEVE** ser implementado CORS "para funcionar por enquanto" — seria trabalho descartado e mascararia o desenho correto.
 
 **Afeta:** [BE-29](BE-29-gatilho-http-criar-tarefa.md), transversal na etapa do Gateway e na de implantação. Do lado do frontend, ver **FD-16**.
+
+> **Emenda (21/09/2026) — ver D-40.** Com o frontend obrigatório servido por nginx (mesma origem, sem CORS), a origem pública da VM deixa de ser a porta 8080 do Gateway e passa a ser a **porta 80 do nginx** — o Gateway migra para `127.0.0.1:8080`, alcançável só localmente. O princípio de D-32 (única origem pública, backends não expostos) não muda; só o processo que ocupa essa origem única muda, de Gateway para nginx.
 
 ---
 
@@ -299,3 +303,50 @@ O `Error.Code` (ex.: `task.owner_inactive`) viaja no trailer **`error-code`**; a
 **Por quê não `Http1AndHttp2` na mesma porta:** sem TLS não há ALPN, e o Kestrel não negocia HTTP/2 em texto claro numa porta que também aceita HTTP/1.1. No Cloud Run, com `--use-http2`, o tráfego chega ao container como h2c — então a porta de serviço precisa ser `Http2` pura.
 
 **Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md).
+
+---
+
+## Revisão do T2 — enunciado novo (21/09/2026)
+
+O enunciado do T2 mudou: frontend obrigatório falando só com o Gateway, validação de JWT **no middleware do Gateway**, banco real sem mocks/dados em memória, apresentação de **10 minutos** (era 5). As decisões abaixo materializam essa mudança. Todas fechadas na mesma data.
+
+```
+navegador ──HTTP/JSON──▶ nginx :80 ──┬─ estático (Angular)
+                                      └─ /api/* ──▶ Gateway :8080 (127.0.0.1)
+                                                       ├─ AddJwtBearer local (chave pública RSA)
+                                                       ├─ validação do payload (400)
+                                                       └─ gRPC CreateTask/ListTasks/GetTask ──▶ Tasks
+                                                                                                └─gRPC ValidateUser─▶ Identity
+```
+
+### D-38 — JWT RS256: chave privada só no Identity, pública só no Gateway
+
+**Emenda a D-31.** O problema que D-31 resolvia (HS256 é simétrico; distribuir a chave promove o validador a emissor) continua real, mas o enunciado novo torna a solução anterior (validação só via `ValidateToken` gRPC, nenhuma chave fora do Identity) incompatível com o requisito 6 de `t2.md`: **"middleware/filtro de autenticação configurado no API Gateway para validação de token JWT"** — o Gateway precisa validar, não perguntar.
+
+**Padrão adotado:** `Jwt:PrivateKeyPath` (PEM PKCS8, RSA ≥ 2048 bits) só no Identity; `Jwt:PublicKeyPath` (PEM SPKI, a chave pública correspondente) só no Gateway; **nenhuma** chave `Jwt:*` no Tasks. O Identity assina com RS256; o Gateway valida localmente com `AddJwtBearer` e a chave pública. Detalhado em [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md).
+
+**Por que preserva o objetivo de D-31 mesmo com o mecanismo mudando:** "quem pode emitir é só o Identity" continua verdadeiro — a chave pública não serve para assinar, só para verificar. O que muda é que a verificação deixa de custar uma chamada de rede por requisição e passa a ser local, o que aliás é exigido pelo novo enunciado.
+
+**Consequência:** `ValidateToken` (BE-34) continua existindo no Identity, mas perde o Gateway como consumidor — vira capacidade sem chamador ativo nesta etapa.
+
+**Afeta:** [BE-08](BE-08-emissao-jwt.md), [BE-34](BE-34-validate-token-real.md), [BE-36](BE-36-api-gateway.md), [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md).
+
+### D-39 — Dados de demonstração só do Postgres; `Persisted` é o padrão
+
+**O problema:** o enunciado novo é explícito — **"não serão aceitas simulações de requisições ao banco, mocks, dados estáticos em memória ou respostas fictícias"** — e zera o requisito de banco se isso aparecer na demonstração. O Identity, até esta revisão, tinha `UserStore:Provider=InMemory` como padrão em `appsettings.json`.
+
+**Padrão adotado:** `UserStore:Provider=Persisted` como padrão em todo `appsettings.json`/ambiente de deploy. `InMemory` passa a existir **só** em configuração explícita de teste (`appsettings.Testing.json`, fixtures de `WebApplicationFactory`) — nenhum `.env`/`appsettings.json` usado em VM, compose ou T3 o referencia.
+
+**Por quê não deixar `InMemory` como opção "desligada por padrão":** deixar a opção disponível em configuração de produção é um risco operacional silencioso — basta um `.env` novo esquecer a chave. Restringir ao código de teste torna o erro impossível de cometer por omissão de configuração.
+
+**Afeta:** [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md). Referenciado por [BE-39](BE-39-verificacao-t2.md) como parte do que a demonstração precisa provar (registros no `psql`).
+
+### D-40 — O nginx é servidor estático com proxy, não um segundo gateway
+
+**O problema:** a decisão do usuário de servir o Angular e o `/api` pela mesma origem via nginx (preservando FD-16/FD-01/D-21/D-32) introduz um processo novo na frente do Gateway. É fácil, na prática, começar a colocar lógica nesse processo — um redirect condicional, uma checagem de header — e assim o desenho de "Gateway como única borda com regra" (D-33) esvaziar sem que nenhuma task tenha decidido isso.
+
+**Padrão adotado:** o nginx **só** serve estático e faz `proxy_pass` de `/api/*` para o Gateway (`127.0.0.1:8080`, agora não mais público). Nenhuma regra de negócio, autenticação ou validação nele. O Gateway continua sendo o único ponto de entrada da **API**; o nginx é o único ponto de entrada do **tráfego HTTP** da VM, um nível abaixo — a mesma origem pública muda de dono (do Gateway para o nginx), mas o princípio de D-32 (uma única origem pública, backends não expostos) não muda.
+
+**Consequência na VM:** a porta pública passa a ser **80** (nginx); **8080** (Gateway) fecha para tráfego externo e passa a escutar só em `127.0.0.1`. `ForwardedHeaders` no Gateway com `KnownProxies=127.0.0.1`.
+
+**Afeta:** [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md), [BE-42](BE-42-nginx-mesma-origem.md). Do lado do frontend, ver **FD-16**/**FD-01**.

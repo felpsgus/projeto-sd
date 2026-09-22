@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-LIST-02, RN-LIST-03, RN-LIST-04, RN-LIST-05 |
 | **Estimativa** | G |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — a listagem do recorte ([FE-15](FE-15-listagem-paginacao.md)) entra só com paginação simples, sem filtros nem busca.
+
 ## Objetivo
 
 O usuário filtra e busca as próprias tarefas, e o resultado fica refletido na URL — recarregar a página ou compartilhar o link preserva exatamente a mesma visão.

@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-USER-05, RN-AUTH-19 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de exclusão de conta.
+
 ## Objetivo
 
 O usuário exclui a própria conta de forma deliberada, sabendo exatamente o que perde — e sem chance de fazê-lo por acidente.

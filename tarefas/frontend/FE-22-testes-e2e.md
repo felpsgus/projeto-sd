@@ -8,6 +8,8 @@
 | **Regras cobertas** | valida ponta a ponta as regras já implementadas |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — sem suíte E2E Playwright completa; a demo ao vivo de 10 minutos cumpre esse papel na apresentação.
+
 ## Objetivo
 
 Os fluxos que, se quebrarem, inutilizam o produto estão cobertos por testes que exercitam frontend e backend reais.

@@ -18,6 +18,8 @@ Decisões que a quebra do frontend exigiu e que não estão respondidas em [REGR
 
 **Consequência:** emendou BE-09, BE-10 e BE-11 (ver **D-20** em [backend/DECISOES-PENDENTES.md](../backend/DECISOES-PENDENTES.md)) e **simplificou** [FE-05](FE-05-estado-sessao.md) — a abstração `TokenStorage` com duas implementações deixou de ser necessária, porque o frontend não armazena mais nada.
 
+> **Nota (21/09/2026, recorte do T2):** o desenho acima — refresh token em cookie `HttpOnly`, bootstrap de sessão por refresh — é o desenho **de longo prazo** e continua valendo como alvo. Ele depende de [BE-10](../backend/BE-10-refresh-token-rotacao.md), que **não existe no backend do T2** (D-36: o login do T2 emite só um access token, sem refresh, sem cookie). Enquanto isso, o frontend do T2 guarda o access token **só em memória**, sem storage nenhum — não porque FD-01 mudou, mas porque a metade que ela protegia (o refresh token) ainda não existe para proteger. Ver a nova **FD-20** para o desenho específico do T2. Quando [BE-10](../backend/BE-10-refresh-token-rotacao.md) existir, vale o desenho original desta seção, sem alteração.
+
 ### FD-16 ✅ — Front e API na mesma origem — e essa origem é o **API Gateway**
 
 `SameSite=Strict` é viável, **não há CSRF token** a implementar e **não há CORS a configurar**. Em contrapartida, toda chamada a `/api/auth/*` precisa de `withCredentials: true` — sem isso o cookie não é anexado, e o sintoma é um 401 no refresh que parece bug de sessão. Ver **D-21** no backend.
@@ -33,6 +35,13 @@ navegador ──HTTPS/JSON──▶ API Gateway ──┬──gRPC──▶ Ide
 
 **O que NÃO fazer no meio do caminho:** enquanto o Gateway não existir, pode ser tentador apontar o frontend direto para as duas portas e "resolver com CORS". Isso seria trabalho descartado, quebraria `SameSite=Strict` (exigindo `SameSite=None` e proteção CSRF de volta) e mascararia o desenho correto. Ver **D-32** no backend.
 
+> **Emenda (21/09/2026, recorte do T2):** na VM e no container, a origem única passa a ser o **nginx**, não mais o API Gateway sozinho — o nginx serve o build estático do Angular e faz proxy reverso de `/api` para o Gateway (decisão de backend **D-40**, task [BE-42](../backend/BE-42-nginx-mesma-origem.md)). O Gateway continua sendo o **único ponto de entrada da API** — o nginx não fala gRPC nem toma decisão de negócio, só serve arquivos e repassa `/api`. Continua **sem CORS a configurar** e **sem CSRF token**, porque front e API seguem na mesma origem do ponto de vista do navegador — só que essa origem agora é o nginx, não mais o Gateway diretamente. Em desenvolvimento, o `proxy.conf.json` do `ng serve` ([FE-01](FE-01-fundacao-workspace.md)) reproduz a mesma origem, apontando `/api` para `http://localhost:8080`. **Continua proibido** apontar o frontend direto para o Gateway com CORS habilitado — o raciocínio de "o que NÃO fazer" acima vale integralmente, trocando "Gateway" por "nginx" onde se lê "origem única".
+
+> ```
+> navegador ──HTTPS/JSON──▶ nginx ──┬── serve o build do Angular (estático)
+>    (origem única)                 └──proxy /api──▶ API Gateway ──gRPC──▶ Identity / Tasks
+> ```
+
 ### FD-17 ✅ — "Atrasada" usa a data local do usuário
 
 O frontend envia o header **`X-Client-Date: yyyy-MM-dd`** em toda requisição à API, por interceptor ([FE-02](FE-02-contratos-camada-http.md)). O backend o usa para calcular `isOverdue` e o filtro `overdue` (**D-18**).
@@ -44,6 +53,20 @@ Isso **não** altera FD-09: o frontend continua **lendo** `isOverdue` da respost
 ### FD-18 ✅ — API sem versionamento
 
 Rotas permanecem `/api/...`. Front e back são implantados juntos (ver **D-22** no backend). A consequência aceita é que toda mudança incompatível de contrato exige implantação coordenada.
+
+### FD-20 ✅ — Sessão do T2 só em memória (21/09/2026)
+
+> Nota de numeração: o pedido original chamava esta decisão de "FD-19", mas esse número já estava em uso na tabela de "Demais decisões" (a questão do `Intl.DateTimeFormat` para `X-Client-Date`). Esta entrada ocupa **FD-20**, o próximo número livre.
+
+**O conflito que motivou:** FD-01 desenha refresh token em cookie `HttpOnly` com bootstrap de sessão por refresh. Esse desenho depende de [BE-10](../backend/BE-10-refresh-token-rotacao.md) (refresh token e rotação), que **não existe no backend do T2** — o login do T2 (D-36) emite só um access token, sem refresh, sem cookie, sem endpoint de logout no servidor.
+
+**Decisão:** no T2, o `SessionStore` ([FE-05](FE-05-estado-sessao.md)) guarda o access token **só em memória** (signal), exatamente como FD-01 já previa para o access token — a diferença é que não há refresh token nenhum para complementar. Sem cookie, sem `localStorage`, sem `sessionStorage`.
+
+**Motivo:** é a única opção consistente com o que o backend do T2 oferece. Guardar o access token em `localStorage` "para sobreviver ao F5" contradiria RN-AUTH-05/RN-AUTH-20 e a própria FD-01, trocando um risco de XSS pequeno (15 minutos em memória) por um grande (token de vida longa em storage acessível a JavaScript) só por conveniência de não precisar logar de novo.
+
+**Consequência:** recarregar a página (`F5`) numa rota autenticada **exige novo login** — não há bootstrap de sessão no T2, porque não há refresh a partir do qual restaurá-la. [FE-05](FE-05-estado-sessao.md) e [FE-06](FE-06-interceptor-auth-refresh.md) entram no T2 sem o bloco de bootstrap/renovação (ver os blocos "Recorte do T2" de cada task).
+
+**Condição de revisão:** quando [BE-10](../backend/BE-10-refresh-token-rotacao.md) existir, esta decisão é superada pelo desenho original de **FD-01** — cookie `HttpOnly`, bootstrap por refresh, sem mudança de rumo, só a continuação do que já estava planejado.
 
 ---
 

@@ -10,6 +10,8 @@
 
 > **FD-01 está decidida:** o refresh token vive em cookie `HttpOnly` e o frontend **nunca o vê**. Isso simplificou esta task — não há `TokenStorage`, não há escolha de armazenamento, não há nada a persistir.
 
+> **Recorte do T2 (21/09/2026):** entra **parcial**. O `SessionStore` mantém `user`/`isAuthenticated`/`accessTokenExpiresAt` e `startSession`/`endSession`, mas **sem bootstrap por refresh**: como o backend do T2 não emite refresh token nem cookie (D-36), não há como restaurar a sessão num `F5` — recarregar a página exige novo login (nova **FD-20**, em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md)). `status` pode ficar só em `'authenticated' | 'anonymous'`, sem o estado `'unknown'` de bootstrap. **Fica para depois:** restauração de sessão, sincronia entre abas por revogação de servidor (ainda vale a sincronia local de `endSession`, se trivial). Depende de [BE-33](../backend/BE-33-login-minimo-grpc.md)/[BE-36](../backend/BE-36-api-gateway.md).
+
 ## Objetivo
 
 Existe uma única fonte de verdade sobre "quem está logado", exposta por signals — e o frontend não guarda credencial nenhuma em disco.

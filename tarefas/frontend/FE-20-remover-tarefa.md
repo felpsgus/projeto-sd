@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-TASK-12, RN-TASK-13, RN-AUTZ-02, RN-AUTZ-03 |
 | **Estimativa** | P |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de remoção de tarefa.
+
 ## Objetivo
 
 O usuário remove uma tarefa sua com uma confirmação no caminho, e ela desaparece da lista.

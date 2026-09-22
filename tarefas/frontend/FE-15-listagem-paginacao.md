@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-LIST-01, RN-LIST-06, RN-LIST-07, RN-TASK-14, RN-TASK-16 |
 | **Estimativa** | G |
 
+> **Recorte do T2 (21/09/2026):** entra com **paginação simples, sem filtros** — [FE-16](FE-16-filtros-busca-url.md) (filtros, busca, sincronia com URL) fica fora do T2. O restante entra integral: ordenação vinda do servidor (o cliente não reordena), selo "Atrasada" via `isOverdue` da API (FD-09), paginação clássica (FD-10). As ações de editar ([FE-18](FE-18-editar-tarefa.md)), concluir/reabrir ([FE-19](FE-19-concluir-reabrir.md)) e remover ([FE-20](FE-20-remover-tarefa.md)) ficam fora do T2 — cada item exibe só os dados, sem esses botões. Depende de [BE-41](../backend/BE-41-listar-e-consultar-tarefas-grpc.md) (listagem/consulta).
+
 ## Objetivo
 
 A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, paginadas, com as tarefas atrasadas visivelmente sinalizadas.

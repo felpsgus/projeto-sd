@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTH-12, RN-AUTH-19 |
 | **Estimativa** | P |
 
+> **Recorte do T2 (21/09/2026):** entra **só o logout local**: descarta o access token em memória (`SessionStore.endSession`) e navega para `/login` com `replaceUrl`. **Sem** chamada a `POST /api/auth/logout` — o backend do T2 não expõe esse endpoint (não há cookie de servidor a apagar, D-36) — e sem "sair de todos os dispositivos" ([BE-11](../backend/BE-11-logout-revogacao.md), fora do T2). Sem dependência de backend.
+
 ## Objetivo
 
 O usuário sai da aplicação quando quiser, e nada do que ele viu permanece acessível na aba depois disso.

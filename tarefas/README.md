@@ -10,7 +10,7 @@ tarefas/
 ├── backend/               ← .NET 10 / ASP.NET Core / EF Core — dois microsserviços
 │   ├── README.md          ← índice, ordem de execução e rastreabilidade RN → task
 │   ├── DECISOES-PENDENTES.md
-│   └── BE-01 … BE-39      ← uma tarefa por arquivo (BE-32 a BE-39: API Gateway, T2)
+│   └── BE-01 … BE-42      ← uma tarefa por arquivo (BE-32 a BE-39: API Gateway, T2; BE-40 a BE-42: revisão do T2, 21/09/2026)
 └── frontend/              ← Angular 22 (standalone, signals-first, zoneless)
     ├── README.md          ← índice, dependência das tasks BE e rastreabilidade RN → task
     ├── DECISOES-PENDENTES.md
@@ -22,6 +22,8 @@ A entrada da quebra do frontend são os **contratos de API** definidos nas tasks
 O backend é composto por **dois serviços** — **Identity** (servidor gRPC) e **Tasks** (cliente gRPC) —, comunicando-se por um contrato Protocol Buffers versionado. Eles compartilham **um banco**, com um schema por serviço (**D-27**). Cada task BE declara a qual serviço pertence. Ver [backend/README.md](backend/README.md). **Isso não muda nada para o frontend:** ele continua consumindo a API REST, e as tasks FE seguem válidas como estão.
 
 A partir do T2, a API REST que o frontend consome é servida pelo **API Gateway** (D-32, D-33): ele autentica, valida o payload e traduz a chamada para gRPC. Identity e Tasks passam a ser alcançáveis só por gRPC, atrás dele. As rotas (`/api/auth/*`, `/api/tasks`) não mudam.
+
+**Revisão do T2 — enunciado novo (21/09/2026):** frontend obrigatório (Angular), JWT validado localmente no middleware do Gateway (RS256, **D-38**, substitui a validação por `ValidateToken` de **D-31**), banco real sem dados em memória fora de teste (**D-39**), e frontend + API na mesma origem via nginx (**D-40**, materializa **FD-16**/**FD-01** com um processo estático na frente do Gateway). Ver [backend/BE-40](backend/BE-40-jwt-rs256-e-persisted-padrao.md) a [BE-42](backend/BE-42-nginx-mesma-origem.md).
 
 ## Decisões estruturais já fechadas
 
@@ -39,6 +41,9 @@ Valem para as duas pontas e estão refletidas nas tasks. Detalhes em [backend/DE
 | **Versionamento** (D-22 / FD-18) | Sem `/v1` | Front e back são implantados juntos; não há consumidor externo |
 | **Gateway** (D-33 a D-35) | Projeto único, sem regra de negócio; identidade repassada ao Tasks em metadata `x-user-id`; erros gRPC ↔ HTTP com `errorCode` no trailer | O Gateway autentica e traduz — o contrato REST visto pelo cliente continua o mesmo |
 | **Login no T2** (D-36) | Só access token, via RPC `Login`; refresh, logout e bloqueio ficam para depois | Token real e definitivo, sem rota provisória a remover |
+| **JWT RS256 no Gateway** (D-38, emenda a D-31) | Chave privada só no Identity, chave pública só no Gateway; `AddJwtBearer` valida localmente, sem chamar `ValidateToken` | O enunciado novo exige middleware de JWT no próprio Gateway; HS256 exigiria distribuir a chave que também assina |
+| **Dados só do Postgres** (D-39) | `UserStore:Provider=Persisted` como padrão; `InMemory` só em teste | O enunciado novo zera o requisito de banco se houver dado em memória na demonstração |
+| **nginx de mesma origem** (D-40) | Servidor estático + proxy de `/api`, sem regra de negócio; Gateway recua para `127.0.0.1` | Frontend obrigatório, mesma origem via nginx sem virar um segundo gateway |
 
 > **A decisão do fuso altera o texto das regras.** A RN-TASK-16 fala em "data atual"; passa a significar **data atual do usuário**. Vale corrigir [REGRAS-DE-NEGOCIO.md](../REGRAS-DE-NEGOCIO.md).
 

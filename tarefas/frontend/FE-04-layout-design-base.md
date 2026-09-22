@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma diretamente |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **mínimo** — só o necessário para as três telas do recorte (login, lista de tarefas, criar tarefa): `AuthLayout`, `AppShell` simplificado (sem menu de conta com perfil, já que não há perfil no T2 — só "Sair"), tokens de estilo básicos, skip link e foco por navegação. `<app-confirm-dialog>` fica para depois (usado só por FE-13/FE-20, fora do T2). Sem dependência de backend.
+
 ## Objetivo
 
 Existe um esqueleto visual consistente: dois layouts (público e autenticado), tokens de estilo, e um conjunto mínimo de componentes de apresentação que as features reaproveitam em vez de recriar.

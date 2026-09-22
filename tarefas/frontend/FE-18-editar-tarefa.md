@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-TASK-11, RN-TASK-14, RN-AUTZ-02, RN-AUTZ-03 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem `GET /api/tasks/{id}` para autorização nem `PUT`/`PATCH` de edição.
+
 ## Objetivo
 
 O usuário edita título, descrição, prioridade e vencimento de uma tarefa sua — e uma tarefa que não é dele simplesmente não existe, do ponto de vista da tela.

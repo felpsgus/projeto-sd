@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTZ-02, RN-AUTZ-03 (tratamento no cliente) |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **parcial** — a camada única de estado (`TasksStore`) é usada por [FE-15](FE-15-listagem-paginacao.md) (listar) e [FE-17](FE-17-criar-tarefa.md) (criar). Entram só `load` (paginação, **sem** filtros de `query`), `create` e `getById`, coerentes com o recorte de FE-02. `update`, `complete`, `reopen` e `remove` **não** são implementados no T2: chamariam rotas que o Gateway não tem (revisão do tech lead — código morto apontando para endpoint inexistente); entram junto com FE-18 a FE-20. O backend devolve `totalCount`; `totalPages` é `computed` no cliente. Depende de [BE-36](../backend/BE-36-api-gateway.md) (criar) e de [BE-41](../backend/BE-41-listar-e-consultar-tarefas-grpc.md) (listar/obter).
+
 ## Objetivo
 
 Existe uma camada única de estado para tarefas, exposta por signals, que todas as telas de tarefa consomem — e nenhuma delas chama a API diretamente nem mantém cópia própria da lista.

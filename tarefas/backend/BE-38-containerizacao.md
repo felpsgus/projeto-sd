@@ -89,3 +89,8 @@ Registrado aqui como mapa do que vem a seguir, sem numerar nem criar arquivo de 
 
 - **D-32** — Gateway como única origem pública; replicado aqui como "só o gateway publica porta" no compose. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-37** — Cada backend expõe um endpoint HTTP/2 gRPC na porta que o Cloud Run injeta como `$PORT`, mais o gRPC Health Checking Protocol — referenciado aqui como a razão de a porta 8080 dos backends ser o endpoint `Grpc`, não o REST. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+> **Emenda (21/09/2026).** [BE-42](BE-42-nginx-mesma-origem.md) acrescenta um quarto serviço ao perfil `full` do `docker-compose.yml`:
+> - **`frontend`** (build de `frontend/Dockerfile`, nginx não-root na 8080) entra no perfil `full` — **CA-04 é superado por BE-42/D-40**: a partir desta emenda, é o `frontend` quem publica porta no host (ex.: `80:8080`), e o `gateway` **deixa** de publicar porta — passa a ser alcançado só pelo `frontend` na rede interna do compose, espelhando a mesma mudança de topologia da VM (BE-37/D-40).
+> - **Chaves RSA:** os segredos do perfil `full` passam a incluir as chaves de `Jwt:PrivateKeyPath`/`Jwt:PublicKeyPath` (BE-40/D-38, substituindo `Jwt__SigningKey`), montadas **read-only** a partir de uma pasta local ignorada pelo git (ex.: `.secrets/jwt/`) — não mais como variável de ambiente com o valor da chave.
+> - Os demais critérios (CA-01, CA-02, CA-03 — agora validado contra `http://localhost` via `frontend`, CA-05 a CA-07) continuam válidos, ajustados para a topologia com quatro serviços no perfil `full`.

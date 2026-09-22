@@ -93,3 +93,11 @@ A `maquina-1-psd` passa a rodar três units systemd — Identity, Tasks e Gatewa
 - **D-32** — Gateway como única origem pública; Identity e Tasks não acessíveis de fora. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-33** — Endereços do Gateway em `Backends:IdentityGrpcAddress`/`Backends:TasksGrpcAddress`, Kestrel em `0.0.0.0:8080`. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-36** — Chaves obrigatórias de JWT e senha de demonstração, exigidas na inicialização do Identity. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+> **Emenda (21/09/2026).** [BE-42](BE-42-nginx-mesma-origem.md) muda a topologia de rede desta task:
+> - **Firewall:** a regra `todolist-allow-gateway` (`tcp:8080`, pública) é **fechada/removida**; abre-se `tcp:80` para o nginx. **CA-02 e CA-03 são superados por BE-42/D-40**: a verificação de fora passa a ser feita contra a porta 80 (nginx), e 8080 entra na lista de portas que **não devem** responder de fora, junto de 5080/5081/5100/5101.
+> - **Gateway em `127.0.0.1`:** o Kestrel do Gateway passa de `0.0.0.0:8080` para `127.0.0.1:8080` — **D-33** ("Kestrel em `0.0.0.0:8080`") é superada nesse ponto específico por [BE-42](BE-42-nginx-mesma-origem.md).
+> - **nginx:** `install-on-vm.sh` passa a instalar e configurar o nginx (site + proxy), além das três units systemd já existentes.
+> - **Chaves RSA:** o item "editar `/etc/todolist/identity.env`, acrescentando `Jwt__SigningKey`" do roteiro de upgrade é **superado por BE-40/D-38** — a VM passa a gerar um par de chaves RSA (`openssl genpkey`) em `/etc/todolist/jwt/`, referenciado por `Jwt__PrivateKeyPath` (Identity) e `Jwt__PublicKeyPath` (Gateway), em vez de uma `Jwt__SigningKey` simétrica. Como as três units rodam como o mesmo usuário `todolist`, a chave privada fica `root:0400` e chega só ao Identity via `LoadCredential=` do systemd (detalhe em BE-40).
+> - **Front no tarball:** `scripts/publish.ps1` passa a incluir também o build do Angular (`publish/frontend/`), servido pelo nginx.
+> - Os demais critérios (CA-01, CA-04 a CA-08) continuam válidos sem alteração.

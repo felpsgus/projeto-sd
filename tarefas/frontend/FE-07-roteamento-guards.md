@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTZ-04 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **quase integral**, com o mapa de rotas reduzido ao recorte: `/login` (pública), `/tasks` (autenticada, rota inicial pós-login), `/tasks/new` (autenticada) e `/**` (404). Sem `/register`, `/account`, `/account/password`, `/tasks/:id/edit`. `authGuard`, `guestGuard`, lazy loading e a validação de `returnUrl` contra open redirect entram integrais — são baratos e a proteção de segurança (CA-09) não deve ser cortada. Sem dependência de backend além da sessão de [FE-05](FE-05-estado-sessao.md)/[FE-06](FE-06-interceptor-auth-refresh.md).
+
 ## Objetivo
 
 Rotas autenticadas são inacessíveis a visitantes, rotas públicas não são exibidas a quem já está logado, e cada feature é carregada sob demanda.

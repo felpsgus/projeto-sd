@@ -8,6 +8,10 @@
 | **Regras cobertas** | RN-AUTH-08, RN-AUTH-09, RN-AUTH-13, RN-USER-04 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **integral**, exceto o bloco de bloqueio por tentativas (RN-AUTH-13, CA-11 a CA-15), que depende de [BE-12](../backend/BE-12-bloqueio-tentativas-login.md) — o backend do T2 não implementa 429. A indistinguibilidade de mensagem (RN-AUTH-09, CA-05 a CA-10) e a ausência de "esqueci minha senha" continuam integrais e são as mesmas que a demo do T2 usa para mostrar o 401. Também não há e-mail pré-preenchido vindo do cadastro (FE-08 fora do T2) nem mensagem de sessão revogada (depende de [FE-06](FE-06-interceptor-auth-refresh.md) integral, fora do T2). Depende de [BE-33](../backend/BE-33-login-minimo-grpc.md)/[BE-36](../backend/BE-36-api-gateway.md).
+>
+> **Contrato real do 401 de login extraído do Gateway** (`Endpoints/AuthEndpoints.cs`): `ProblemDetails` com `status: 401`, `title: "Credenciais inválidas."`, `detail: "E-mail ou senha inválidos."` e `extensions.errorCode: "auth.invalid_credentials"` — idêntico para e-mail inexistente, senha errada ou conta inativa (o Gateway não distingue os três casos).
+
 ## Objetivo
 
 O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela não revela mais do que deve quando as credenciais falham.

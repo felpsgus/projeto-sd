@@ -8,6 +8,10 @@
 | **Regras cobertas** | RN-TASK-10, RN-TASK-02 a RN-TASK-05, RN-TASK-07, RN-TASK-15 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **integral**, incluindo o limite de tarefas ativas (RN-TASK-15) se o backend do T2 o implementar; se não implementar (a task depende de checar [BE-36](../backend/BE-36-api-gateway.md)), o bloco de 409/`task.active_limit_reached` fica sem cenário para exercitar na prática, mas o código permanece pronto. Depende de [BE-36](../backend/BE-36-api-gateway.md) (`POST /api/tasks`).
+>
+> **Contrato real de criação extraído do Gateway** (`Contracts/CreateTaskHttpRequest.cs`, `Endpoints/TaskEndpoints.cs`): corpo `{ title, description, priority, dueDate }`, todos string (inclusive `priority` e `dueDate` — um valor fora do domínio, ex. `"priority": "Urgente"`, vira 400 por campo, não erro de binding). Sucesso devolve **201** com header `Location: /api/tasks/{id}` e corpo `TaskHttpResponse { id, title, description, priority, status, dueDate, completedAt, isOverdue, createdAt, updatedAt }`. O 400 de validação usa `Results.ValidationProblem`, com as chaves de `errors` em **PascalCase** (`Title`, `Description`, `Priority`, `DueDate`) — não confundir com o camelCase do corpo de sucesso.
+
 ## Objetivo
 
 O usuário cria uma tarefa informando apenas o título, com os demais campos opcionais — e recebe uma mensagem clara se atingir o limite de tarefas ativas.

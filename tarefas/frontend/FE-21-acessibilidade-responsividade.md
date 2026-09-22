@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma de negócio |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **só o básico já exigido por [FE-04](FE-04-layout-design-base.md)** (skip link, landmarks, foco por navegação, contraste dos tokens) nas três telas do recorte (login, lista, criar tarefa). A auditoria transversal completa desta task — `axe-core` integrado ao CI, auditoria manual de leitor de tela, verificação nas três larguras de referência, `docs/acessibilidade.md` — fica para depois; não há CI completo no T2 ([FE-23](FE-23-ci-build-seguranca.md) também parcial) para hospedar os gates. Sem dependência de backend.
+
 ## Objetivo
 
 A aplicação inteira é utilizável por teclado, por leitor de tela e em telas pequenas — verificado por auditoria automatizada no CI, não por inspeção pontual.

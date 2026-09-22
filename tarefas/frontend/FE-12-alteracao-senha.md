@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTH-21, RN-AUTH-04, RN-AUTH-05, RN-AUTH-19 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de troca de senha.
+
 ## Objetivo
 
 O usuário troca a própria senha informando a atual e a nova — e entende, antes de confirmar, que isso vai desconectar todos os seus dispositivos.

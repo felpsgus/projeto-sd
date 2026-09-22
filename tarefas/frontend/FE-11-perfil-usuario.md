@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-USER-01, RN-USER-02, RN-USER-03 |
 | **Estimativa** | P |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de perfil.
+
 ## Objetivo
 
 O usuário vê os próprios dados em `/account` e altera o nome de exibição — e a tela deixa claro que o e-mail não é alterável.

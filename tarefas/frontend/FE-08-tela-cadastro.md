@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTH-01 a RN-AUTH-05, RN-AUTH-07 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de cadastro.
+
 ## Objetivo
 
 Um visitante cria a própria conta em `/register`, com validação imediata e mensagens claras sobre o que precisa corrigir.

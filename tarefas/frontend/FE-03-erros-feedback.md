@@ -8,6 +8,10 @@
 | **Regras cobertas** | habilita RN-AUTH-09, RN-AUTZ-03, RN-TASK-15 e toda mensagem de erro |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra com um **acréscimo**: um indicador discreto do último status HTTP recebido (ex.: um chip no canto da tela, ligado por flag de `environment`), pensado só para a demo — a plateia enxerga 400/401/201 sem abrir o DevTools. O mapa de erro→mensagem cobre só os códigos que o backend do T2 emite: `auth.invalid_credentials` (401 de login), `auth.unauthorized` (401 de token ausente/inválido/expirado, ver [FE-06](FE-06-interceptor-auth-refresh.md)) e os erros de campo do 400 de criação de tarefa. **Fica para depois:** `auth.too_many_attempts`, `task.active_limit_reached` e os demais códigos que dependem de endpoints fora do T2. Depende de [BE-36](../backend/BE-36-api-gateway.md).
+>
+> **Formato real do 401 extraído do Gateway** (`Authentication/IdentityTokenAuthenticationHandler.cs`): `ProblemDetails` com `status: 401`, `title: "Não autenticado."`, `detail: "Autenticação ausente, inválida ou expirada."` e `extensions.errorCode: "auth.unauthorized"` — o mesmo corpo para token ausente, inválido ou expirado (CA-12 de BE-36); o 401 de credencial de login usa `errorCode: "auth.invalid_credentials"` em vez disso.
+
 ## Objetivo
 
 Todo erro vindo da API vira uma mensagem em português compreensível, exibida de forma consistente — e nenhuma tela precisa interpretar status HTTP na mão.

@@ -15,7 +15,7 @@ O backend é composto por **dois microsserviços independentes** que se comunica
 
 Cada task traz no cabeçalho a linha **Serviço**, indicando onde ela vive.
 
-O **Identity é a única autoridade sobre tokens** (**D-31**): a chave de assinatura não sai dele, e quem precisa validar um token chama `ValidateToken` por gRPC. O Tasks não valida JWT — ele recebe a identidade já verificada de quem o chama, o que só é seguro porque o **API Gateway é o único ponto público** e os dois serviços ficam atrás dele (**D-32**).
+O **Identity é a única autoridade sobre tokens** (**D-31**, emendada por **D-38**/[BE-40](BE-40-jwt-rs256-e-persisted-padrao.md) desde 21/09/2026): a chave privada nunca sai dele. Até 20/09/2026, quem precisa validar um token chamava `ValidateToken` por gRPC (HS256); desde BE-40, o **Gateway valida localmente com a chave pública RSA** (RS256, exigência do enunciado novo do T2). Em ambos os desenhos, o Tasks não valida JWT — ele recebe a identidade já verificada de quem o chama, o que só é seguro porque o **API Gateway é o único ponto público** e os dois serviços ficam atrás dele (**D-32**, e desde [BE-42](BE-42-nginx-mesma-origem.md) o nginx ocupa essa origem única na VM, com o Gateway recuado para `127.0.0.1`, sem alterar o princípio).
 
 ```
 POST /api/tasks
@@ -133,6 +133,20 @@ Paralelismo: depois de BE-32, a trilha do Identity (BE-06 → BE-08 → BE-33/BE
 
 **Depois do T2 (T3, apresentação em 03/12/2026)** — ainda sem task numerada, listadas em [BE-38](BE-38-containerizacao.md): Cloud SQL no lugar da VM de banco, deploy dos três serviços no Cloud Run (backends privados), resiliência nos clientes gRPC (retry + circuit breaker) e desligamento das VMs.
 
+### Revisão do T2 — 21/09/2026 (enunciado novo)
+
+O enunciado do T2 mudou: frontend obrigatório falando só com o Gateway, JWT validado **no middleware do Gateway** (não mais via `ValidateToken` gRPC), banco real sem mocks (nenhum dado em memória na demonstração), apresentação de **10 minutos** (era 5). Três tasks novas fecham essa revisão — decisões **D-38** a **D-40** em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md):
+
+| # | Tarefa | Serviço | Est. |
+|---|---|---|---|
+| [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md) | JWT RS256 validado no Gateway (`AddJwtBearer`) e `Persisted` como padrão do `UserStore` | Identity, Gateway | M |
+| [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) | Listar e consultar tarefas via gRPC (recorte de BE-22/BE-18) — o frontend precisa do que exibir | Tasks, Gateway | M |
+| [BE-42](BE-42-nginx-mesma-origem.md) | nginx como servidor de mesma origem (SPA + proxy `/api`) | todos (nginx não é serviço de aplicação) | M |
+
+Paralelismo: BE-40 e BE-41 não dependem uma da outra (a primeira mexe em autenticação, a segunda em leitura de tarefas) e podem correr juntas — ambas dependem só de BE-36. BE-42 depende das duas (precisa do Gateway já autenticando via `AddJwtBearer` e das rotas de leitura existirem) e da fundação do frontend ([FE-01](../frontend/FE-01-fundacao-workspace.md)). BE-39 é revisada por último, depois que BE-40/BE-41/BE-42 fecham, porque o roteiro de apresentação parte do frontend servido pelo nginx.
+
+BE-08, BE-34, BE-36, BE-37 e BE-38 recebem blocos de **emenda datada (21/09/2026)** nos próprios arquivos, marcando quais critérios de aceite específicos foram superados por BE-40/BE-41/BE-42 — o histórico da decisão original (D-31/D-32/D-33) não é apagado, só marcado como superado onde a mudança de enunciado o exige.
+
 > Estimativa: **P** ≈ até 1 dia · **M** ≈ 1–2 dias · **G** ≈ 3+ dias.
 
 ## Grafo de dependências
@@ -170,6 +184,22 @@ BE-32 ──┬── BE-06 ── BE-08 ──┬── BE-33 ──┐
                                                      └── BE-38 ──┘ (BE-38 também prepara o T3)
 ```
 
+Revisão do T2 (21/09/2026 — enunciado novo):
+
+```
+BE-08 ──┐
+        ├── BE-40 ──┐
+BE-34 ──┘           │
+                     ├── BE-42 ──┐
+BE-35 ──┐           │            │
+        ├── BE-41 ──┘            ├── BE-39 (roteiro revisado, parte do front)
+BE-36 ──┘                        │
+                                  │
+FE-01 (frontend) ─────────────────┘
+```
+
+BE-40 e BE-41 dependem só de BE-36 (e, no caso de BE-40, também de BE-08/BE-34) e não dependem uma da outra. BE-42 fecha as duas, mais a fundação do frontend (FE-01). BE-39 é a última a fechar, porque seu roteiro de 10 minutos parte do frontend servido pelo nginx de BE-42.
+
 > **BE-27 e BE-28 também dependem de BE-03.** O gateway gRPC e a validação do
 > dono devolvem `Result<T>` e consomem códigos do catálogo de erros (`identity.unavailable`,
 > `owner.not_found`, `owner.inactive`); sem BE-03 essas tasks improvisam o próprio
@@ -187,10 +217,10 @@ BE-32 ──┬── BE-06 ── BE-08 ──┬── BE-33 ──┐
 | RN-AUTH-05 | Senha em hash, nunca retornada | [BE-06](BE-06-hash-senha.md) |
 | RN-AUTH-06 | Usuário nasce ativo | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
 | RN-AUTH-07 | Nome de exibição padrão = parte antes do `@` | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
-| RN-AUTH-08 | Login com e-mail + senha | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md) (recorte T2) |
+| RN-AUTH-08 | Login com e-mail + senha | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md) (recorte T2), [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md) |
 | RN-AUTH-09 | Mensagem genérica de credencial inválida | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md), [BE-36](BE-36-api-gateway.md) |
 | RN-AUTH-10 | Emitir access + refresh token | [BE-08](BE-08-emissao-jwt.md), [BE-10](BE-10-refresh-token-rotacao.md), [BE-33](BE-33-login-minimo-grpc.md) (só access, D-36) |
-| RN-AUTH-11 | Access token expira em 15 min | [BE-08](BE-08-emissao-jwt.md) |
+| RN-AUTH-11 | Access token expira em 15 min | [BE-08](BE-08-emissao-jwt.md), [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md) (RS256, mesma duração) |
 | RN-AUTH-12 | Logout invalida refresh token | [BE-11](BE-11-logout-revogacao.md) |
 | RN-AUTH-13 | 5 tentativas → bloqueio de 15 min | [BE-12](BE-12-bloqueio-tentativas-login.md) |
 | RN-AUTH-14 | Renovar sem credenciais | [BE-10](BE-10-refresh-token-rotacao.md) |
@@ -222,19 +252,19 @@ BE-32 ──┬── BE-06 ── BE-08 ──┬── BE-33 ──┐
 | RN-TASK-13 | Remoção lógica | [BE-21](BE-21-remover-tarefa.md), [BE-23](BE-23-expurgo-tarefas-removidas.md) |
 | RN-TASK-14 | Toda alteração atualiza `UpdatedAt` | [BE-05](BE-05-dominio-tarefa.md) |
 | RN-TASK-15 | Máximo 500 tarefas ativas | [BE-17](BE-17-criar-tarefa.md), [BE-28](BE-28-validacao-dono-grpc.md) |
-| RN-TASK-16 | "Atrasada" é derivada | [BE-05](BE-05-dominio-tarefa.md), [BE-22](BE-22-listagem-tarefas.md) |
+| RN-TASK-16 | "Atrasada" é derivada | [BE-05](BE-05-dominio-tarefa.md), [BE-22](BE-22-listagem-tarefas.md), [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) (recorte gRPC, T2) |
 | RN-AUTZ-01 | Tarefa pertence a um usuário | [BE-05](BE-05-dominio-tarefa.md), [BE-28](BE-28-validacao-dono-grpc.md) |
-| RN-AUTZ-02 | Só manipula as próprias tarefas | [BE-18](BE-18-consultar-tarefa-autorizacao.md) |
-| RN-AUTZ-03 | Tarefa de outro → "não encontrada" | [BE-18](BE-18-consultar-tarefa-autorizacao.md) |
-| RN-AUTZ-04 | Toda operação exige sessão | [BE-13](BE-13-protecao-endpoints.md), [BE-36](BE-36-api-gateway.md) (na borda) |
-| RN-LIST-01 | Lista só do usuário, não removidas | [BE-22](BE-22-listagem-tarefas.md) |
+| RN-AUTZ-02 | Só manipula as próprias tarefas | [BE-18](BE-18-consultar-tarefa-autorizacao.md), [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) (recorte gRPC) |
+| RN-AUTZ-03 | Tarefa de outro → "não encontrada" | [BE-18](BE-18-consultar-tarefa-autorizacao.md), [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) (recorte gRPC) |
+| RN-AUTZ-04 | Toda operação exige sessão | [BE-13](BE-13-protecao-endpoints.md), [BE-36](BE-36-api-gateway.md) (na borda, RS256 desde [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md)) |
+| RN-LIST-01 | Lista só do usuário, não removidas | [BE-22](BE-22-listagem-tarefas.md), [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) (recorte gRPC, T2) |
 | RN-LIST-02 | Filtro por estado | [BE-22](BE-22-listagem-tarefas.md) |
 | RN-LIST-03 | Filtro por prioridade | [BE-22](BE-22-listagem-tarefas.md) |
 | RN-LIST-04 | Filtro por atrasadas | [BE-22](BE-22-listagem-tarefas.md) |
 | RN-LIST-05 | Busca textual | [BE-22](BE-22-listagem-tarefas.md) |
-| RN-LIST-06 | Ordenação padrão | [BE-22](BE-22-listagem-tarefas.md) |
-| RN-LIST-07 | Paginação | [BE-22](BE-22-listagem-tarefas.md) |
+| RN-LIST-06 | Ordenação padrão | [BE-22](BE-22-listagem-tarefas.md); [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) aplica só o desempate por criação, recorte do T2 |
+| RN-LIST-07 | Paginação | [BE-22](BE-22-listagem-tarefas.md), [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) (mesmos limites, D-09) |
 
 **Cobertura:** 56 de 56 regras endereçadas (RN-AUTH-22 é um não-objetivo explícito).
 
-As tasks das Ondas 6 e 7 não introduzem regra de negócio nova: elas realocam a verificação de regras existentes para a fronteira entre os serviços e para a borda do Gateway. [BE-25](BE-25-contrato-grpc-identity.md), [BE-30](BE-30-configuracao-enderecos-grpc.md), [BE-31](BE-31-verificacao-t1.md), [BE-32](BE-32-contratos-grpc-t2.md), [BE-34](BE-34-validate-token-real.md), [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md) e [BE-39](BE-39-verificacao-t2.md) são habilitadoras e não aparecem na tabela por RN própria.
+As tasks das Ondas 6 e 7 não introduzem regra de negócio nova: elas realocam a verificação de regras existentes para a fronteira entre os serviços e para a borda do Gateway. [BE-25](BE-25-contrato-grpc-identity.md), [BE-30](BE-30-configuracao-enderecos-grpc.md), [BE-31](BE-31-verificacao-t1.md), [BE-32](BE-32-contratos-grpc-t2.md), [BE-34](BE-34-validate-token-real.md), [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md) e [BE-39](BE-39-verificacao-t2.md) são habilitadoras e não aparecem na tabela por RN própria. O mesmo vale para a revisão de 21/09/2026: [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md) e [BE-42](BE-42-nginx-mesma-origem.md) são habilitadoras (trocam mecanismo de validação de token e topologia de rede, sem regra nova); só [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) aparece na tabela por RN própria, por ser um recorte de RN já existentes (RN-LIST-01/06/07, RN-AUTZ-01 a 04, RN-TASK-16) para o transporte gRPC.
