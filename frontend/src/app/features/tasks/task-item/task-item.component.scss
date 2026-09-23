@@ -1,0 +1,61 @@
+.task-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  &--completed {
+    .task-item__title {
+      color: var(--color-text-muted);
+      text-decoration: line-through;
+    }
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    overflow-wrap: anywhere;
+  }
+
+  &__description {
+    margin: var(--space-xs) 0 0;
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin: 0;
+  }
+
+  &__badge {
+    padding: var(--space-xs) var(--space-sm);
+    font-weight: 600;
+    background: var(--color-surface-alt);
+    border-radius: var(--radius-sm);
+
+    dd {
+      margin: 0;
+    }
+
+    &--priority {
+      color: var(--color-text);
+    }
+
+    &--overdue {
+      color: var(--color-danger);
+      background: var(--color-danger-surface);
+    }
+  }
+
+  &__updated {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+  }
+}

@@ -1,0 +1,21 @@
+.http-status-indicator {
+  position: fixed;
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  z-index: 1000;
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-inverse);
+  color: var(--color-text-inverse);
+  font-family: monospace;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  pointer-events: none;
+
+  &--error {
+    background: var(--color-danger);
+  }
+}

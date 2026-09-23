@@ -1,0 +1,19 @@
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-md);
+  color: var(--color-danger);
+  text-align: center;
+
+  &__retry {
+    padding: var(--space-xs) var(--space-md);
+    font-size: var(--font-size-base);
+    color: var(--color-primary-contrast);
+    background: var(--color-primary);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+}
