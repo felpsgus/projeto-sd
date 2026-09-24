@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Instala/atualiza os três serviços (Identity, Tasks, Gateway) na VM de aplicação.
+# Instala/atualiza os três serviços (Identity, Tasks, Gateway), o frontend
+# estático e o nginx (BE-42, origem única HTTP da VM) na VM de aplicação.
 #
 # Rode NA VM, a partir do diretório onde os artefatos foram descarregados
 # (ver deploy/README.md):
@@ -20,12 +21,17 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-for caminho in "$ORIGEM/publish/identity" "$ORIGEM/publish/tasks" "$ORIGEM/publish/gateway"; do
+for caminho in "$ORIGEM/publish/identity" "$ORIGEM/publish/tasks" "$ORIGEM/publish/gateway" "$ORIGEM/publish/frontend"; do
     if [[ ! -d "$caminho" ]]; then
         echo "Não encontrei $caminho — rode scripts/publish.ps1 e envie a pasta artifacts/ inteira." >&2
         exit 1
     fi
 done
+
+if [[ ! -f "$ORIGEM/nginx/todolist.conf" ]]; then
+    echo "Não encontrei $ORIGEM/nginx/todolist.conf — rode scripts/publish.ps1 e envie a pasta artifacts/ inteira." >&2
+    exit 1
+fi
 
 echo "==> Usuário de serviço"
 # --system: sem senha, sem login, sem home. O serviço não precisa de nenhum dos
@@ -65,6 +71,15 @@ copiar_servico gateway
 
 chmod +x "$DESTINO/identity/TodoList.Identity.Api" "$DESTINO/tasks/TodoList.Tasks.Api" "$DESTINO/gateway/TodoList.Gateway.Api"
 chown -R "$USUARIO:$USUARIO" "$DESTINO"
+
+# Estáticos do Angular (BE-42): mesmo padrão de destino dos três serviços, um
+# nível abaixo de /opt/todolist — é o "root" que deploy/nginx/todolist.conf
+# espera. Dono root:root (não "todolist"): quem lê estes arquivos é o nginx,
+# não um dos três processos .NET, e não precisam ser executáveis.
+copiar_servico frontend
+chown -R root:root "$DESTINO/frontend"
+find "$DESTINO/frontend" -type d -exec chmod 755 {} +
+find "$DESTINO/frontend" -type f -exec chmod 644 {} +
 
 echo "==> Verificando os arquivos de ambiente"
 mkdir -p /etc/todolist
@@ -156,17 +171,53 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 
+echo "==> nginx — origem única HTTP da VM (BE-42, D-40)"
+# Entra por último, de propósito: só faz sentido publicar a porta 80 depois que
+# os três serviços já respondem em 127.0.0.1, senão a primeira requisição real
+# (inclusive do ensaio) passaria pelo nginx e encontraria um backend ainda de
+# pé, igual à razão de ser da ordem Identity -> Tasks -> Gateway acima.
+if ! command -v nginx >/dev/null 2>&1; then
+    echo "    instalando pacote nginx"
+    apt-get update -y
+    apt-get install -y nginx
+else
+    echo "    já instalado: nginx"
+fi
+
+install -m 644 -o root -g root "$ORIGEM/nginx/todolist.conf" /etc/nginx/sites-available/todolist.conf
+ln -sf /etc/nginx/sites-available/todolist.conf /etc/nginx/sites-enabled/todolist.conf
+
+# O site "default" do pacote nginx também escuta na 80 e disputaria a porta com
+# o nosso server_name _ (default_server) — remove se estiver ativo. Idempotente:
+# se já não existir (segunda execução em diante), o `-e` só constata isso.
+if [[ -e /etc/nginx/sites-enabled/default ]]; then
+    rm -f /etc/nginx/sites-enabled/default
+    echo "    site 'default' removido de sites-enabled (disputava a porta 80)"
+fi
+
+# nginx -t ANTES de qualquer reload/restart (CA-06) — uma config quebrada não
+# deve nunca chegar a interromper um nginx que já estava servindo tráfego.
+nginx -t
+
+if systemctl is-active --quiet nginx; then
+    systemctl reload nginx
+else
+    systemctl enable --now nginx
+fi
+
 echo ""
 echo "==> Situação"
 systemctl --no-pager --lines=0 status todolist-identity.service || true
 systemctl --no-pager --lines=0 status todolist-tasks.service || true
 systemctl --no-pager --lines=0 status todolist-gateway.service || true
+systemctl --no-pager --lines=0 status nginx.service || true
 
 echo ""
 echo "Health checks:"
 curl -fsS --max-time 5 http://127.0.0.1:5080/health && echo "  <- Identity" || echo "  Identity NÃO respondeu"
 curl -fsS --max-time 5 http://127.0.0.1:5100/health && echo "  <- Tasks" || echo "  Tasks NÃO respondeu"
 curl -fsS --max-time 5 http://127.0.0.1:8080/health && echo "  <- Gateway" || echo "  Gateway NÃO respondeu"
+curl -fsS --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:80/ && echo "  <- nginx (porta 80)" || echo "  nginx NÃO respondeu na porta 80"
 
 echo ""
 echo "Pronto. Verifique o fluxo completo com:  DEMO_PASSWORD=... ./smoke.sh"

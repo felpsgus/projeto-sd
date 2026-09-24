@@ -4,6 +4,11 @@
 #
 # D-32: o Gateway é a UNICA porta alcancavel de fora da VPC. Identity e Tasks
 # ficam atras dele, so por gRPC em 127.0.0.1 — nunca publicados diretamente.
+#
+# Emenda BE-42/D-40 (21/09/2026): isso deixou de valer para o próprio Gateway.
+# Com o nginx assumindo a porta 80 como origem pública única da VM, o Gateway
+# passa a escutar só em 127.0.0.1:8080 — alcançável apenas pelo nginx, na mesma
+# máquina. D-33 ("Kestrel em 0.0.0.0:8080") fica superada neste ponto específico.
 [Unit]
 Description=TodoList API Gateway (origem unica HTTP)
 Documentation=https://github.com/felpsgus/projeto-sd
@@ -33,6 +38,14 @@ EnvironmentFile=/etc/todolist/gateway.env
 # isso nao precisa de LoadCredential= como a privada do Identity — o caminho
 # fixo e suficiente.
 Environment=Jwt__PublicKeyPath=/etc/todolist/jwt/public.pem
+
+# BE-42/D-40: liga o Kestrel só em loopback. appsettings.json (dev local) ainda
+# tem 0.0.0.0:8080 — não é tocado, pois vale para quem roda fora da VM; esta
+# variável de ambiente sobrescreve só na VM, igual ao Jwt__PublicKeyPath acima.
+# Fica na unit (fixa), não no gateway.env.example, pelo mesmo motivo do
+# Jwt__PublicKeyPath: é uma decisão de topologia da VM, não um endereço que
+# alguém deveria "preencher" ao copiar o .example.
+Environment=Kestrel__Endpoints__Http__Url=http://127.0.0.1:8080
 
 Restart=always
 RestartSec=5

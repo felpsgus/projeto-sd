@@ -1,17 +1,32 @@
 #!/usr/bin/env bash
-# Roteiro da apresentação do T2, em atos, avançando a cada Enter.
+# Parte de linha de comando do roteiro da apresentação do T2, em atos,
+# avançando a cada Enter.
 #
 #     DEMO_PASSWORD=... ./demo.sh              # ensaio/apresentação
 #     DEMO_PASSWORD=... ./demo.sh --warmup     # só a chamada de aquecimento, sem exibir nada
 #     DEMO_PASSWORD=... ./demo.sh --falha      # inclui o Ato opcional de indisponibilidade (503)
 #
-# Por que um script e não digitar na hora: são 5 minutos (t2.md) e ninguém
-# digita e-mail/senha/token sob pressão sem errar. Cada ato para e espera
-# Enter — você narra, o comando aparece na tela, você aperta Enter e a
-# resposta aparece.
+# Desde BE-42, o roteiro de verdade (deploy/README.md, "No dia da
+# apresentação") PARTE DO FRONTEND, no navegador: login, criar tarefa com
+# título vazio (400 no formulário) e criar tarefa válida (201, aparece na
+# lista) acontecem ali, não aqui. Este script cobre o que o navegador não
+# mostra bem sob pressão de tempo — o 401 em três variações e o caminho de
+# indisponibilidade — e serve de ensaio/backup em linha de comando para os
+# mesmos atos, e de apoio ao "mostrar o código" (o handler que recebe cada
+# chamada). Por isso ele ainda fala HTTP puro, e não abre navegador nenhum.
+#
+# Por que um script e não digitar na hora: ninguém digita e-mail/senha/token
+# sob pressão sem errar, e o limite de 10 minutos (t2.md) não perdoa. Cada
+# ato para e espera Enter — você narra, o comando aparece na tela, você
+# aperta Enter e a resposta aparece.
+#
+# BASE aponta para o nginx (porta 80), não mais direto no Gateway (:8080) —
+# desde BE-42 o Gateway só escuta em 127.0.0.1:8080 e o nginx é quem
+# responde na porta pública; falar com ele aqui, mesmo estando os dois na
+# mesma VM, é o que de fato prova o caminho que a plateia vai ver.
 set -uo pipefail
 
-BASE=http://127.0.0.1:8080
+BASE=http://127.0.0.1
 EMAIL_ATIVO='ada.lovelace@todolist.example'
 
 if [[ -z "${DEMO_PASSWORD:-}" ]]; then
@@ -94,6 +109,9 @@ ato() {
 
 clear
 echo "${VERDE}TodoList — API Gateway: REST na borda, gRPC por dentro (T2)${FIM}"
+echo "${CINZA}Lembrete: o roteiro de verdade parte do frontend, no navegador (login, título vazio,${FIM}"
+echo "${CINZA}tarefa válida). Os atos abaixo são o apoio em linha de comando — 401 e indisponibilidade —${FIM}"
+echo "${CINZA}que o script scripts/demo-t2.ps1, rodado num SEGUNDO terminal (Windows), também cobre.${FIM}"
 echo "${CINZA}Aquecendo antes de começar...${FIM}"
 aquecer
 
@@ -153,4 +171,9 @@ echo ""
 echo "${VERDE}Fim. Nos três painéis de log (Gateway, Tasks, Identity) procure o mesmo traceId do Ato 5:${FIM}"
 echo "${CINZA}  sudo journalctl -u todolist-gateway -u todolist-tasks -u todolist-identity --since '2 min ago' \\${FIM}"
 echo "${CINZA}    | grep -E 'ValidateToken|CreateTask|ValidateUser'${FIM}"
+echo ""
+echo "${CINZA}O quarto processo em jogo é o nginx (não é uma unit .NET, é um daemon do sistema) —${FIM}"
+echo "${CINZA}ele só encaminha bytes (D-40): o traceparent atravessa intacto, então não é esperado${FIM}"
+echo "${CINZA}vê-lo como uma quarta linha correlacionada. Se fizer sentido narrar o roteamento em si:${FIM}"
+echo "${CINZA}  sudo tail -f /var/log/nginx/access.log${FIM}"
 echo ""

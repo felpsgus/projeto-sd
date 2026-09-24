@@ -1,34 +1,56 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Dispara os seis passos de BE-39 contra o API Gateway e confere cada um
-    contra o resultado esperado — o roteiro de verificação do T2, automatizado,
-    equivalente do deploy/smoke.sh para o notebook Windows.
+    Confere a rota do SPA e dispara os seis passos de BE-39 (mais o caso do
+    token adulterado, BE-39 emenda de 21/09) contra o API Gateway — o
+    roteiro de verificação do T2, automatizado, equivalente do
+    deploy/smoke.sh para o notebook Windows.
 
 .DESCRIPTION
-    Exercita, contra os três serviços no ar (Identity, Tasks, Gateway),
-    a sequência que prova os quatro requisitos de t2.md — REST público,
-    validação na borda (400/201), autenticação (401) e tradução JSON -> gRPC:
+    Exercita, contra os três serviços no ar (Identity, Tasks, Gateway) e,
+    quando -BaseUrl aponta para fora do Gateway direto, contra o nginx que
+    fica na frente deles (BE-42), a sequência que prova os sete requisitos
+    de t2.md — frontend, REST público, gRPC interno, banco real, validação
+    na borda (400/201), autenticação (401) e tradução JSON -> gRPC:
 
-        1. POST /api/tasks sem token             -> 401 auth.unauthorized
-        2. POST /api/tasks com token lixo         -> 401 auth.unauthorized
-        3. POST /api/auth/login (usuário ativo)   -> 200 accessToken/expiresAt
+        0. GET /tasks (rota profunda do SPA)      -> 200 com o index.html do Angular
+        1. POST /api/tasks sem token               -> 401 auth.unauthorized
+        2. POST /api/tasks com token lixo           -> 401 auth.unauthorized
+        2b. POST /api/tasks com token adulterado    -> 401 auth.unauthorized
+        3. POST /api/auth/login (usuário ativo)     -> 200 accessToken/expiresAt
         4. POST /api/tasks, token do passo 3, título vazio -> 400
         5. POST /api/tasks, mesmo token, título válido     -> 201 + Location
-        6. POST /api/auth/login (usuário inativo) -> 401 auth.invalid_credentials
-                                                      (corpo idêntico ao de senha errada)
+        6. POST /api/auth/login (usuário inativo)   -> 401 auth.invalid_credentials
+                                                        (corpo idêntico ao de senha errada)
 
-    Os passos 1 e 2 entram separados de propósito (CA-05): são dois caminhos
-    de código possivelmente diferentes no middleware de autenticação — token
-    ausente vs. token presente que falha na validação. O passo 6 prova
-    RN-AUTH-09 (usuário inativo não é distinguível de senha errada).
+    Os passos 1, 2 e 2b entram separados de propósito: são três caminhos de
+    código possivelmente diferentes no middleware de autenticação — token
+    ausente, token que nem parece um JWT, e um JWT real com a assinatura
+    RS256 quebrada por uma alteração de um caractere (CA-05 de BE-39; 2b
+    exercita especificamente a verificação de assinatura de BE-40, que
+    "token lixo" não aciona). O passo 6 prova RN-AUTH-09 (usuário inativo
+    não é distinguível de senha errada). O passo 0 prova BE-42 CA-01 — sem
+    ele, um F5 numa rota profunda do Angular voltaria 404 do nginx antes de
+    o roteador do Angular sequer carregar.
 
-    É este script — apontado para o IP externo da maquina-1-psd, porta 8080 —
-    que roda no dia da apresentação, a partir de fora da VM (BE-39 CA-04).
+    É este script — apontado para o IP externo da maquina-1-psd, SEM porta
+    (80, via nginx, desde BE-42) — que roda no dia da apresentação, num
+    segundo terminal, a partir de fora da VM (BE-39 CA-04).
 
 .PARAMETER BaseUrl
-    Endereço do API Gateway. Padrão: desenvolvimento local. No dia da
-    apresentação, aponte para http://<ip-externo-da-vm>:8080.
+    Endereço a verificar. Três usos, três valores diferentes — o parâmetro
+    é sempre explícito, não há um único "certo":
+
+      - Backend local, sem frontend no ar (padrão desta task): o Gateway
+        direto, http://localhost:8080 — não passa por nginx nem por
+        ng serve; é o mais rápido para iterar no Gateway isoladamente.
+      - Backend local, através do proxy que faz o papel do nginx em dev
+        (BE-42, frontend/proxy.conf.json): suba `npm start` em frontend/ e
+        aponte para http://localhost:4200 — exercita o mesmo caminho de
+        mesma origem que a VM tem, sem precisar da VM.
+      - Dia da apresentação / VM real: http://<ip-externo-da-vm>, SEM porta
+        — a porta pública mudou de 8080 para 80 (nginx) desde BE-42; 8080
+        deixou de responder de fora (verificação de BE-42 CA-03).
 
 .PARAMETER DemoPassword
     Senha de UserStore:DemoUserPassword. Obrigatória — por parâmetro ou pela
@@ -141,7 +163,42 @@ function Invoke-Passo {
 }
 
 Write-Host ""
-Write-Host "API Gateway: $BaseUrl" -ForegroundColor Cyan
+Write-Host "Origem verificada: $BaseUrl" -ForegroundColor Cyan
+
+# 0. Rota profunda do SPA -> 200 com o index.html do Angular, não 404
+# (BE-42 CA-01). Só faz sentido quando BaseUrl serve o frontend (nginx na
+# VM, ou ng serve em http://localhost:4200) — contra o Gateway puro
+# (porta 8080) não existe rota /tasks nenhuma para responder, então o passo
+# é pulado (não contado como falha) nesse caso específico.
+if ($BaseUrl -match ':8080/?$') {
+    Write-Host ""
+    Write-Host "--- 0. GET /tasks (rota profunda do SPA)" -ForegroundColor Cyan
+    Write-Host "    PULADO — BaseUrl aponta direto para o Gateway (porta 8080), que não serve o frontend." -ForegroundColor DarkGray
+}
+else {
+    try {
+        $respostaSpa = Invoke-WebRequest -Uri "$BaseUrl/tasks" -Method Get -SkipHttpErrorCheck -TimeoutSec 15
+        $statusSpa = [int]$respostaSpa.StatusCode
+        $corpoSpa = ConvertTo-TextoCorpo -Resposta $respostaSpa
+        if ($statusSpa -eq 200 -and $corpoSpa -match '<app-root') {
+            Write-Host ""
+            Write-Host "--- 0. GET /tasks (rota profunda do SPA)" -ForegroundColor Cyan
+            Write-Host "    OK   HTTP 200 (index.html do Angular)" -ForegroundColor Green
+        }
+        else {
+            Write-Host ""
+            Write-Host "--- 0. GET /tasks (rota profunda do SPA)" -ForegroundColor Cyan
+            Write-Host "    ERRO HTTP $statusSpa (esperado 200 com <app-root> no corpo)" -ForegroundColor Red
+            $falhas++
+        }
+    }
+    catch {
+        Write-Host ""
+        Write-Host "--- 0. GET /tasks (rota profunda do SPA)" -ForegroundColor Cyan
+        Write-Host "    FALHA: $($_.Exception.Message)" -ForegroundColor Red
+        $falhas++
+    }
+}
 
 if ($IncluindoIndisponibilidade) {
     Write-Host 'Cenário de indisponibilidade — o Identity precisa estar DESLIGADO.' -ForegroundColor Yellow
@@ -175,6 +232,20 @@ else {
     if (-not $token) {
         Write-Host "        Sem accessToken no corpo do passo 3 — os passos 4 e 5 vão falhar em cascata." -ForegroundColor Yellow
         $token = 'sem-token-do-passo-3'
+    }
+    else {
+        # 2b. Token adulterado -> 401 (um JWT real, do passo 3, com o
+        # último caractere trocado — exercita a verificação de assinatura
+        # RS256 do AddJwtBearer, BE-40, que "token lixo" no passo 2 não
+        # aciona porque nem chega a parecer um JWT).
+        $ultimoCaractere = $token.Substring($token.Length - 1)
+        $substituto = if ($ultimoCaractere -eq 'A') { 'B' } else { 'A' }
+        $tokenAdulterado = $token.Substring(0, $token.Length - 1) + $substituto
+
+        Invoke-Passo -Passo '2b. POST /api/tasks com token adulterado' `
+            -Metodo 'Post' -Caminho '/api/tasks' `
+            -Headers @{ Authorization = "Bearer $tokenAdulterado" } -Corpo '{"title":"smoke token adulterado"}' `
+            -StatusEsperado 401 -ErrorCodeEsperado 'auth.unauthorized' | Out-Null
     }
 
     Invoke-Passo -Passo '4. POST /api/tasks com título vazio' `

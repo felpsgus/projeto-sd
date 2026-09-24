@@ -1,19 +1,31 @@
 #!/usr/bin/env bash
-# Monta a tela da apresentação em quatro painéis e entra nela.
+# Monta a tela da apresentação em cinco painéis e entra nela.
 #
 #     ./tmux-demo.sh
 #
 #     ┌───────────────────────┬──────────────────────────┐
 #     │                       │  log do IDENTITY         │
-#     │   roteiro (demo.sh)   ├──────────────────────────┤
-#     │                       │  log do TASKS            │
+#     │                       ├──────────────────────────┤
+#     │   roteiro (demo.sh)   │  log do TASKS            │
 #     │                       ├──────────────────────────┤
 #     │                       │  log do GATEWAY          │
+#     │                       ├──────────────────────────┤
+#     │                       │  log do NGINX (acesso)   │
 #     └───────────────────────┴──────────────────────────┘
 #
+# Desde BE-42 há um quarto processo em jogo: o nginx, que serve o Angular e
+# repassa /api/* ao Gateway (que passou a escutar só em 127.0.0.1:8080). Ele
+# não é uma unit .NET — é um daemon do sistema, sem log próprio em
+# journalctl por padrão — então o painel dele acompanha o access.log em vez
+# de "journalctl -u nginx" (que só mostra start/stop/reload do processo, não
+# as requisições). Ele não participa da correlação por traceId (D-40: o
+# nginx só encaminha bytes, o traceparent atravessa intacto) — o painel
+# existe para mostrar o roteamento e a saúde do proxy, não para ser uma
+# quarta linha do grep de correlação.
+#
 # O layout é montado por script, e não com Ctrl+B na hora, por um motivo prático:
-# dividir painel ao vivo, com a turma esperando, é onde se perde meio minuto dos
-# cinco — e às vezes o painel abre no lugar errado.
+# dividir painel ao vivo, com a turma esperando, é onde se perde tempo do
+# limite de 10 minutos — e às vezes o painel abre no lugar errado.
 #
 # Se a sessão já existir, ele apenas reconecta (nada é recriado).
 set -uo pipefail
@@ -41,15 +53,22 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_IDENTITY='sudo journalctl -fu todolist-identity -n 0 -o cat'
 LOG_TASKS='sudo journalctl -fu todolist-tasks -n 0 -o cat'
 LOG_GATEWAY='sudo journalctl -fu todolist-gateway -n 0 -o cat'
+# Access log, não journalctl: nginx (pacote padrão da distro) grava
+# requisição por requisição em /var/log/nginx/access.log, não no journal —
+# "journalctl -u nginx" só mostraria start/reload/stop, silencioso durante
+# a demonstração inteira.
+LOG_NGINX='sudo tail -n 0 -f /var/log/nginx/access.log'
 
 tmux new-session -d -s "$SESSAO" -c "$DIR"
 tmux split-window -h -t "$SESSAO:0.0" -c "$DIR"
 tmux split-window -v -t "$SESSAO:0.1" -c "$DIR"
 tmux split-window -v -t "$SESSAO:0.2" -c "$DIR"
+tmux split-window -v -t "$SESSAO:0.3" -c "$DIR"
 
 tmux send-keys -t "$SESSAO:0.1" "clear; echo '=== IDENTITY (servidor gRPC) ==='; $LOG_IDENTITY" C-m
 tmux send-keys -t "$SESSAO:0.2" "clear; echo '=== TASKS (servidor gRPC) ==='; $LOG_TASKS" C-m
-tmux send-keys -t "$SESSAO:0.3" "clear; echo '=== GATEWAY (origem unica HTTP) ==='; $LOG_GATEWAY" C-m
+tmux send-keys -t "$SESSAO:0.3" "clear; echo '=== GATEWAY (127.0.0.1:8080, so o nginx fala com ele) ==='; $LOG_GATEWAY" C-m
+tmux send-keys -t "$SESSAO:0.4" "clear; echo '=== NGINX (origem unica HTTP, porta 80) ==='; $LOG_NGINX" C-m
 
 # O painel do roteiro fica com metade da largura e é onde o cursor começa.
 tmux send-keys -t "$SESSAO:0.0" "clear; echo 'Pronto. Rode:  DEMO_PASSWORD=... ./demo.sh'" C-m

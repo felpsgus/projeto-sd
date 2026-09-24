@@ -882,8 +882,16 @@ tipos compartilhados com os backends.
 
 ### Portas e configuração
 
-O Gateway escuta em **uma única porta HTTP/1**, `8080` (`http://0.0.0.0:8080` em produção,
-`http://localhost:8080` em Development) — D-37, a mesma porta que vira `$PORT` no Cloud Run (T3).
+O Gateway escuta em **uma única porta HTTP/1**, `8080` (`http://0.0.0.0:8080` em
+desenvolvimento/containers, `http://localhost:8080` em Development) — D-37, a mesma porta que
+vira `$PORT` no Cloud Run (T3).
+
+> **Exceção: a VM do T2 (BE-42, 21/09/2026).** Na `maquina-1-psd`, o Gateway escuta em
+> `127.0.0.1:8080`, não `0.0.0.0:8080` — só o **nginx**, que roda na mesma máquina e passa a
+> ser a única origem HTTP pública (porta 80), fala com ele. É configuração de ambiente
+> (`gateway.env`/unit systemd), não mudança de código: em containers (compose local, Cloud Run
+> no T3) o Gateway continua em `0.0.0.0:8080`, exposto por quem estiver na frente dele em cada
+> ambiente. Ver [`deploy/README.md`](deploy/README.md) para a topologia completa da VM.
 
 Chaves de configuração (`appsettings.json`/`appsettings.Development.json`, validadas com `ValidateOnStart`
 — endereço ausente ou que não é URI absoluta derruba a inicialização, nunca a primeira requisição):
@@ -1147,6 +1155,32 @@ O passo 6 (usuário inativo → 401 idêntico ao de senha errada, RN-AUTH-09) e 
 (seção 5) não mapeiam para um requisito numerado do enunciado, mas são obrigatórios no script (BE-39
 CA-06/CA-07) — a diferença entre "credencial errada" e "não consigo checar" é o tipo de bug que só aparece
 na primeira demonstração real, não em revisão de código.
+
+## Frontend (Angular) em desenvolvimento local (BE-42)
+
+O recorte do T2 exige frontend obrigatório, falando só com o Gateway — código em
+[`frontend/`](frontend/README.md) (Angular, standalone, zoneless). Ver
+[`frontend/README.md`](frontend/README.md) para o roteiro completo (instalar, testar, lint,
+build); aqui vai só o essencial para rodar junto do backend local:
+
+```bash
+cd frontend
+npm ci
+npm start          # abre em http://localhost:4200
+```
+
+`frontend/proxy.conf.json` encaminha `/api/*` para `http://localhost:8080` (o Gateway) —
+**é o `ng serve` que faz, em dev, o papel que o nginx faz na VM (BE-42, D-40): a mesma
+origem, sem CORS.** É por isso que o código do frontend só usa caminhos relativos
+(`/api/...`), nunca uma URL absoluta do Gateway — o mesmo bundle funciona sem alteração
+atrás do nginx (VM) ou atrás do `ng serve` (dev local).
+
+Com o Gateway já no ar (seção "Rodando o T2" acima) e o `ng serve` rodando, a tela de login
+em `http://localhost:4200` já fala de ponta a ponta com Identity/Tasks. O build de produção
+(`npm run build`, gera `dist/frontend/browser/`) é o que `scripts/publish.ps1` empacota como
+`publish/frontend/` para a VM — ver [`deploy/README.md`](deploy/README.md) e
+[`deploy/ANATOMIA-DOS-SCRIPTS.md`](deploy/ANATOMIA-DOS-SCRIPTS.md) para o runbook de
+implantação e a topologia completa (nginx na porta 80, Gateway recuado para `127.0.0.1:8080`).
 
 ## Rodando em containers (BE-38)
 

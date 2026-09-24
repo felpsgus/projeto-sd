@@ -8,8 +8,18 @@ using TodoList.Gateway.Api.Backends;
 using TodoList.Gateway.Api.Configuration;
 using TodoList.Gateway.Api.Endpoints;
 using TodoList.Gateway.Api.ErrorHandling;
+using TodoList.Gateway.Api.Http;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── ForwardedHeaders (BE-42) ─────────────────────────────────────────────
+// Na VM, o Gateway escuta só em 127.0.0.1:8080 e recebe tráfego exclusivamente
+// do nginx (mesma máquina, proxy reverso de /api). KnownProxies vem de
+// configuração (ForwardedHeaders:KnownProxies), com o loopback como padrão —
+// nunca aberto: sem restringir a proxies conhecidos, qualquer chamador que
+// alcançasse a porta diretamente poderia forjar X-Forwarded-For e se passar
+// por outro IP de origem.
+builder.Services.AddGatewayForwardedHeaders(builder.Configuration);
 
 // ── Erros (BE-36) ───────────────────────────────────────────────────────
 // GlobalExceptionHandler + ProblemDetails com traceId em todo corpo de erro
@@ -68,7 +78,13 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// ── Pipeline (BE-36) ─────────────────────────────────────────────────────
+// ── Pipeline (BE-36/BE-42) ────────────────────────────────────────────────
+// UseForwardedHeaders é a primeira coisa no pipeline — antes de erros,
+// autenticação, autorização e endpoints, e antes de qualquer log que use o IP
+// de origem — para que HttpContext.Connection.RemoteIpAddress já reflita o
+// cliente real (não o nginx) no restante do pipeline.
+app.UseForwardedHeaders();
+
 // Ordem fixa: erros envolvem tudo → autenticação (quem é você) → autorização
 // (pode acessar?) → endpoints, com ValidationFilter<T> aplicado no próprio
 // endpoint, antes de qualquer chamada gRPC. Requisição sem token e com

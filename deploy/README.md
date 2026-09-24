@@ -9,7 +9,10 @@ SSH no navegador.
 > executado pelo Felipe em 06/09/2026 e os serviços subiram. O upgrade para o T2 (seção
 > abaixo) ainda **não foi executado na VM real** — as instruções foram preparadas e revisadas
 > no repositório, mas a execução em campo (CA-01 a CA-08 de BE-37) fica registrada como
-> pendência até acontecer. Trate o primeiro ensaio com folga, não como formalidade.
+> pendência até acontecer. **A emenda de BE-42 (nginx, Gateway em `127.0.0.1`, firewall na
+> porta 80) é mais recente ainda e também não foi executada na VM** — o `install-on-vm.sh` e
+> `deploy/nginx/` que a implementam estavam sendo escritos em paralelo à revisão deste
+> documento. Trate o primeiro ensaio com folga, não como formalidade.
 
 > Este arquivo é o **runbook** (o que digitar). Para entender **o que cada script faz por
 > dentro e por quê**, veja [ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md).
@@ -18,27 +21,63 @@ SSH no navegador.
 
 | VM | Zona | IP interno | Papel |
 |---|---|---|---|
-| `maquina-1-psd` | `us-central1-a` | `10.128.0.4` | Identity Service (5080 `/health`, 5081 gRPC), Tasks Service (5100 `/health`, 5101 gRPC) **e** API Gateway (8080 HTTP) |
+| `maquina-1-psd` | `us-central1-a` | `10.128.0.4` | **nginx** (80, HTTP público — Angular + proxy `/api/*`), Identity Service (5080 `/health`, 5081 gRPC), Tasks Service (5100 `/health`, 5101 gRPC), API Gateway (**127.0.0.1**:8080, só local) |
 | `maquina-2-psd` | `us-central1-a` | `10.128.0.5` | PostgreSQL (5432) |
 
 O salto gRPC acontece **dentro** da `maquina-1-psd`, por `127.0.0.1:5081` e `127.0.0.1:5101`.
 O que cruza a rede entre VMs é o acesso ao Postgres — e é essa a regra de firewall VPC do
-requisito 3 do enunciado. Desde o T2, a **única** porta de aplicação alcançável de fora da
-VPC é a 8080 do Gateway (**D-32**) — 5080/5081/5100/5101 não devem responder de fora.
+requisito 3 do enunciado.
+
+**Desde BE-42, a origem pública mudou de porta.** Até então a única porta de aplicação
+alcançável de fora era a 8080 do Gateway (D-32). Agora é a **80**, servida pelo **nginx** —
+um daemon do sistema, não uma unit .NET —, que serve o Angular compilado e faz
+`proxy_pass` de `/api/*` para o Gateway. O Gateway recuou para `127.0.0.1:8080`: só o
+nginx (mesma máquina) fala com ele agora, o navegador nunca o vê diretamente. O nginx não
+decide nada de negócio — se o Gateway cair, o nginx devolve 502/504, não substitui a
+resposta por conta própria (**D-40**); toda autenticação, validação e tradução de
+protocolo continuam exclusivamente no Gateway. As portas 5080/5081/5100/5101 (backends
+gRPC) **e agora também a 8080** (o próprio Gateway) não devem responder de fora da VPC —
+ver a verificação explícita mais abaixo.
+
+```
+                    internet
+                        │
+                 porta 80 (pública)
+                        ▼
+                 ┌─────────────┐
+                 │    nginx    │  serve o Angular; proxy_pass /api/* →
+                 └──────┬──────┘
+                        │ 127.0.0.1:8080
+                        ▼
+                 ┌─────────────┐        127.0.0.1:5081        ┌──────────┐
+                 │   Gateway   │ ───────────────────────────► │ Identity │
+                 └──────┬──────┘                              └──────────┘
+                        │ 127.0.0.1:5101
+                        ▼
+                 ┌─────────────┐
+                 │    Tasks    │
+                 └─────────────┘
+```
 
 > Confirme os IPs internos antes de preencher os arquivos de ambiente:
 > **Compute Engine → Instâncias de VM**, coluna "IP interno".
 
 ## 1. Firewall VPC (Console web)
 
-**VPC network → Firewall → Create firewall rule.** Quatro regras (a quarta é nova no T2):
+**VPC network → Firewall → Create firewall rule.** Quatro regras (a quarta mudou de porta no
+BE-42 — era `todolist-allow-gateway`/`tcp:8080`, virou `todolist-allow-nginx`/`tcp:80`):
 
 | Nome | Targets (tags) | Source IPv4 ranges | Protocolos/portas | Para quê |
 |---|---|---|---|---|
 | `todolist-allow-postgres` | `todolist-db` | `10.128.0.4/32` | `tcp:5432` | **a regra do requisito 3** — só a VM de aplicação fala com o banco |
 | `todolist-allow-grpc-internal` | `todolist-app` | `10.128.0.0/20` | `tcp:5081,5101` | declara a intenção do canal gRPC na sub-rede (Identity + Tasks) |
 | `todolist-allow-iap-ssh` | (em branco = todas) | `35.235.240.0/20` | `tcp:22` | SSH no navegador via IAP |
-| `todolist-allow-gateway` | `todolist-app` | `0.0.0.0/0` | `tcp:8080` | **a única regra de ingresso de aplicação vinda da internet** (T2, D-32) |
+| `todolist-allow-nginx` | `todolist-app` | `0.0.0.0/0` | `tcp:80` | **a única regra de ingresso de aplicação vinda da internet** (BE-42, supera D-32 na porta — o Gateway deixou de ser público) |
+
+> **Se você já tinha a regra antiga `todolist-allow-gateway` (`tcp:8080`, pública) de uma
+> execução anterior desta seção:** feche/remova-a — não basta criar a nova em cima; a 8080
+> pública precisa deixar de existir, senão o Gateway continua alcançável de fora mesmo com
+> o nginx no ar, e a comprovação de campo abaixo (8080 não responde) falharia.
 
 Direção `Ingress`, ação `Allow`, prioridade `1000` nas quatro.
 
@@ -53,26 +92,35 @@ Depois marque as VMs com as tags — **Compute Engine → a VM → Editar → Ta
 > regra que deixa seus serviços conversarem" aparecer na banca. A regra que está de fato no
 > caminho crítico do tráfego entre VMs é a do Postgres.
 
-> **Não abra 5080, 5081, 5100 ou 5101 para a internet — só a 8080.** Desde o T2, Identity e
-> Tasks confiam no chamador para saber quem é o usuário (`X-User-Id` / metadata `x-user-id`,
-> **D-30**/**D-34**): isso só é seguro enquanto o Gateway for o único caminho até eles. Um
-> desses back-ends acessível publicamente vira falsificação de identidade trivial.
+> **Não abra 5080, 5081, 5100, 5101 nem 8080 para a internet — só a 80.** Desde o T2, Identity
+> e Tasks confiam no chamador para saber quem é o usuário (`X-User-Id` / metadata `x-user-id`,
+> **D-30**/**D-34**): isso só é seguro enquanto o Gateway for o único caminho até eles. Desde
+> BE-42, o próprio Gateway entra nessa mesma lista de portas que não podem responder de fora —
+> ele confia no nginx para o `X-Forwarded-For` (`ForwardedHeaders` com `KnownProxies` restrito
+> a `127.0.0.1`), e isso só vale enquanto ninguém alcançar a 8080 diretamente.
 
-> **Verificação de fora, obrigatória (D-32, CA-03 de BE-37).** Do seu notebook, **não** de
-> dentro da VM, contra o **IP externo** da `maquina-1-psd`:
+> **Verificação de fora, obrigatória (D-32/D-40, CA-03/CA-04 de BE-42 — substitui e amplia a
+> verificação equivalente de BE-37, que cobria só 5080/5081/5100/5101).** Do seu notebook,
+> **não** de dentro da VM, contra o **IP externo** da `maquina-1-psd`:
 >
 > ```bash
-> for porta in 5080 5081 5100 5101; do
+> for porta in 5080 5081 5100 5101 8080; do
 >     echo "porta $porta:"
 >     curl --max-time 3 "http://$IP_EXTERNO:$porta/health"
 >     echo "  (esperado: timeout ou recusa de conexão, nunca resposta HTTP)"
 > done
-> curl --max-time 3 "http://$IP_EXTERNO:8080/health"   # esperado: 200 OK
+> curl --max-time 3 "http://$IP_EXTERNO/"        # esperado: 200 OK, o index.html do Angular
+> curl --max-time 3 -X POST "http://$IP_EXTERNO/api/tasks" \
+>      -H "Content-Type: application/json" -d '{"title":"probe"}'
+> #   esperado: 401 auth.unauthorized — prova que /api/* chegou ao Gateway pelo proxy do
+> #   nginx (o Gateway não tem /health sob /api/; só as rotas de negócio ficam ali).
 > ```
 >
 > Uma regra de firewall mal escrita é um erro silencioso: a aplicação continua funcionando
-> via Gateway e ninguém percebe que uma porta interna também ficou aberta até ser tarde. Só a
-> comprovação de campo conta — não "confiar na regra".
+> via nginx e ninguém percebe que uma porta interna (ou o próprio Gateway) também ficou
+> aberta até ser tarde. Só a comprovação de campo conta — não "confiar na regra". **Esta
+> verificação ainda não foi executada contra uma VM real** — ver a pendência no fim deste
+> arquivo.
 
 ### 1.1 IP externo estático (T2)
 
@@ -203,7 +251,11 @@ runtime. `Ctrl+C` se ele começar a subir.
 ./scripts/publish.ps1
 ```
 
-Roda build em Release, a suíte inteira, e produz `artifacts/todolist-deploy.tar.gz` (~25 MB).
+Roda build em Release, a suíte inteira, e produz `artifacts/todolist-deploy.tar.gz`. Desde
+BE-42, o tarball também carrega `publish/frontend/` — o build de produção do Angular
+(`ng build`), ao lado dos três `publish/<serviço>/` já existentes — é o que
+`install-on-vm.sh` copia para o lugar que o `root` do nginx espera. O tamanho do pacote
+cresce um pouco por causa disso; ainda cabe no upload pelo SSH do navegador.
 
 No SSH do navegador da `maquina-1-psd`: **engrenagem (canto superior direito) → Fazer upload de
 arquivo** → escolha o `todolist-deploy.tar.gz`. Ele cai no home do seu usuário.
@@ -287,6 +339,16 @@ linhas de `identity.users` com o hash placeholder do T1 — nada precisa ser rec
 rodar de novo, vê que a senha não confere com o hash armazenado e o regrava (BE-33 CA-09). **Não
 há migration nova.**
 
+> **Emenda (BE-42, 21/09/2026) — nginx na frente de tudo, Gateway recua para `127.0.0.1`.**
+> Um quarto processo entra em cena, e ele **não** é uma unit .NET: o nginx, instalado e
+> configurado pelo próprio `install-on-vm.sh`, passa a ser a única origem pública (porta 80),
+> servindo o Angular compilado e repassando `/api/*` ao Gateway. O Gateway deixa de escutar em
+> `0.0.0.0:8080` e passa para `127.0.0.1:8080` — só o nginx (mesma máquina) fala com ele. A
+> regra de firewall pública muda de porta (8080 → 80, ver seção 1) e o tarball de
+> `scripts/publish.ps1` ganha `publish/frontend/` (seção 4). Os passos abaixo já refletem essa
+> mudança; o texto anterior a 21/09 falava em abrir 8080 para a internet — isso **não vale
+> mais**.
+
 > **Emenda (BE-40, 21/09/2026) — JWT deixou de ser HS256 (chave em `.env`) e virou RS256 (par de
 > arquivos PEM gerado pelo próprio `install-on-vm.sh`).** Se você já tinha uma VM do T2 com
 > `Jwt__SigningKey` em `identity.env` de uma execução anterior desta seção, remova essa linha —
@@ -294,8 +356,9 @@ há migration nova.**
 > `Jwt__SigningKey` esquecida não quebra nada sozinha (o Identity simplesmente ignora uma
 > variável que `JwtOptions` não lê mais), mas é lixo que confunde numa auditoria.
 
-1. **Firewall e IP** — se ainda não feito: seção 1 (regra `todolist-allow-gateway`, revisão de
-   `todolist-allow-grpc-internal`) e seção 1.1 (IP estático).
+1. **Firewall e IP** — se ainda não feito: seção 1 (regra `todolist-allow-nginx` em `tcp:80`,
+   revisão de `todolist-allow-grpc-internal`, **fechamento/remoção** de uma eventual
+   `todolist-allow-gateway` antiga em `tcp:8080`) e seção 1.1 (IP estático).
 
 2. **Editar os `.env` existentes na VM**, na sessão SSH da `maquina-1-psd`:
 
@@ -344,7 +407,7 @@ há migration nova.**
    chmod +x *.sh
    ```
 
-4. **Instalar** — agora com o terceiro serviço:
+4. **Instalar** — agora com o terceiro serviço **e o nginx**:
 
    ```bash
    sudo ./install-on-vm.sh
@@ -356,6 +419,17 @@ há migration nova.**
    esperando o `/health` de cada um antes de seguir para o próximo — a mesma lógica de espera
    por condição que já existia entre Identity e Tasks, estendida a mais um salto. É a mesma
    ordem para qualquer restart manual depois:
+
+   **Novo nesta execução (BE-42):** o script também instala o pacote `nginx`, copia
+   `deploy/nginx/todolist.conf` para o lugar que a distro espera, roda `nginx -t` antes de
+   qualquer `reload`/`restart`, e sobe/recarrega o serviço — mesma filosofia idempotente dos
+   outros passos. O `root` do site aponta para onde `publish/frontend/` foi extraído. Depois
+   do install, confirme:
+
+   ```bash
+   sudo nginx -t
+   sudo systemctl is-active nginx
+   ```
 
    **Novo nesta execução (BE-40, D-38):** antes de instalar as units, o script gera — só se
    `/etc/todolist/jwt/private.pem` ainda não existir — o par de chaves RSA 2048 com `openssl
@@ -393,13 +467,18 @@ há migration nova.**
    back-ends primeiro evita que as primeiras requisições reais — inclusive as do ensaio —
    encontrem 503 por um back-end ainda de pé.
 
-5. **Conferir a partir de fora**, IP externo, porta 8080, antes de considerar a VM pronta
-   (ver o bloco de verificação na seção 1):
+5. **Conferir a partir de fora**, IP externo, porta 80 (**não** mais 8080 — o Gateway recuou
+   para `127.0.0.1`, BE-42), antes de considerar a VM pronta (ver o bloco de verificação na
+   seção 1):
 
    ```bash
-   curl --max-time 3 "http://$IP_EXTERNO:8080/health"
-   DEMO_PASSWORD=... ./smoke.sh "http://$IP_EXTERNO:8080"
+   curl --max-time 3 "http://$IP_EXTERNO/"
+   DEMO_PASSWORD=... ./smoke.sh "http://$IP_EXTERNO"
    ```
+
+   `smoke.sh` já confere, como primeiro passo, que a rota profunda do SPA (`/tasks`) devolve
+   o `index.html` do Angular em vez de 404 (BE-42 CA-01) — ver
+   [ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md).
 
 > **Tempo do roteiro de subida (CA-06 de BE-37).** Meça, em pelo menos uma execução real, o
 > tempo do upload do tarball até as três units `active` e a verificação de fora respondendo, e
@@ -409,16 +488,26 @@ há migration nova.**
 
 ## 8. No dia da apresentação
 
-Sem `gcloud` não há túnel IAP — e tudo bem, porque **rodar de dentro da VM é a opção mais
-robusta mesmo**: o SSH do navegador só precisa de HTTPS, que nenhuma rede institucional
-bloqueia. Nada de depender do Wi-Fi da sala liberar porta estranha.
+> **Emenda (21/09/2026) — `t2.md` novo: até 10 minutos, partindo do frontend.** O roteiro
+> abaixo substitui a versão anterior (5 minutos, começando por `curl` direto no Gateway). O
+> limite **dobrou**, mas a exigência de ensaio cronometrado (mais abaixo) não afrouxou — o
+> enunciado novo continua zerando a nota da apresentação oral em caso de estouro.
 
-Abra **um** SSH no navegador na `maquina-1-psd`. Dois scripts montam tudo:
+Sem `gcloud` não há túnel IAP — e tudo bem, porque **rodar de dentro da VM é a opção mais
+robusta mesmo** para o terminal de apoio: o SSH do navegador só precisa de HTTPS, que nenhuma
+rede institucional bloqueia. O **frontend**, porém, é mostrado num navegador comum, apontado
+para `http://<IP_EXTERNO>/` — a origem pública servida pelo nginx (BE-42). Dois lugares em
+jogo, então: o navegador (frontend) e **dois** terminais — um com `tmux` na VM (roteiro de
+apoio + logs), outro no seu notebook Windows (`scripts/demo-t2.ps1`, para o 401).
+
+### Preparar os dois terminais
+
+**Terminal 1 — SSH no navegador, na `maquina-1-psd`:**
 
 ```bash
 sudo apt-get install -y tmux     # uma vez
 cd ~/todolist-deploy
-./tmux-demo.sh                   # monta a tela em 4 painéis e entra nela
+./tmux-demo.sh                   # monta a tela em 5 painéis e entra nela
 ```
 
 ```
@@ -428,41 +517,88 @@ cd ~/todolist-deploy
 │   roteiro (demo.sh)   │  log do TASKS            │
 │                       ├──────────────────────────┤
 │                       │  log do GATEWAY          │
+│                       ├──────────────────────────┤
+│                       │  log do NGINX (acesso)   │
 └───────────────────────┴──────────────────────────┘
 ```
-
-No painel da esquerda, com a senha de demonstração (a mesma de `UserStore__DemoUserPassword`
-em `identity.env`):
-
-```bash
-DEMO_PASSWORD=... ./demo.sh
-```
-
-O roteiro faz login de verdade contra o Gateway e usa o access token nas chamadas
-subsequentes — narre, aperte Enter, a resposta aparece. Os detalhes de cada ato (o que prova
-cada um) ficam no roteiro do próprio script e em
-[ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md); a ideia geral se manteve: login válido, um
-caso negado pelo Identity, e o Identity fora do ar — só que agora entrando por HTTP no Gateway
-(8080), não mais direto no Tasks.
 
 Atalhos de tmux que importam: `Ctrl+B` + seta navega entre painéis, `Ctrl+B d` sai sem matar a
 sessão, `tmux attach -t demo` volta.
 
-> **Aumente a fonte do terminal antes.** Cada linha de log precisa caber sem quebrar — se um
-> identificador de correlação for para a segunda linha, o ponto da demonstração deixa de ser
-> visível da última fileira.
+**Terminal 2 — PowerShell no seu notebook**, pronto para disparar o 401 no Ato 5 (sem digitar
+nada sob pressão):
+
+```powershell
+$env:DEMO_PASSWORD = "..."
+# não execute ainda — o Ato 5 abaixo é a hora
+```
+
+**Navegador — aba nova**, apontada para `http://<IP_EXTERNO>/` (a tela de login).
+
+> **Aumente a fonte de tudo antes.** Terminal e navegador — se um identificador de
+> correlação for para a segunda linha do log, ou o formulário for pequeno demais para a
+> última fileira ler o `400`, o ponto da demonstração deixa de ser visível.
+
+### Roteiro cronometrado — até 10 minutos, com folga
+
+| # | Ato | O que fazer / narrar | Tempo do ato | Acumulado |
+|---|---|---|---|---|
+| 0 | Abertura | Contexto de 1 frase: Angular → nginx → Gateway → gRPC → Identity/Tasks → Postgres. | 0:20 | 0:20 |
+| 1 | **Login pelo frontend** | Tela de login, credencial do usuário ativo do seed (`ada.lovelace@todolist.example`). Narrar: o navegador só fala com o nginx, mesma origem, sem CORS. | 0:50 | 1:10 |
+| 2 | **Título vazio → 400** | Tentar criar tarefa sem título; o formulário mostra o erro **sem** round-trip até o Tasks — é o Gateway validando na borda. | 0:40 | 1:50 |
+| 3 | **Tarefa válida (201) + tarefa atrasada** | Criar uma tarefa com título e, em seguida, **uma segunda com vencimento no passado** — os usuários do seed não têm tarefa vencida; sem criar uma agora, o destaque de atrasada nunca aparece na tela. As duas surgem na lista sem recarregar a página; aponte o destaque visual da atrasada. | 1:10 | 3:00 |
+| 4 | **Banco real, por `psql`** | No painel do roteiro (ou um painel extra), `psql` contra `10.128.0.5`, `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova ao vivo de persistência real do `t2.md`, não só o `201`. | 1:00 | 4:00 |
+| 5 | **401, pelo `demo-t2.ps1`** | No **terminal 2** (notebook): `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword $env:DEMO_PASSWORD`. Narrar os três casos — sem token, token lixo, token **adulterado** (exercita a assinatura RS256) — todos 401 com o mesmo corpo. Mostrar rapidamente o interceptor do frontend redirecionando ao login num 401 (uma vez, não repetido para os três). | 1:30 | 5:30 |
+| 6 | **Logs, mesmo `traceId`** | Voltar ao terminal 1 (tmux); nos três painéis (Identity/Tasks/Gateway), localizar o mesmo `traceId` da criação do Ato 3 — `grep -E 'ValidateToken\|CreateTask\|ValidateUser'`. Mencionar que o nginx (painel de baixo) repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 6:30 |
+| 7 | **Código** | Tela de código: middleware `AddJwtBearer` do Gateway (BE-40), o validador de payload (`CreateTaskHttpRequestValidator`), o handler que traduz JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 8:30 |
+| — | Encerramento/perguntas | Buffer deliberado — não é tempo "sobrando", é a margem contra qualquer travada. | 1:30 | 10:00 |
+
+**Soma dos atos (sem o buffer): 8:30.** Com o buffer de encerramento, o roteiro cabe
+exatamente nos 10 minutos **no papel** — o ensaio cronometrado (obrigatório, ver abaixo) é o
+que confirma isso na prática, não a soma aritmética.
+
+### Tabela requisito do `t2.md` → ato → evidência
+
+| Requisito (`t2.md`, 1–7) | Ato | Evidência |
+|---|---|---|
+| 1. Frontend funcional, só fala com o Gateway | 1–3 | Interação na tela; DevTools → Network mostra só chamadas a `/api/*`, mesma origem |
+| 2. API Gateway como ponto único de entrada REST | 1–5 | Toda chamada do frontend e do `demo-t2.ps1` vai para `http://<IP_EXTERNO>/api/*` |
+| 3. ≥ 2 microsserviços internos via gRPC | 6, 7 | `traceId` correlacionado Gateway→Tasks→Identity; `.proto` na tela |
+| 4. Banco real, persistência **exibida** | 4 | `SELECT` no `psql` mostrando a linha criada no Ato 3 |
+| 5. Validação de payload (400/201) | 2, 3 | 400 no título vazio; 201 na tarefa válida |
+| 6. Middleware JWT no Gateway (401 na borda) | 5 | Três variações de token inválido, mesmo corpo `auth.unauthorized` |
+| 7. Tradução REST → gRPC/Protobuf | 3, 7 | Tarefa criada de fato; handler e `.proto` na tela |
 
 ### Checklist da última hora
 
 - [ ] As duas VMs **ligadas** (Compute Engine → Instâncias de VM).
 - [ ] `sudo systemctl is-active todolist-identity todolist-tasks todolist-gateway` → `active`
-      nos três.
-- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde (padrão contra `http://127.0.0.1:8080`).
-- [ ] Verificação de fora feita de novo pouco antes: 8080 responde, 5080/5081/5100/5101 não.
-- [ ] Aquecimento: uma requisição descartável disparada — a primeira chamada paga conexão
-      HTTP/2 e a primeira query do EF Core; que isso aconteça antes da plateia.
-- [ ] `tmux` montado, fonte do terminal aumentada, os quatro painéis visíveis.
+      nos três; `sudo systemctl is-active nginx` → `active`.
+- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde na VM (padrão contra `http://127.0.0.1`, via
+      nginx) — inclui a checagem da rota `/tasks` (BE-42 CA-01).
+- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword ...` verde, do
+      notebook, **de fora** da VM.
+- [ ] Verificação de fora feita de novo pouco antes: **80** responde (Angular); **8080**,
+      **5080**, **5081**, **5100**, **5101** **não** respondem (seção 1).
+- [ ] Aquecimento: uma requisição descartável disparada (`./demo.sh --warmup` ou um login
+      manual pela tela) — a primeira chamada paga conexão HTTP/2 e a primeira query do EF
+      Core; que isso aconteça antes da plateia.
+- [ ] `tmux` montado, fonte do terminal e do navegador aumentadas, os cinco painéis e a tela
+      de login visíveis.
+- [ ] Usuário de demonstração (`ada.lovelace@todolist.example`) sem tarefa atrasada
+      pré-existente que estrague a narrativa do Ato 3 — ou, ao contrário, uma já lá se o
+      plano for só apontá-la em vez de criar ao vivo (decisão de quem apresenta).
 - [ ] O Identity **religado**, se você testou a indisponibilidade no ensaio.
+
+### Ensaio cronometrado — obrigatório, não opcional
+
+O roteiro só está pronto depois de ser executado **contra o relógio**, do zero (navegador
+fechado, terminais limpos) até o fim do Ato 7, pelo menos uma vez — mesma exigência de
+"alguém que não escreveu o código" já usada no T1, adaptada ao cronômetro. A soma da tabela
+acima é uma estimativa de planejamento; o enunciado zera a apresentação oral por estouro de
+tempo, e só a execução real prova que os 10 minutos cabem.
+
+**Tempo real do ensaio:** `[PENDENTE — cronometrar numa execução real, do zero ao fim do Ato 7, e registrar aqui antes da apresentação]`
 
 ## Sintomas e causas
 
@@ -479,6 +615,10 @@ sessão, `tmux attach -t demo` volta.
 | Erro de protocolo no canal gRPC | endpoint não declarado `Http2` | não sobrescreva `Kestrel__Endpoints__Grpc__Url` |
 | `bad interpreter: ...^M` | fim de linha CRLF no `.sh` | `sed -i 's/\r$//' *.sh` |
 | Serviço morre quando o SSH cai | rodaram `dotnet` à mão em vez do systemd | `sudo systemctl start todolist-identity todolist-tasks` |
+| `502 Bad Gateway`/`504 Gateway Timeout` na tela | Gateway fora do ar, ou escutando no endereço errado | `systemctl status todolist-gateway`; confirme que ele está em `127.0.0.1:8080` (BE-42) |
+| `404` ao dar F5 numa rota do Angular (ex.: `/tasks`) | `try_files` do nginx ausente/errado — o fallback para `index.html` não está configurado | `sudo nginx -t`; conferir `deploy/nginx/todolist.conf` |
+| `http://$IP_EXTERNO:8080/...` ainda responde de fora | a regra antiga `todolist-allow-gateway` não foi removida | seção 1 — fechar/remover a regra de `tcp:8080` |
+| Tela do frontend não atualiza depois de um novo deploy | `index.html` cacheado pelo navegador | confirme `Cache-Control: no-cache` na resposta (`curl -I`); force-refresh no navegador |
 
 ## Depois do T1
 
@@ -497,30 +637,45 @@ O T2 resolveu duas delas; a terceira segue de pé:
 
 ## Pendências na VM (T2)
 
-O que falta fazer manualmente, na VM real, para fechar BE-37 (nada disto foi executado por
-este agente — só preparado no repositório):
+O que falta fazer manualmente, na VM real, para fechar BE-37/BE-42 (nada disto foi executado
+por este agente — só preparado no repositório; o `install-on-vm.sh`/`deploy/nginx/` que
+executam parte disto estão sendo escritos em paralelo a este documento):
 
-- [ ] Criar a regra de firewall `todolist-allow-gateway` e revisar `todolist-allow-grpc-internal`
-      para `tcp:5081,5101` (seção 1).
+- [ ] Criar a regra de firewall `todolist-allow-nginx` (`tcp:80`, pública) e revisar
+      `todolist-allow-grpc-internal` para `tcp:5081,5101` (seção 1).
+- [ ] **Fechar/remover** a regra antiga `todolist-allow-gateway` (`tcp:8080`, pública), se ela
+      existir de uma implantação anterior a BE-42 — o Gateway deixou de ser público.
 - [ ] Reservar o IP estático da `maquina-1-psd` (seção 1.1).
-- [ ] Subir o novo `todolist-deploy.tar.gz` (`scripts/publish.ps1` + upload pelo SSH do
-      navegador).
+- [ ] Subir o novo `todolist-deploy.tar.gz`, agora com `publish/frontend/` incluído
+      (`scripts/publish.ps1` + upload pelo SSH do navegador).
 - [ ] Editar os três `.env` na VM com os segredos reais: `identity.env` (`Jwt__Issuer`/
       `Jwt__Audience`, `UserStore__DemoUserPassword` — sem `Jwt__SigningKey`, que não existe
       mais, BE-40), `tasks.env` (remover `Tasks__AllowAnonymousCreate`), `gateway.env` (criado a
       partir do `.example`, sem segredo).
 - [ ] Rodar `sudo ./install-on-vm.sh` e confirmar as três units `active` na ordem
-      Identity → Tasks → Gateway. O script gera o par de chaves RS256 em
-      `/etc/todolist/jwt/` na primeira execução (BE-40, D-38) — confira que
-      `private.pem` ficou `root:root 0400` e `public.pem` `root:root 0444`.
+      Identity → Tasks → Gateway, **e** `nginx` `active` (BE-42 — instalado e configurado pelo
+      mesmo script). O script gera o par de chaves RS256 em `/etc/todolist/jwt/` na primeira
+      execução (BE-40, D-38) — confira que `private.pem` ficou `root:root 0400` e
+      `public.pem` `root:root 0444`.
 - [ ] **CA-25 de BE-40** — confirmar que `sudo -u todolist cat /etc/todolist/jwt/private.pem`
       **falha** com `Permission denied` (o usuário que roda as três units não consegue ler a
       chave privada do Identity) e registrar o resultado no PR.
-- [ ] Verificar de fora da VPC: `curl --max-time 3` no IP externo confirma que 8080 responde e
-      que 5080/5081/5100/5101 **não** respondem (seção 1).
-- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde contra `http://<IP_EXTERNO>:8080`.
+- [ ] `sudo nginx -t` sem erro, e confirmar que o `root` do site aponta para onde
+      `publish/frontend/` foi extraído (BE-42 CA-06).
+- [ ] Verificar **de fora** da VPC, pelo IP externo: a porta **80** responde com o
+      `index.html` do Angular; **8080, 5080, 5081, 5100 e 5101 não respondem** (seção 1, BE-42
+      CA-03/CA-04 — a lista de portas fechadas cresceu: 8080 entrou, 8080 direto deixou de ser
+      a porta pública).
+- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde contra `http://<IP_EXTERNO>` (sem porta — inclui a
+      checagem da rota `/tasks` do SPA, BE-42 CA-01).
+- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword ...` verde, do
+      notebook, de fora da VM (os três casos de 401: sem token, token lixo, token adulterado).
+- [ ] No navegador, contra `http://<IP_EXTERNO>/`: login, título vazio (400 na tela), tarefa
+      válida (aparece na lista), tarefa com vencimento no passado (destaque de atrasada
+      aparece) — o roteiro completo do Ato 1 ao Ato 4 da seção 8.
 - [ ] Medir e registrar na seção 7 o tempo do roteiro de subida completo, do upload do
-      tarball às três units `active` e à verificação de fora (CA-06 de BE-37).
-- [ ] Ensaio cronometrado do roteiro de apresentação (`tmux-demo.sh` + `demo.sh`), com pelo
-      menos uma execução real do caminho de indisponibilidade e a religada do serviço
-      conferida no fim.
+      tarball às quatro units/serviços `active` (Identity, Tasks, Gateway, nginx) e à
+      verificação de fora (CA-06 de BE-37).
+- [ ] **Ensaio cronometrado do roteiro de apresentação de 10 minutos** (seção 8), do zero ao
+      fim do Ato 7, com o tempo real registrado no campo `[PENDENTE]` da seção 8 — obrigatório
+      antes do dia da apresentação, não opcional.

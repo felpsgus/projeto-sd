@@ -10,9 +10,11 @@
         publish/identity/       binário do Identity Service (linux-x64)
         publish/tasks/          binário do Tasks Service (linux-x64)
         publish/gateway/        binário do API Gateway (linux-x64)
+        publish/frontend/       build de produção do Angular (BE-42)
         sql/01-identity.sql     script idempotente das migrations do Identity
         sql/02-tasks.sql        script idempotente das migrations do Tasks
-        todolist-deploy.tar.gz  tudo acima + os arquivos de deploy, num arquivo só
+        todolist-deploy.tar.gz  tudo acima + os arquivos de deploy (inclusive
+                                 deploy/nginx/todolist.conf), num arquivo só
 
     Três decisões deliberadas:
 
@@ -52,15 +54,24 @@
 .PARAMETER SkipSql
     Não regenera os scripts SQL das migrations.
 
+.PARAMETER SkipFrontend
+    Não roda `npm ci`/`ng build` do frontend Angular. Útil para ensaios repetidos
+    do empacotamento .NET, quando o `publish/frontend/` de uma rodada anterior
+    ainda serve (o script reaproveita o que já estiver em artifacts/publish/frontend
+    se ele existir; se não existir e -SkipFrontend for usado, o tarball sai sem
+    frontend, e o aviso abaixo avisa disso).
+
 .EXAMPLE
     ./scripts/publish.ps1
     ./scripts/publish.ps1 -SelfContained
+    ./scripts/publish.ps1 -SkipFrontend
 #>
 [CmdletBinding()]
 param(
     [string]$OutputRoot,
     [switch]$SelfContained,
-    [switch]$SkipSql
+    [switch]$SkipSql,
+    [switch]$SkipFrontend
 )
 
 $ErrorActionPreference = 'Stop'
@@ -143,6 +154,61 @@ foreach ($servico in $servicos) {
     Write-Host "    $destino  ($tamanho MB)" -ForegroundColor Green
 }
 
+# Frontend (BE-42): o build de produção do Angular entra no mesmo tarball, ao
+# lado dos três serviços — install-on-vm.sh publica isto em /opt/todolist/frontend,
+# de onde o nginx (deploy/nginx/todolist.conf) o serve como estático.
+$frontendRoot = Join-Path $root 'frontend'
+$frontendDist = Join-Path $frontendRoot 'dist/frontend/browser'
+$frontendDestino = Join-Path $publishRoot 'frontend'
+$avisoFrontend = $false
+
+if ($SkipFrontend) {
+    Write-Etapa 'Frontend (SKIP pedido — reaproveitando build anterior, se existir)'
+    if (Test-Path $frontendDist) {
+        Copy-Item $frontendDist -Destination $frontendDestino -Recurse
+        Write-Host "    $frontendDestino  (reaproveitado de $frontendDist)" -ForegroundColor DarkGray
+    }
+    else {
+        Write-Host '    Nenhum build anterior encontrado em frontend/dist/frontend/browser —' -ForegroundColor Yellow
+        Write-Host '    o tarball vai sair SEM publish/frontend/.' -ForegroundColor Yellow
+        $avisoFrontend = $true
+    }
+}
+else {
+    Write-Etapa 'Verificando o Node.js (frontend exige 22 ou 24)'
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
+        throw 'node não encontrado no PATH. Instale o Node 22 ou 24 (https://nodejs.org) antes de publicar, ou use -SkipFrontend para pular o build do frontend.'
+    }
+
+    $nodeVersionRaw = (& node --version).Trim()  # ex.: "v22.11.0"
+    $nodeMajor = [int]($nodeVersionRaw.TrimStart('v').Split('.')[0])
+    if ($nodeMajor -lt 22) {
+        throw "node $nodeVersionRaw é antigo demais — o workspace Angular (FE-01) exige Node 22 ou 24. Atualize o Node ou use -SkipFrontend."
+    }
+    Write-Host "    node $nodeVersionRaw" -ForegroundColor Green
+
+    Write-Etapa 'Instalando dependências do frontend (npm ci)'
+    Invoke-Verificado 'npm ci' {
+        Push-Location $frontendRoot
+        try { npm ci } finally { Pop-Location }
+    }
+
+    Write-Etapa 'Build de produção do Angular (ng build)'
+    Invoke-Verificado 'npm run build' {
+        Push-Location $frontendRoot
+        try { npm run build } finally { Pop-Location }
+    }
+
+    if (-not (Test-Path $frontendDist)) {
+        throw "Build do frontend não gerou $frontendDist — verifique a saída do 'ng build' acima."
+    }
+
+    Copy-Item $frontendDist -Destination $frontendDestino -Recurse
+    $tamanhoFrontend = [math]::Round((Get-ChildItem $frontendDestino -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+    Write-Host "    $frontendDestino  ($tamanhoFrontend MB)" -ForegroundColor Green
+}
+
 if (-not $SkipSql) {
     $migrations = @(
         @{ Arquivo = '01-identity.sql'; Projeto = 'src/Identity/TodoList.Identity.Infrastructure'; Startup = 'src/Identity/TodoList.Identity.Api' }
@@ -193,6 +259,12 @@ Copy-Item (Join-Path $root 'deploy/identity.env.example') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/tasks.env.example') -Destination $stage
 Copy-Item (Join-Path $root 'deploy/gateway.env.example') -Destination $stage
 
+# nginx/todolist.conf (BE-42): install-on-vm.sh procura este arquivo em
+# "$ORIGEM/nginx/todolist.conf" — ORIGEM é o diretório de onde ele roda na VM,
+# ou seja, a raiz deste stage. Por isso o subdiretório, e não solto ao lado dele.
+New-Item -ItemType Directory -Path (Join-Path $stage 'nginx') -Force | Out-Null
+Copy-Item (Join-Path $root 'deploy/nginx/todolist.conf') -Destination (Join-Path $stage 'nginx/todolist.conf')
+
 $tarball = Join-Path $OutputRoot 'todolist-deploy.tar.gz'
 if (Test-Path $tarball) { Remove-Item $tarball -Force }
 
@@ -212,6 +284,12 @@ if ($avisoDocker) {
     Write-Host '  ATENÇÃO: o Docker não estava disponível — os testes de integração com' -ForegroundColor Yellow
     Write-Host '  Postgres real NÃO rodaram. Suba o Docker e rode `dotnet test` antes de' -ForegroundColor Yellow
     Write-Host '  publicar uma versão que vá para a apresentação.' -ForegroundColor Yellow
+    Write-Host ''
+}
+if ($avisoFrontend) {
+    Write-Host '  ATENÇÃO: -SkipFrontend foi usado e não havia build anterior — o tarball' -ForegroundColor Yellow
+    Write-Host '  saiu SEM publish/frontend/. install-on-vm.sh vai se recusar a instalar' -ForegroundColor Yellow
+    Write-Host '  assim. Rode sem -SkipFrontend antes de publicar para a apresentação.' -ForegroundColor Yellow
     Write-Host ''
 }
 Write-Host "  $tarball  ($tamanhoTar MB)   <- é este que sobe para a VM"

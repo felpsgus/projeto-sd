@@ -11,10 +11,13 @@ Escrito para você conseguir responder, na banca, qualquer pergunta do tipo
 
 ## O mapa: quem roda quando
 
-Quatro scripts, quatro momentos distintos. Nenhum deles chama o outro — quem
-encadeia é você. Desde o T2, `install-on-vm.sh` instala e sobe **três** units
-(Identity, Tasks e Gateway) em vez de duas, e `smoke.sh`/`demo.sh` falam com o
-Gateway (porta 8080) em vez de falar direto com o Tasks (porta 5100).
+Quatro scripts (mais o `scripts/demo-t2.ps1`, do notebook), momentos distintos.
+Nenhum deles chama o outro — quem encadeia é você. Desde o T2, `install-on-vm.sh`
+instala e sobe **três** units (Identity, Tasks e Gateway) em vez de duas; desde
+BE-42, ele também instala e configura o **nginx**, que passa a ser a única
+origem HTTP pública (porta 80) — `smoke.sh`/`demo.sh` falam com o **nginx**,
+não mais direto com o Gateway (que recuou para `127.0.0.1:8080`, inalcançável
+de fora mesmo de dentro da VM por outra rota).
 
 | Script | Onde roda | Quando | Precisa de root? |
 |---|---|---|---|
@@ -22,7 +25,8 @@ Gateway (porta 8080) em vez de falar direto com o Tasks (porta 5100).
 | `install-on-vm.sh` | `maquina-1-psd` | a cada deploy | **sim** (`sudo`) |
 | `smoke.sh` | `maquina-1-psd` | depois de cada deploy, e ~1h antes da apresentação | não |
 | `tmux-demo.sh` | `maquina-1-psd` | montar a tela da apresentação | não (mas os painéis usam `sudo`) |
-| `demo.sh` | dentro do tmux | a apresentação em si | usa `sudo` no ato de indisponibilidade |
+| `demo.sh` | dentro do tmux | apoio de linha de comando à apresentação (401, indisponibilidade) | usa `sudo` no ato de indisponibilidade |
+| `scripts/demo-t2.ps1` | seu notebook (Windows) | o 401 ao vivo, num segundo terminal, e checagens locais | não |
 
 O fluxo completo, do seu Windows até a tela projetada:
 
@@ -33,6 +37,7 @@ O fluxo completo, do seu Windows até a tela projetada:
     ├─ build Release
     ├─ dotnet test  ────── portão: teste vermelho não vira pacote
     ├─ dotnet publish -r linux-x64  (identity, tasks, gateway)
+    ├─ ng build --configuration production  (frontend, BE-42)
     ├─ dotnet ef migrations script --idempotent
     └─ tar -czf todolist-deploy.tar.gz
                     │
@@ -44,10 +49,13 @@ O fluxo completo, do seu Windows até a tela projetada:
                               psql < sql/02-tasks.sql       ┘ na maquina-2-psd
                                               │
                               sudo ./install-on-vm.sh
-                                              │  (Identity → Tasks → Gateway)
-                              DEMO_PASSWORD=... ./smoke.sh   ← verificação, via Gateway :8080
+                                              │  (Identity → Tasks → Gateway → nginx)
+                              DEMO_PASSWORD=... ./smoke.sh   ← verificação, via nginx :80
                                               │
                               ./tmux-demo.sh → DEMO_PASSWORD=... ./demo.sh
+                                              │
+                                              ▲
+                    scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO>  (segundo terminal, o 401)
 ```
 
 ---
@@ -90,9 +98,17 @@ Duas checagens acontecem **antes** de o script modificar o sistema:
 
 1. É root? Se não, sai com mensagem clara. Melhor do que falhar no meio, com
    metade dos arquivos copiados.
-2. `publish/identity`, `publish/tasks` e `publish/gateway` existem? Se você
-   extraiu o tarball errado ou incompleto, é aqui que descobre — não depois de
-   já ter parado os serviços que estavam funcionando.
+2. `publish/identity`, `publish/tasks`, `publish/gateway` e, desde BE-42,
+   `publish/frontend` existem? Se você extraiu o tarball errado ou
+   incompleto, é aqui que descobre — não depois de já ter parado os
+   serviços que estavam funcionando.
+
+> **BE-42 em paralelo.** A instalação e configuração do nginx
+> (`deploy/nginx/todolist.conf`, o pacote `nginx` da distro, `nginx -t` antes
+> de qualquer `reload`) está sendo escrita em `install-on-vm.sh` no mesmo
+> momento em que este documento foi revisado — o desenho abaixo é o que a
+> task BE-42 especifica, não uma leitura de código já mesclado. Confira o
+> `install-on-vm.sh` real antes de confiar cegamente num detalhe fino daqui.
 
 Esse padrão tem nome: **falhar cedo**. Um script de deploy que aborta no meio
 deixa a máquina num estado que ninguém projetou.
@@ -294,27 +310,42 @@ quando desnecessário, curto quando importa.
 No fim, `systemctl status` dos três e uma chamada a cada `/health`, para você não
 precisar conferir nada manualmente.
 
+**Um quinto passo, desde BE-42: o nginx.** Depois do Gateway responder, o script
+instala/atualiza o site (`deploy/nginx/todolist.conf`), roda `nginx -t` — a
+configuração precisa validar **antes** de qualquer `reload`/`restart`, mesmo
+princípio de falhar cedo do resto do script — e só então recarrega (ou
+`enable --now nginx` na primeira instalação). O nginx entra **depois** do
+Gateway estar de pé por um motivo direto: ele é o único caminho até o Gateway
+agora (`127.0.0.1:8080`, D-32/D-40) — recarregar o site antes disso não quebra
+nada tecnicamente, mas testar a cadeia inteira só faz sentido com todo mundo
+já respondendo.
+
 ---
 
 ## 2. `smoke.sh` — a verificação
 
 ```bash
-DEMO_PASSWORD=... ./smoke.sh                          # contra http://127.0.0.1:8080
-DEMO_PASSWORD=... ./smoke.sh http://10.128.0.4:8080
+DEMO_PASSWORD=... ./smoke.sh                          # contra http://127.0.0.1 (porta 80, via nginx)
+DEMO_PASSWORD=... ./smoke.sh http://10.128.0.4
 ```
 
-> **T2 muda a entrada, não o papel.** O papel do script continua o mesmo do T1
-> — uma verificação de fumaça, rodada depois de todo deploy e de novo cerca de
-> uma hora antes da apresentação, que devolve OK/ERRO por cenário e `exit 1` se
-> algo falhou, para encadear em automação. O que muda é o alvo: em vez de bater
-> direto no Tasks (5100) com um `X-User-Id` arbitrário, o script agora fala com
-> o **Gateway** (8080) — o que exige login de verdade primeiro
-> (`POST /api/auth/login` com `DEMO_PASSWORD`, a mesma senha de
-> `UserStore__DemoUserPassword`), para obter o access token que autentica as
-> chamadas seguintes. Os cenários exatos cobertos (login válido/; inválido,
-> token ausente/expirado, dono ativo/inativo/inexistente e afins) e os detalhes
-> de implementação são do script em si — evite documentar aqui algo que possa
-> divergir do código, já que ele está em reescrita nesta mesma etapa (BE-37).
+> **T2 mudou a entrada para o Gateway; BE-42 muda de novo, para o nginx.** O
+> papel do script continua o mesmo desde o T1 — uma verificação de fumaça,
+> rodada depois de todo deploy e de novo cerca de uma hora antes da
+> apresentação, que devolve OK/ERRO por cenário e `exit 1` se algo falhou,
+> para encadear em automação. O alvo mudou duas vezes: T2 tirou o Tasks
+> direto (5100) e passou a falar com o **Gateway** (8080); BE-42 tira o
+> Gateway direto e passa a falar com o **nginx** (porta 80, sem porta na
+> URL), que repassa `/api/*` ao Gateway — agora só alcançável em
+> `127.0.0.1:8080`, de dentro da própria VM. O primeiro passo do script,
+> desde BE-42, nem fala com `/api`: é um `GET /tasks` simples, conferindo que
+> o nginx devolve o `index.html` do Angular (`<app-root>` no corpo) em vez de
+> um 404 — a prova de que o `try_files` do SPA está configurado (BE-42
+> CA-01). Os demais passos continuam exigindo login de verdade primeiro
+> (`POST /api/auth/login` com `DEMO_PASSWORD`), incluindo, desde a emenda de
+> BE-39, um passo com um token **adulterado** (um JWT real do login, com um
+> caractere trocado) além do "sem token"/"token lixo" originais — os três
+> exercitam caminhos de código diferentes no middleware de autenticação.
 >
 > O que continua valendo do desenho do T1, e vale conferir se algo quebrar: a
 > verificação é sempre **dupla** (status HTTP e `errorCode`/corpo, nunca só o
@@ -324,31 +355,38 @@ DEMO_PASSWORD=... ./smoke.sh http://10.128.0.4:8080
 
 ---
 
-## 3. `demo.sh` — o roteiro
+## 3. `demo.sh` — apoio de linha de comando à apresentação
 
 ```bash
 DEMO_PASSWORD=... ./demo.sh
 ```
 
-> **T2 muda o protocolo de entrada, o papel do roteiro continua o mesmo.** Um
-> roteiro de apresentação, avançando por interação (Enter), narrado por você.
-> A ideia geral do T1 se manteve: mostrar o caminho feliz completo (agora
-> passando por **login real** no Gateway antes de criar a tarefa), um caminho
-> negado por regra de negócio, e o comportamento de indisponibilidade de um
-> back-end (fail-closed, D-28) — só que agora entrando por `POST
-> /api/auth/login` e `POST /api/tasks` no Gateway (8080), com o access token
-> emitido pelo Identity, em vez de um `X-User-Id` batendo direto no Tasks.
+> **Desde BE-42, este script deixou de ser "o roteiro" e virou o apoio a ele.**
+> A demonstração de verdade **parte do frontend** (login, título vazio → 400
+> no formulário, tarefa válida → 201 na lista, tarefa vencida → destaque de
+> atrasada), no navegador, apontado para `http://<IP_EXTERNO>/` — ver
+> `deploy/README.md`, seção "No dia da apresentação". `demo.sh` cobre o que o
+> navegador não mostra bem sob pressão de tempo: os atos de 401 (como
+> ensaio/backup em linha de comando do que `scripts/demo-t2.ps1` faz ao vivo
+> num segundo terminal) e o caminho de indisponibilidade do Identity
+> (fail-closed, D-28, com `--falha`).
 >
-> Dois cuidados que continuam se aplicando, quaisquer que sejam os atos exatos
-> do roteiro reescrito: um **aquecimento** antes do primeiro ato (a primeira
-> chamada de um processo recém-iniciado paga conexão HTTP/2 e a primeira query
-> do EF Core — melhor que isso aconteça enquanto você ainda fala, não diante da
-> banca) e um `trap ... EXIT` em volta de qualquer ato que pare um serviço de
-> propósito, para religá-lo mesmo se o script for interrompido no meio.
+> `BASE` mudou de `http://127.0.0.1:8080` (direto no Gateway) para
+> `http://127.0.0.1` (via nginx, sem porta) — mesma razão do `smoke.sh`: falar
+> com o nginx é o que de fato prova o caminho que a plateia vai ver, e o
+> Gateway não é mais alcançável de outro jeito de qualquer forma.
 >
-> Os atos exatos, o texto exibido e os detalhes de implementação são do script
-> em si, que está sendo reescrito nesta mesma etapa (BE-37) — não documentados
-> aqui para não divergir do código.
+> Dois cuidados que continuam se aplicando: um **aquecimento** antes do
+> primeiro ato (a primeira chamada de um processo recém-iniciado paga conexão
+> HTTP/2 e a primeira query do EF Core — melhor que isso aconteça enquanto
+> você ainda fala, não diante da banca) e um `trap ... EXIT` em volta de
+> qualquer ato que pare um serviço de propósito, para religá-lo mesmo se o
+> script for interrompido no meio.
+>
+> O nginx é mencionado no fim do script (`/var/log/nginx/access.log`) só como
+> ponto de atenção — ele não participa da correlação por `traceId` (D-40: só
+> encaminha bytes, o `traceparent` atravessa intacto), então não é esperado
+> vê-lo como uma quarta linha do `grep` de correlação.
 
 ---
 
@@ -361,20 +399,24 @@ DEMO_PASSWORD=... ./demo.sh
 │   roteiro (demo.sh)   │  log do TASKS            │
 │                       ├──────────────────────────┤
 │                       │  log do GATEWAY          │
+│                       ├──────────────────────────┤
+│                       │  log do NGINX (acesso)   │
 └───────────────────────┴──────────────────────────┘
 ```
 
-**Desde o T2, o layout ganhou um quarto painel** — o log do Gateway, empilhado
-com os outros dois à direita. É a mesma ideia do T1, estendida a mais um
-serviço: com três back-ends de log e um roteiro de apresentação, você ainda
-precisa ver os quatro ao mesmo tempo numa única sessão SSH.
+**O layout ganhou um painel a cada etapa que somou um processo:** o T2
+acrescentou o log do Gateway (terceiro back-end); BE-42 acrescenta o do
+**nginx** — um daemon do sistema, não uma unit .NET, mas ainda um processo
+cujo comportamento vale mostrar (roteamento, proxy, 502/504 se o Gateway
+cair). Com cinco coisas para ver ao mesmo tempo numa única sessão SSH, o
+layout cresceu de três para cinco painéis.
 
 ### O problema que o tmux resolve
 
-Você tem **uma** sessão SSH pelo navegador e precisa mostrar **quatro** coisas ao
-mesmo tempo: a requisição e os três lados do log. Sem multiplexador, você
-alternaria entre abas e a correlação entre painéis — que é justamente o que
-prova a comunicação entre os serviços — se perderia.
+Você tem **uma** sessão SSH pelo navegador e precisa mostrar **cinco** coisas
+ao mesmo tempo: o roteiro e os quatro processos de log. Sem multiplexador,
+você alternaria entre abas e a correlação entre painéis — que é justamente o
+que prova a comunicação entre os serviços — se perderia.
 
 O tmux também protege contra a queda da conexão: a sessão continua viva no
 servidor e `tmux attach -t demo` reconecta exatamente onde estava.
@@ -386,16 +428,17 @@ tmux new-session -d -s demo -c "$DIR"
 tmux split-window -h -t demo:0.0 -c "$DIR"
 tmux split-window -v -t demo:0.1 -c "$DIR"
 tmux split-window -v -t demo:0.2 -c "$DIR"
+tmux split-window -v -t demo:0.3 -c "$DIR"
 ```
 
-Dividir painel com `Ctrl+B` ao vivo, com a turma esperando, é onde se perde meio
-minuto dos cinco — e às vezes o painel abre no lugar errado. Comandos
-determinísticos produzem sempre o mesmo layout, agora com quatro painéis em vez
-de três.
+Dividir painel com `Ctrl+B` ao vivo, com a turma esperando, é onde se perde
+tempo do limite de 10 minutos — e às vezes o painel abre no lugar errado.
+Comandos determinísticos produzem sempre o mesmo layout, agora com cinco
+painéis.
 
 A numeração é posicional: `0.0` é o painel original; o primeiro `split -h` cria
 `0.1` à direita; cada `split -v` subsequente sobre o último painel da direita
-empilha mais um abaixo dele (`0.2`, depois `0.3`).
+empilha mais um abaixo dele (`0.2`, depois `0.3`, depois `0.4`).
 
 O `if tmux has-session` no início faz o script **reconectar** em vez de recriar,
 se a sessão já existir. Rodar duas vezes por engano não estraga nada.
@@ -417,6 +460,14 @@ Um comando por painel, um serviço por comando — `todolist-identity`,
   para a segunda linha, o ponto de mostrar os logs lado a lado deixa de ser
   visível da última fileira da sala.
 
+**O painel do nginx é diferente: `tail -f` num arquivo, não `journalctl -u`.**
+O pacote padrão da distro grava requisição por requisição em
+`/var/log/nginx/access.log`, não no journal — `journalctl -u nginx` só
+mostraria start/reload/stop do processo, silencioso durante toda a
+demonstração. Por isso o painel do nginx usa
+`sudo tail -n 0 -f /var/log/nginx/access.log` em vez do padrão dos outros
+três.
+
 Se o roteiro reescrito precisar filtrar por um termo específico (como o T1 fazia
 com `grep --line-buffered ValidateUser`), o mesmo cuidado se aplica: use
 `--line-buffered`, sem o qual o grep no meio de um pipe acumula linhas antes de
@@ -426,8 +477,8 @@ atrasado.
 ### Dois cuidados práticos
 
 **Aumente a fonte do terminal antes de começar.** Todo o cuidado com `-o cat`
-existe para a linha caber; uma fonte grande demais desfaz isso — e com quatro
-painéis em vez de três, cada um fica um pouco menor.
+existe para a linha caber; uma fonte grande demais desfaz isso — e com cinco
+painéis em vez de três, cada um fica ainda mais estreito.
 
 **Rode `sudo -v` no painel do roteiro antes de começar.** O `sudo` guarda a
 credencial **por terminal** (`tty_tickets`, que é o padrão), e cada painel do tmux
@@ -516,6 +567,15 @@ Valores que merecem atenção:
   em `gateway.env`) — os dois endereços gRPC internos, sempre `127.0.0.1`
   (D-33). Este continua sendo o único `.env` sem segredo (a chave pública do
   Gateway não é segredo, e de todo modo mora no unit, não aqui — BE-40).
+- **O endereço em que o Gateway escuta muda de novo em BE-42.** Era
+  `0.0.0.0:8080` (D-33/D-37, T2) — o Gateway era a origem pública. Desde
+  BE-42 passa a ser `127.0.0.1:8080`: só o nginx (mesma máquina) fala com
+  ele. É configuração de endpoint Kestrel (`ASPNETCORE_URLS` ou
+  `Kestrel__Endpoints__Http__Url`, conforme o que `gateway.env`/o unit
+  fixarem), não código — mover de volta para `0.0.0.0` seria reabrir o
+  Gateway para fora sem tocar em uma linha de C#, o que é exatamente o tipo
+  de regressão silenciosa que a verificação de fora (seção 1 do README)
+  existe para pegar.
 - `Tasks__AllowAnonymousCreate` — **caiu no T2** (BE-35). O gatilho HTTP
   provisório do Tasks foi removido; a identidade agora chega só por gRPC, na
   metadata `x-user-id` preenchida pelo Gateway (D-34).
@@ -538,16 +598,23 @@ pública do Gateway só verifica, nunca poderia forjar um token. O Tasks nunca
 vê o JWT nos dois desenhos, só a identidade já resolvida na metadata
 `x-user-id` (D-34).
 
-**"Por que o Identity e o Tasks não são acessíveis de fora da VM?"**
-Porque os dois confiam no chamador para saber quem é o usuário (D-30/D-34) —
-segurança que só existe enquanto o Gateway for o único caminho até eles (D-32).
-É por isso que só a porta 8080 tem regra de firewall liberando `0.0.0.0/0`; as
-outras quatro (5080/5081/5100/5101) são verificadas explicitamente, de fora da
-VPC, para confirmar que **não** respondem.
+**"Por que o Identity, o Tasks e, desde BE-42, o próprio Gateway não são
+acessíveis de fora da VM?"**
+Identity e Tasks confiam no chamador para saber quem é o usuário
+(D-30/D-34) — segurança que só existe enquanto o Gateway for o único caminho
+até eles (D-32). O Gateway, por sua vez, confia no nginx para o
+`X-Forwarded-For` (`ForwardedHeaders` com `KnownProxies` restrito a
+`127.0.0.1`, BE-42) — segurança que só existe enquanto o nginx for o único
+caminho até ele. Por isso só a porta **80** (nginx) tem regra de firewall
+liberando `0.0.0.0/0`; as outras cinco (5080/5081/5100/5101/**8080**) são
+verificadas explicitamente, de fora da VPC, para confirmar que **não**
+respondem — a 8080 entrou nessa lista com BE-42; antes dela, era a porta
+pública.
 
 **"E se a máquina reiniciar?"**
 `systemctl enable` — os três serviços sobem no boot, na ordem certa (Identity,
-Tasks, Gateway).
+Tasks, Gateway); o nginx sobe pelo próprio `enable` do pacote da distro,
+independente da ordem dos três `.NET`.
 
 **"Onde estão os segredos (senha do banco, chave JWT, senha de demonstração)?"**
 Senha do banco e senha de demonstração: em `/etc/todolist/*.env` na VM, `600
