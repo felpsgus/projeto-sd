@@ -7,6 +7,7 @@ Quebra das regras de negócio de [REGRAS-DE-NEGOCIO.md](../REGRAS-DE-NEGOCIO.md)
 ```
 tarefas/
 ├── README.md              ← este arquivo
+├── PLANO-REGRAS-RESTANTES.md  ← ordem sugerida para fechar as 30 regras que faltam (23/09/2026)
 ├── backend/               ← .NET 10 / ASP.NET Core / EF Core — dois microsserviços
 │   ├── README.md          ← índice, ordem de execução e rastreabilidade RN → task
 │   ├── DECISOES-PENDENTES.md
