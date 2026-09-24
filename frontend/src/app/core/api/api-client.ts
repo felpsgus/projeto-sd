@@ -28,6 +28,16 @@ export class ApiClient {
     return this.http.post<T>(this.resolve(path), body);
   }
 
+  /** Substituição total (semântica de `PUT`) — quem monta `body` decide o que sobrevive. */
+  put<T>(path: string, body: unknown): Observable<T> {
+    return this.http.put<T>(this.resolve(path), body);
+  }
+
+  /** `T` é tipicamente `void`: as rotas que usam este método (ex.: `DELETE /api/tasks/{id}`) devolvem 204 sem corpo. */
+  delete<T>(path: string): Observable<T> {
+    return this.http.delete<T>(this.resolve(path));
+  }
+
   private resolve(path: string): string {
     return `${environment.apiBaseUrl}${path}`;
   }

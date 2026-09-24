@@ -1,4 +1,5 @@
 using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Health.V1;
 using Grpc.Net.Client;
@@ -33,6 +34,18 @@ internal sealed class TasksGrpcTestClient : IDisposable
 
     private static readonly Method<GetTaskRequest, TaskReply> _getTaskMethod =
         CreateMethod<GetTaskRequest, TaskReply>("GetTask");
+
+    private static readonly Method<UpdateTaskRequest, TaskReply> _updateTaskMethod =
+        CreateMethod<UpdateTaskRequest, TaskReply>("UpdateTask");
+
+    private static readonly Method<CompleteTaskRequest, TaskReply> _completeTaskMethod =
+        CreateMethod<CompleteTaskRequest, TaskReply>("CompleteTask");
+
+    private static readonly Method<ReopenTaskRequest, TaskReply> _reopenTaskMethod =
+        CreateMethod<ReopenTaskRequest, TaskReply>("ReopenTask");
+
+    private static readonly Method<DeleteTaskRequest, Empty> _deleteTaskMethod =
+        CreateMethod<DeleteTaskRequest, Empty>("DeleteTask");
 
     private readonly GrpcChannel _channel;
     private readonly CallInvoker _invoker;
@@ -79,6 +92,30 @@ internal sealed class TasksGrpcTestClient : IDisposable
         GetTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
         _invoker.AsyncUnaryCall(
             _getTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-19): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>UpdateTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> UpdateTaskAsync(
+        UpdateTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _updateTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-20): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>CompleteTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> CompleteTaskAsync(
+        CompleteTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _completeTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-20): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>ReopenTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> ReopenTaskAsync(
+        ReopenTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _reopenTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-21): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>DeleteTask</c>.</summary>
+    public AsyncUnaryCall<Empty> DeleteTaskAsync(
+        DeleteTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _deleteTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
 
     /// <summary>gRPC Health Checking Protocol (BE-35, D-37, CA-14) — sem <c>service</c> específico, o mesmo que o probe do Cloud Run consulta.</summary>
     public AsyncUnaryCall<HealthCheckResponse> CheckHealthAsync() =>

@@ -2,12 +2,12 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './core/auth/auth.guard';
 import { guestGuard } from './core/auth/guest.guard';
+import { unsavedChangesGuard } from './features/tasks/edit-task/unsaved-changes.guard';
 
 /**
- * Mapa de rotas (FE-07, recorte do T2): `/login` pública, `/tasks` e `/tasks/new`
- * autenticadas (protegidas pelo `authGuard` do pai), redirect da raiz e 404. Sem
- * `/register`, `/account*` nem `/tasks/:id/edit` — fora do recorte (ver README de
- * `features/tasks/`).
+ * Mapa de rotas (FE-07): `/login` pública, `/tasks`, `/tasks/new` e `/tasks/:id/edit`
+ * (FE-18) autenticadas (protegidas pelo `authGuard` do pai), redirect da raiz e 404. Sem
+ * `/register` nem `/account*` — ainda fora do recorte.
  *
  * Lazy loading por feature via `loadComponent`: o bundle inicial não carrega o código de
  * `auth` nem de `tasks` (FE-07, CA-11).
@@ -51,6 +51,13 @@ export const routes: Routes = [
             (m) => m.CreateTaskComponent,
           ),
         title: 'Nova tarefa — TodoList',
+      },
+      {
+        path: ':id/edit',
+        canDeactivate: [unsavedChangesGuard],
+        loadComponent: () =>
+          import('./features/tasks/edit-task/edit-task.component').then((m) => m.EditTaskComponent),
+        title: 'Editar tarefa — TodoList',
       },
     ],
   },

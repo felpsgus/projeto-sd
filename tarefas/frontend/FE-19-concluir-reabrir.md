@@ -9,6 +9,8 @@
 | **Estimativa** | M |
 
 > **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de concluir/reabrir tarefa.
+>
+> **Entrou em 23/09/2026:** o recorte acima foi revogado — o backend já expõe `POST /api/tasks/{id}/complete` e `POST /api/tasks/{id}/reopen` (BE-20), e esta task foi implementada em escopo pleno na terceira onda da Fase 1 (ver [PLANO-REGRAS-RESTANTES.md](../PLANO-REGRAS-RESTANTES.md)). Decisão adicional dessa data: o limite de tarefas ativas (RN-TASK-15) também vale para reabrir, então o 409 de reabertura pode ser `task.active_limit_reached`, não só `task.not_completed`.
 
 ## Objetivo
 

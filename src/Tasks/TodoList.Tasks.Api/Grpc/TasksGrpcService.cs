@@ -1,17 +1,26 @@
 using System.Diagnostics;
 using FluentValidation;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using TodoList.Contracts.Tasks.V1;
 using TodoList.Tasks.Api.ResultMapping;
 using TodoList.Tasks.Api.Security;
 using TodoList.Tasks.Application.Security;
 using ApplicationCreateTaskRequest = TodoList.Tasks.Application.Tasks.CreateTaskRequest;
+using CompleteTaskHandler = TodoList.Tasks.Application.Tasks.CompleteTaskHandler;
 using CreateTaskHandler = TodoList.Tasks.Application.Tasks.CreateTaskHandler;
+using DeleteTaskHandler = TodoList.Tasks.Application.Tasks.DeleteTaskHandler;
 using GetTaskHandler = TodoList.Tasks.Application.Tasks.GetTaskHandler;
 using ListTasksHandler = TodoList.Tasks.Application.Tasks.ListTasksHandler;
+using ProtoCompleteTaskRequest = TodoList.Contracts.Tasks.V1.CompleteTaskRequest;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoDeleteTaskRequest = TodoList.Contracts.Tasks.V1.DeleteTaskRequest;
 using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
 using ProtoListTasksRequest = TodoList.Contracts.Tasks.V1.ListTasksRequest;
+using ProtoReopenTaskRequest = TodoList.Contracts.Tasks.V1.ReopenTaskRequest;
+using ProtoUpdateTaskRequest = TodoList.Contracts.Tasks.V1.UpdateTaskRequest;
+using ReopenTaskHandler = TodoList.Tasks.Application.Tasks.ReopenTaskHandler;
+using UpdateTaskHandler = TodoList.Tasks.Application.Tasks.UpdateTaskHandler;
 
 namespace TodoList.Tasks.Api.Grpc;
 
@@ -42,6 +51,10 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     private readonly CreateTaskHandler _handler;
     private readonly ListTasksHandler _listTasksHandler;
     private readonly GetTaskHandler _getTaskHandler;
+    private readonly UpdateTaskHandler _updateTaskHandler;
+    private readonly CompleteTaskHandler _completeTaskHandler;
+    private readonly ReopenTaskHandler _reopenTaskHandler;
+    private readonly DeleteTaskHandler _deleteTaskHandler;
     private readonly ICurrentUser _currentUser;
     private readonly ILogger<TasksGrpcService> _logger;
 
@@ -50,6 +63,10 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         CreateTaskHandler handler,
         ListTasksHandler listTasksHandler,
         GetTaskHandler getTaskHandler,
+        UpdateTaskHandler updateTaskHandler,
+        CompleteTaskHandler completeTaskHandler,
+        ReopenTaskHandler reopenTaskHandler,
+        DeleteTaskHandler deleteTaskHandler,
         ICurrentUser currentUser,
         ILogger<TasksGrpcService> logger)
     {
@@ -57,6 +74,10 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         _handler = handler;
         _listTasksHandler = listTasksHandler;
         _getTaskHandler = getTaskHandler;
+        _updateTaskHandler = updateTaskHandler;
+        _completeTaskHandler = completeTaskHandler;
+        _reopenTaskHandler = reopenTaskHandler;
+        _deleteTaskHandler = deleteTaskHandler;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -182,6 +203,191 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
 
+    /// <summary>
+    /// BE-19 — substituição completa dos campos editáveis. Reaproveita, sem
+    /// duplicar, exatamente o mesmo <see cref="IValidator{T}"/> de
+    /// <see cref="CreateTask"/> (CA-15 de BE-19): o mapeamento já resolveu
+    /// <c>due_date</c>/<c>priority</c> com a mesma lógica de <c>CreateTask</c>
+    /// (<see cref="TaskGrpcMapping.ToApplicationRequest(ProtoUpdateTaskRequest, Guid)"/>),
+    /// então validar título/descrição é rodar o validador de BE-17 sobre um
+    /// <see cref="ApplicationCreateTaskRequest"/> efêmero com os mesmos
+    /// valores — nenhuma regra nova, nenhuma classe de validador nova.
+    /// </summary>
+    public override async Task<TaskReply> UpdateTask(ProtoUpdateTaskRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+        var ownerId = _currentUser.Id;
+
+        if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
+            };
+            var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
+            Log.UpdateTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidId;
+        }
+
+        var mapping = TaskGrpcMapping.ToApplicationRequest(request, taskId);
+
+        if (!mapping.IsValid)
+        {
+            var invalidDueDate = ResultGrpcStatus.ToValidationFailedException(mapping.Errors!);
+            Log.UpdateTaskCalled(_logger, ownerId, invalidDueDate.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidDueDate;
+        }
+
+        // CA-15 de BE-19: mesmo IValidator<ApplicationCreateTaskRequest> de
+        // CreateTask, sobre um request efêmero com os mesmos campos — sem
+        // validador próprio para UpdateTask.
+        var fieldsToValidate = new ApplicationCreateTaskRequest(
+            mapping.Request!.Title, mapping.Request.Description, mapping.Request.Priority, mapping.Request.DueDate);
+        var validationResult = await _validator.ValidateAsync(fieldsToValidate, context.CancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var validationFailed = validationResult.ToValidationFailedException();
+            Log.UpdateTaskCalled(_logger, ownerId, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw validationFailed;
+        }
+
+        var result = await _updateTaskHandler.HandleAsync(mapping.Request!, context.CancellationToken);
+
+        if (result.IsFailure)
+        {
+            var failure = result.ToRpcException();
+            Log.UpdateTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw failure;
+        }
+
+        Log.UpdateTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return TaskGrpcMapping.ToTaskReply(result.Value);
+    }
+
+    /// <summary>
+    /// BE-20 — conclui uma tarefa Pending própria (RN-TASK-08). A transição
+    /// inválida (já concluída) vira <see cref="StatusCode.FailedPrecondition"/>
+    /// (D-35) através de <see cref="ResultGrpcStatus"/>, sem tratamento
+    /// especial neste método — o mesmo caminho de qualquer outra falha de
+    /// <see cref="Result{TValue}"/>.
+    /// </summary>
+    public override async Task<TaskReply> CompleteTask(ProtoCompleteTaskRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+        var ownerId = _currentUser.Id;
+
+        if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
+            };
+            var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
+            Log.CompleteTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidId;
+        }
+
+        var result = await _completeTaskHandler.HandleAsync(taskId, context.CancellationToken);
+
+        if (result.IsFailure)
+        {
+            var failure = result.ToRpcException();
+            Log.CompleteTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw failure;
+        }
+
+        Log.CompleteTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return TaskGrpcMapping.ToTaskReply(result.Value);
+    }
+
+    /// <summary>
+    /// BE-20 — reabre uma tarefa Completed própria (RN-TASK-09). Mesmo
+    /// desenho de <see cref="CompleteTask"/>, espelhado.
+    /// </summary>
+    public override async Task<TaskReply> ReopenTask(ProtoReopenTaskRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+        var ownerId = _currentUser.Id;
+
+        if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
+            };
+            var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
+            Log.ReopenTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidId;
+        }
+
+        var result = await _reopenTaskHandler.HandleAsync(taskId, context.CancellationToken);
+
+        if (result.IsFailure)
+        {
+            var failure = result.ToRpcException();
+            Log.ReopenTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw failure;
+        }
+
+        Log.ReopenTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return TaskGrpcMapping.ToTaskReply(result.Value);
+    }
+
+    /// <summary>
+    /// BE-21 — remove (soft delete) uma tarefa própria (RN-TASK-12/13).
+    /// Devolve <see cref="Empty"/>: a borda REST (Gateway) traduz isso em
+    /// <c>204 No Content</c>, e não há nenhum dado da tarefa que valha a pena
+    /// devolver depois de removê-la (ver a nota técnica do RPC em
+    /// <c>tasks.proto</c>).
+    /// </summary>
+    public override async Task<Empty> DeleteTask(ProtoDeleteTaskRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+        var ownerId = _currentUser.Id;
+
+        if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
+        {
+            var errors = new Dictionary<string, string[]>
+            {
+                [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
+            };
+            var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
+            Log.DeleteTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidId;
+        }
+
+        var result = await _deleteTaskHandler.HandleAsync(taskId, context.CancellationToken);
+
+        if (result.IsFailure)
+        {
+            var failure = result.ToRpcException();
+            Log.DeleteTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw failure;
+        }
+
+        Log.DeleteTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return new Empty();
+    }
+
     private static partial class Log
     {
         // Mesmo padrão de GrpcIdentityGateway.Log: ownerId, statusCode,
@@ -201,5 +407,25 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
             Level = LogLevel.Information,
             Message = "GetTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
         public static partial void GetTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "UpdateTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void UpdateTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "CompleteTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void CompleteTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "ReopenTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void ReopenTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "DeleteTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void DeleteTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
     }
 }

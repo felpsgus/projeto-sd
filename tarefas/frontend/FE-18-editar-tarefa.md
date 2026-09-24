@@ -9,6 +9,8 @@
 | **Estimativa** | M |
 
 > **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem `GET /api/tasks/{id}` para autorização nem `PUT`/`PATCH` de edição.
+>
+> **Entrou em 23/09/2026:** o recorte acima foi revogado — o backend já expõe `GET /api/tasks/{id}` e `PUT /api/tasks/{id}` (BE-18/BE-19), e esta task foi implementada em escopo pleno na terceira onda da Fase 1 (ver [PLANO-REGRAS-RESTANTES.md](../PLANO-REGRAS-RESTANTES.md)).
 
 ## Objetivo
 

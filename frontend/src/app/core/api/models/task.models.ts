@@ -19,6 +19,15 @@ export interface CreateTaskRequest {
   readonly dueDate: string | null;
 }
 
+/**
+ * Corpo de `PUT /api/tasks/{id}` (FE-18) — mesma forma de {@link CreateTaskRequest}, de
+ * propósito: são os mesmos quatro campos editáveis. **O `PUT` é substituição total**
+ * (BE-19): um campo ausente aqui limpa o valor atual no servidor (descrição/vencimento
+ * viram `null`, prioridade volta a `Medium`) — quem monta este objeto sempre preenche os
+ * quatro campos com os valores correntes da tela, nunca com um subconjunto.
+ */
+export type UpdateTaskRequest = CreateTaskRequest;
+
 /** Espelha `TaskHttpResponse` do Gateway. */
 export interface TaskResponse {
   readonly id: string;

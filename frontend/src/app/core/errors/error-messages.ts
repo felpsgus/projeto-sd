@@ -12,6 +12,13 @@ import { AppErrorCode } from './app-error.model';
 export const ERROR_MESSAGES: Readonly<Record<AppErrorCode, string>> = {
   'auth.invalid_credentials': 'E-mail ou senha inválidos.',
   'auth.unauthorized': 'Sua sessão expirou. Entre novamente.',
+  // FE-19 (409, RN-TASK-06): o estado mudou em outro lugar — nunca uma mensagem genérica
+  // de falha, porque a ação em si não falhou por engano do usuário.
+  'task.already_completed': 'Esta tarefa já foi concluída em outro lugar.',
+  'task.not_completed': 'Esta tarefa não está mais concluída — foi reaberta em outro lugar.',
+  // FE-19 (reabrir) e FE-17 (criar): mesmo código, RN-TASK-15.
+  'task.active_limit_reached':
+    'Você atingiu o limite de tarefas ativas. Conclua ou remova alguma tarefa antes de continuar.',
   network: 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
   unknown: 'Não foi possível concluir a operação. Tente novamente.',
 };

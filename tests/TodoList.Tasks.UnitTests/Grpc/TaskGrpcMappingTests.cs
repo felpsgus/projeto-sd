@@ -3,9 +3,13 @@ using TodoList.Tasks.Api.Grpc;
 using TodoList.Tasks.Application.Tasks;
 using TodoList.Tasks.Domain.Tasks;
 using Xunit;
+using ProtoCompleteTaskRequest = TodoList.Contracts.Tasks.V1.CompleteTaskRequest;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoDeleteTaskRequest = TodoList.Contracts.Tasks.V1.DeleteTaskRequest;
 using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
+using ProtoReopenTaskRequest = TodoList.Contracts.Tasks.V1.ReopenTaskRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
+using ProtoUpdateTaskRequest = TodoList.Contracts.Tasks.V1.UpdateTaskRequest;
 
 namespace TodoList.Tasks.UnitTests.Grpc;
 
@@ -174,5 +178,86 @@ public class TaskGrpcMappingTests
         var parsed = TaskGrpcMapping.TryParseTaskId(request, out _);
 
         parsed.Should().BeFalse();
+    }
+
+    [Fact] // BE-19 — TASK_PRIORITY_UNSPECIFIED vira Medium (padrão de substituição), não null
+    public void ToApplicationRequest_UpdateTask_ComPriorityUnspecified_MapeiaParaMedium()
+    {
+        var taskId = Guid.NewGuid();
+        var request = new ProtoUpdateTaskRequest { Id = taskId.ToString(), Title = "Tarefa", Priority = ProtoTaskPriority.Unspecified };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request, taskId);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Priority.Should().Be(TaskPriority.Medium);
+        result.Request.TaskId.Should().Be(taskId);
+    }
+
+    [Fact] // BE-19 — description/dueDate ausentes viram null (semântica de substituição)
+    public void ToApplicationRequest_UpdateTask_SemDescriptionNemDueDate_MapeiaParaNull()
+    {
+        var taskId = Guid.NewGuid();
+        var request = new ProtoUpdateTaskRequest { Id = taskId.ToString(), Title = "Tarefa" };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request, taskId);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Description.Should().BeNull();
+        result.Request.DueDate.Should().BeNull();
+    }
+
+    [Fact] // BE-19 — due_date presente e válido é convertido
+    public void ToApplicationRequest_UpdateTask_ComDueDateValido_MapeiaParaODateOnlyCorrespondente()
+    {
+        var taskId = Guid.NewGuid();
+        var request = new ProtoUpdateTaskRequest { Id = taskId.ToString(), Title = "Tarefa", DueDate = "2026-08-21" };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request, taskId);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.DueDate.Should().Be(new DateOnly(2026, 8, 21));
+    }
+
+    [Theory] // BE-19 — due_date fora do formato é erro de validação, nunca exceção
+    [InlineData("31/12/2026")]
+    [InlineData("não é uma data")]
+    public void ToApplicationRequest_UpdateTask_ComDueDateForaDoFormato_DevolveErroDeValidacaoNoCampoDueDate(string dueDate)
+    {
+        var taskId = Guid.NewGuid();
+        var request = new ProtoUpdateTaskRequest { Id = taskId.ToString(), Title = "Tarefa", DueDate = dueDate };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request, taskId);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey(TaskGrpcMapping.DueDateFieldName);
+    }
+
+    [Theory] // Ids inválidos para os quatro novos RPCs falham sem lançar
+    [InlineData("")]
+    [InlineData("não-é-um-guid")]
+    public void TryParseTaskId_ParaUpdateCompleteReopenDelete_ComIdInvalido_DevolveFalse(string idInvalido)
+    {
+        TaskGrpcMapping.TryParseTaskId(new ProtoUpdateTaskRequest { Id = idInvalido }, out _).Should().BeFalse();
+        TaskGrpcMapping.TryParseTaskId(new ProtoCompleteTaskRequest { Id = idInvalido }, out _).Should().BeFalse();
+        TaskGrpcMapping.TryParseTaskId(new ProtoReopenTaskRequest { Id = idInvalido }, out _).Should().BeFalse();
+        TaskGrpcMapping.TryParseTaskId(new ProtoDeleteTaskRequest { Id = idInvalido }, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TryParseTaskId_ParaUpdateCompleteReopenDelete_ComGuidValido_DevolveTrueEOGuid()
+    {
+        var id = Guid.NewGuid();
+
+        TaskGrpcMapping.TryParseTaskId(new ProtoUpdateTaskRequest { Id = id.ToString() }, out var updateId).Should().BeTrue();
+        updateId.Should().Be(id);
+
+        TaskGrpcMapping.TryParseTaskId(new ProtoCompleteTaskRequest { Id = id.ToString() }, out var completeId).Should().BeTrue();
+        completeId.Should().Be(id);
+
+        TaskGrpcMapping.TryParseTaskId(new ProtoReopenTaskRequest { Id = id.ToString() }, out var reopenId).Should().BeTrue();
+        reopenId.Should().Be(id);
+
+        TaskGrpcMapping.TryParseTaskId(new ProtoDeleteTaskRequest { Id = id.ToString() }, out var deleteId).Should().BeTrue();
+        deleteId.Should().Be(id);
     }
 }

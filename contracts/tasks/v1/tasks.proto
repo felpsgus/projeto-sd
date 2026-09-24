@@ -4,6 +4,7 @@ option csharp_namespace = "TodoList.Contracts.Tasks.V1";
 
 package tasks.v1;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 // Fronteira de rede entre o API Gateway (cliente) e o Tasks Service
@@ -22,6 +23,30 @@ service TasksService {
   // inexistente e tarefa de outro dono devolvem o mesmo NotFound
   // (RN-AUTZ-03) — nunca um status que distinga os dois casos.
   rpc GetTask (GetTaskRequest) returns (TaskReply);
+  // Substitui título, descrição, prioridade e vencimento de uma tarefa
+  // própria (BE-19, RN-TASK-11) — semântica de PUT/substituição: um campo
+  // ausente no chamador (Gateway) vira o padrão de substituição, nunca um
+  // "manter o valor atual" implícito. Resolve a tarefa pelo mesmo método
+  // único de BE-18/GetTask; status, dono, createdAt e completedAt não mudam
+  // por este RPC (BE-19, "Não inclui").
+  rpc UpdateTask (UpdateTaskRequest) returns (TaskReply);
+  // Conclui uma tarefa própria Pending (RN-TASK-08). Delega a transição a
+  // TodoTask.Complete (BE-05); repetir sobre uma tarefa já concluída é
+  // FAILED_PRECONDITION (task.already_completed, D-35), não um 200
+  // idempotente (BE-20, nota técnica).
+  rpc CompleteTask (CompleteTaskRequest) returns (TaskReply);
+  // Reabre uma tarefa própria Completed (RN-TASK-09), limpando
+  // completed_at. Delega a transição a TodoTask.Reopen (BE-05); repetir
+  // sobre uma tarefa já Pending é FAILED_PRECONDITION (task.not_completed).
+  rpc ReopenTask (ReopenTaskRequest) returns (TaskReply);
+  // Remove (soft delete, D-07/RN-TASK-13) uma tarefa própria — marca
+  // deleted_at, nunca DELETE físico (BE-21). Devolve google.protobuf.Empty:
+  // a borda REST traduz isso em 204 No Content (nenhum corpo a devolver
+  // depois de remover, mesma semântica de DELETE bem-sucedido), e não há
+  // nenhum dado da tarefa removida que o chamador ainda precise ler depois
+  // desta chamada — quem quiser confirmar o estado final consulta GetTask
+  // antes de remover, não depois.
+  rpc DeleteTask (DeleteTaskRequest) returns (google.protobuf.Empty);
 }
 
 message CreateTaskRequest {
@@ -101,5 +126,41 @@ message ListTasksReply {
 // validação; não é papel deste RPC decidir 400 vs. 404 de rota, isso é do
 // Gateway (BE-41, nota técnica).
 message GetTaskRequest {
+  string id = 1;
+}
+
+// Request de UpdateTask (BE-19) — substituição completa dos campos
+// editáveis. Mesma estrutura de campo de CreateTaskRequest, com "id" à
+// frente (campo 1) para identificar a tarefa; title/description/priority/
+// due_date reaproveitam os mesmos números relativos de CreateTaskRequest
+// para reduzir a distância cognitiva entre as duas mensagens.
+//
+// Semântica de substituição (BE-19, nota técnica): "description" e
+// "due_date" ausentes (proto3 `optional`, HasDescription/HasDueDate=false)
+// viram null — limpam o campo. "priority" ausente
+// (TASK_PRIORITY_UNSPECIFIED) volta ao padrão Média, o mesmo comportamento
+// de CreateTaskRequest. "title" é sempre obrigatório: um valor vazio não é
+// "ausente", é erro de validação (mesma regra de CreateTaskRequest).
+message UpdateTaskRequest {
+  string id = 1;
+  string title = 2;
+  optional string description = 3;
+  TaskPriority priority = 4;
+  optional string due_date = 5;
+}
+
+// Request de CompleteTask (BE-20) — só o id; RN-TASK-08 não recebe nenhum
+// outro parâmetro do chamador (completed_at vem do relógio do servidor).
+message CompleteTaskRequest {
+  string id = 1;
+}
+
+// Request de ReopenTask (BE-20) — só o id; RN-TASK-09 idem.
+message ReopenTaskRequest {
+  string id = 1;
+}
+
+// Request de DeleteTask (BE-21) — só o id; RN-TASK-12/13 (soft delete).
+message DeleteTaskRequest {
   string id = 1;
 }

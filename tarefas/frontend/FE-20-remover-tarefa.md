@@ -9,6 +9,8 @@
 | **Estimativa** | P |
 
 > **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de remoção de tarefa.
+>
+> **Entrou em 23/09/2026:** o recorte acima foi revogado — o backend já expõe `DELETE /api/tasks/{id}` (BE-21), e esta task foi implementada em escopo pleno na terceira onda da Fase 1 (ver [PLANO-REGRAS-RESTANTES.md](../PLANO-REGRAS-RESTANTES.md)).
 
 ## Objetivo
 

@@ -1,7 +1,8 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { render, screen, waitFor } from '@testing-library/angular';
+import userEvent from '@testing-library/user-event';
 
 import { TasksPageComponent } from './tasks-page.component';
 import { errorInterceptor } from '../../../core/errors/error.interceptor';
@@ -28,7 +29,10 @@ async function setup() {
     providers: [
       provideHttpClient(withInterceptors([errorInterceptor])),
       provideHttpClientTesting(),
-      provideRouter([{ path: 'tasks/new', children: [] }]),
+      provideRouter([
+        { path: 'tasks/new', children: [] },
+        { path: 'tasks/:id/edit', children: [] },
+      ]),
     ],
   });
   const httpMock = utils.fixture.debugElement.injector.get(HttpTestingController);
@@ -202,6 +206,87 @@ describe('TasksPageComponent', () => {
     });
 
     expect(await screen.findByText('Página 2')).toBeTruthy();
+  });
+
+  it('concluir uma tarefa da lista chama complete e não recarrega a lista inteira (sem "loading")', async () => {
+    const { httpMock } = await setup();
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({
+        items: [makeTask({ id: '1' }), makeTask({ id: '2', title: 'Segunda tarefa' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 2,
+      });
+
+    await screen.findByText('Estudar para a prova');
+    await screen.findByText('Segunda tarefa');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Estudar para a prova' }));
+
+    httpMock.expectOne('/api/tasks/1/complete').flush({
+      ...makeTask({ id: '1' }),
+      status: 'Completed',
+      completedAt: '2026-01-02T00:00:00Z',
+    });
+
+    // Nenhuma nova chamada de listagem foi disparada — o item foi só substituído em memória.
+    httpMock.expectNone((r) => r.url === '/api/tasks' && r.method === 'GET');
+    expect(await screen.findAllByText('Concluída')).toHaveLength(1);
+  });
+
+  it('erro ao concluir exibe a mensagem na linha e a tarefa continua pendente', async () => {
+    const { httpMock } = await setup();
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [makeTask({ id: '1' })], page: 1, pageSize: 20, totalCount: 1 });
+
+    await screen.findByText('Estudar para a prova');
+    await userEvent.click(screen.getByRole('checkbox', { name: /concluir/i }));
+
+    httpMock
+      .expectOne('/api/tasks/1/complete')
+      .flush({ errorCode: 'task.already_completed' }, { status: 409, statusText: 'Conflict' });
+
+    expect(await screen.findByText(/já foi concluída em outro lugar/i)).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /concluir/i })).not.toBeChecked();
+  });
+
+  it('remover uma tarefa, após confirmar, faz o item sumir da lista', async () => {
+    const { httpMock } = await setup();
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [makeTask({ id: '1' })], page: 1, pageSize: 20, totalCount: 1 });
+
+    await screen.findByText('Estudar para a prova');
+    await userEvent.click(screen.getByRole('button', { name: /remover/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+
+    httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
+
+    await waitFor(() => expect(screen.queryByText('Estudar para a prova')).toBeNull());
+  });
+
+  it('remover o único item da página 3 recarrega a página 2 (CA-10 de FE-20)', async () => {
+    const { httpMock } = await setup();
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [makeTask({ id: '1' })], page: 3, pageSize: 20, totalCount: 41 });
+
+    await screen.findByText('Estudar para a prova');
+    await userEvent.click(screen.getByRole('button', { name: /remover/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+
+    httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
+
+    const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+    expect(req.request.params.get('page')).toBe('2');
+    req.flush({ items: [makeTask({ id: '2' })], page: 2, pageSize: 20, totalCount: 40 });
+
+    expect(await screen.findByText('Estudar para a prova')).toBeTruthy();
   });
 
   it('não exibe controles de paginação com uma única página', async () => {

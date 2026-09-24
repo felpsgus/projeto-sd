@@ -31,4 +31,37 @@ public interface ITasksBackend
     /// negócio, traduzido a 404 por <see cref="ErrorHandling.GrpcErrorMapping"/>.
     /// </summary>
     public Task<TaskHttpResponse> GetTaskAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Chama <c>UpdateTask</c> (BE-19) — substituição completa dos campos
+    /// editáveis. <paramref name="id"/> já chegou validado como
+    /// <see cref="Guid"/> pelo endpoint, mesmo padrão de
+    /// <see cref="GetTaskAsync"/>. Mesmas exceções em caso de falha
+    /// (<c>NotFound</c> de tarefa inexistente/alheia vira 404, RN-AUTZ-03).
+    /// </summary>
+    public Task<TaskHttpResponse> UpdateTaskAsync(string id, UpdateTaskHttpRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Chama <c>CompleteTask</c> (BE-20, RN-TASK-08). Repetir sobre uma
+    /// tarefa já concluída vira <see cref="BackendCallException"/> com
+    /// <see cref="Grpc.Core.StatusCode.FailedPrecondition"/> (409,
+    /// <c>task.already_completed</c>, D-35) — não um 200 idempotente.
+    /// </summary>
+    public Task<TaskHttpResponse> CompleteTaskAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Chama <c>ReopenTask</c> (BE-20, RN-TASK-09). Repetir sobre uma tarefa
+    /// já pendente vira <see cref="BackendCallException"/> com
+    /// <see cref="Grpc.Core.StatusCode.FailedPrecondition"/> (409,
+    /// <c>task.not_completed</c>, D-35).
+    /// </summary>
+    public Task<TaskHttpResponse> ReopenTaskAsync(string id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Chama <c>DeleteTask</c> (BE-21, RN-TASK-12/13, soft delete) — devolve
+    /// <c>google.protobuf.Empty</c>, então não há nada a traduzir de volta: o
+    /// endpoint devolve <c>204 No Content</c> quando esta chamada conclui sem
+    /// lançar.
+    /// </summary>
+    public Task DeleteTaskAsync(string id, CancellationToken cancellationToken);
 }

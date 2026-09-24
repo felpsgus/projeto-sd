@@ -113,6 +113,116 @@ public sealed partial class TasksBackend : ITasksBackend
         }
     }
 
+    /// <summary>Chama <c>UpdateTask</c> (BE-19) — mesmo padrão de deadline/log/tradução de erro de <see cref="CreateTaskAsync"/>.</summary>
+    public async Task<TaskHttpResponse> UpdateTaskAsync(string id, UpdateTaskHttpRequest request, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var reply = await _client.UpdateTaskAsync(
+                TaskTranslation.ToProtoRequest(id, request),
+                deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            Log.CallSucceeded(_logger, BackendName, "UpdateTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return TaskTranslation.ToHttpResponse(reply);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "UpdateTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                ? new BackendUnavailableException(BackendName, ex)
+                : new BackendCallException(ex);
+        }
+    }
+
+    /// <summary>Chama <c>CompleteTask</c> (BE-20) — mesmo padrão de deadline/log/tradução de erro de <see cref="CreateTaskAsync"/>.</summary>
+    public async Task<TaskHttpResponse> CompleteTaskAsync(string id, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var reply = await _client.CompleteTaskAsync(
+                TaskTranslation.ToProtoCompleteTaskRequest(id),
+                deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            Log.CallSucceeded(_logger, BackendName, "CompleteTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return TaskTranslation.ToHttpResponse(reply);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "CompleteTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                ? new BackendUnavailableException(BackendName, ex)
+                : new BackendCallException(ex);
+        }
+    }
+
+    /// <summary>Chama <c>ReopenTask</c> (BE-20) — mesmo padrão de deadline/log/tradução de erro de <see cref="CreateTaskAsync"/>.</summary>
+    public async Task<TaskHttpResponse> ReopenTaskAsync(string id, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var reply = await _client.ReopenTaskAsync(
+                TaskTranslation.ToProtoReopenTaskRequest(id),
+                deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            Log.CallSucceeded(_logger, BackendName, "ReopenTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return TaskTranslation.ToHttpResponse(reply);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "ReopenTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                ? new BackendUnavailableException(BackendName, ex)
+                : new BackendCallException(ex);
+        }
+    }
+
+    /// <summary>
+    /// Chama <c>DeleteTask</c> (BE-21) — mesmo padrão de deadline/log/tradução
+    /// de erro de <see cref="CreateTaskAsync"/>; a resposta é
+    /// <c>google.protobuf.Empty</c>, então não há nada a traduzir de volta.
+    /// </summary>
+    public async Task DeleteTaskAsync(string id, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            await _client.DeleteTaskAsync(
+                TaskTranslation.ToProtoDeleteTaskRequest(id),
+                deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            Log.CallSucceeded(_logger, BackendName, "DeleteTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "DeleteTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
+                ? new BackendUnavailableException(BackendName, ex)
+                : new BackendCallException(ex);
+        }
+    }
+
     private static partial class Log
     {
         // Mesmo padrão de IdentityBackend.Log (BE-36, CA-26) — nunca o

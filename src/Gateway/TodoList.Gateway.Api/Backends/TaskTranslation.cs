@@ -1,11 +1,15 @@
 using TodoList.Gateway.Api.Contracts;
+using ProtoCompleteTaskRequest = TodoList.Contracts.Tasks.V1.CompleteTaskRequest;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoDeleteTaskRequest = TodoList.Contracts.Tasks.V1.DeleteTaskRequest;
 using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
 using ProtoListTasksReply = TodoList.Contracts.Tasks.V1.ListTasksReply;
 using ProtoListTasksRequest = TodoList.Contracts.Tasks.V1.ListTasksRequest;
+using ProtoReopenTaskRequest = TodoList.Contracts.Tasks.V1.ReopenTaskRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
+using ProtoUpdateTaskRequest = TodoList.Contracts.Tasks.V1.UpdateTaskRequest;
 
 namespace TodoList.Gateway.Api.Backends;
 
@@ -99,6 +103,51 @@ public static class TaskTranslation
 
     /// <summary>Converte o id de rota (já validado como Guid pelo endpoint, CA-22) no request proto de <c>GetTask</c> (BE-41).</summary>
     public static ProtoGetTaskRequest ToProtoGetTaskRequest(string id) => new() { Id = id };
+
+    /// <summary>
+    /// Converte o id de rota (já validado como Guid) e o DTO HTTP já validado
+    /// (<see cref="Validation.UpdateTaskHttpRequestValidator"/>) no request
+    /// proto de <c>UpdateTask</c> (BE-19) — mesma lógica de
+    /// <see cref="ToProtoRequest(CreateTaskHttpRequest)"/> para
+    /// <see cref="UpdateTaskHttpRequest.Priority"/>/<see cref="UpdateTaskHttpRequest.Description"/>/
+    /// <see cref="UpdateTaskHttpRequest.DueDate"/>: prioridade ausente vira
+    /// <see cref="ProtoTaskPriority.Unspecified"/> (o Tasks aplica o padrão
+    /// Média nesta substituição, BE-19 nota técnica); descrição e vencimento
+    /// nulos deixam o campo <c>optional</c> sem valor, o que o Tasks lê como
+    /// "limpar o campo" (semântica de substituição do PUT).
+    /// </summary>
+    public static ProtoUpdateTaskRequest ToProtoRequest(string id, UpdateTaskHttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var proto = new ProtoUpdateTaskRequest
+        {
+            Id = id,
+            Title = request.Title!.Trim(),
+            Priority = ToProtoPriority(request.Priority),
+        };
+
+        if (request.Description is not null)
+        {
+            proto.Description = request.Description;
+        }
+
+        if (request.DueDate is not null)
+        {
+            proto.DueDate = request.DueDate;
+        }
+
+        return proto;
+    }
+
+    /// <summary>Converte o id de rota (já validado como Guid) no request proto de <c>CompleteTask</c> (BE-20).</summary>
+    public static ProtoCompleteTaskRequest ToProtoCompleteTaskRequest(string id) => new() { Id = id };
+
+    /// <summary>Converte o id de rota (já validado como Guid) no request proto de <c>ReopenTask</c> (BE-20).</summary>
+    public static ProtoReopenTaskRequest ToProtoReopenTaskRequest(string id) => new() { Id = id };
+
+    /// <summary>Converte o id de rota (já validado como Guid) no request proto de <c>DeleteTask</c> (BE-21).</summary>
+    public static ProtoDeleteTaskRequest ToProtoDeleteTaskRequest(string id) => new() { Id = id };
 
     private static ProtoTaskPriority ToProtoPriority(string? priority) => priority?.Trim().ToUpperInvariant() switch
     {

@@ -1,0 +1,41 @@
+<div class="edit-task">
+  @switch (status()) {
+    @case ('loading') {
+      <app-loading label="Carregando tarefa…" />
+    }
+    @case ('not-found') {
+      <div class="edit-task__not-found">
+        <h1>Tarefa não encontrada</h1>
+        <p>Ela pode ter sido removida ou não existir mais para esta conta.</p>
+        <a routerLink="/tasks">Voltar para a lista</a>
+      </div>
+    }
+    @case ('error') {
+      <app-error-state message="Não foi possível carregar a tarefa." (retry)="retry()" />
+    }
+    @default {
+      @if (task(); as current) {
+        <h1>Editar tarefa</h1>
+
+        <dl class="edit-task__meta">
+          <div class="edit-task__meta-item">
+            <dt>Situação</dt>
+            <dd>{{ statusLabels[current.status] }}</dd>
+          </div>
+          <div class="edit-task__meta-item">
+            <dt>Última atualização</dt>
+            <dd class="tabular-nums">{{ current.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</dd>
+          </div>
+        </dl>
+
+        <app-task-form
+          [initialValue]="initialValue()"
+          submitLabel="Salvar alterações"
+          submittingLabel="Salvando…"
+          (save)="onSave($event)"
+          (cancelled)="cancel()"
+        />
+      }
+    }
+  }
+</div>

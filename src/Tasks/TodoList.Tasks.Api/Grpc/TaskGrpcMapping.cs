@@ -5,13 +5,18 @@ using ApplicationCreateTaskRequest = TodoList.Tasks.Application.Tasks.CreateTask
 using ApplicationListTasksRequest = TodoList.Tasks.Application.Tasks.ListTasksRequest;
 using ApplicationListTasksResponse = TodoList.Tasks.Application.Tasks.ListTasksResponse;
 using ApplicationTaskResponse = TodoList.Tasks.Application.Tasks.TaskResponse;
+using ApplicationUpdateTaskRequest = TodoList.Tasks.Application.Tasks.UpdateTaskRequest;
+using ProtoCompleteTaskRequest = TodoList.Contracts.Tasks.V1.CompleteTaskRequest;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
+using ProtoDeleteTaskRequest = TodoList.Contracts.Tasks.V1.DeleteTaskRequest;
 using ProtoGetTaskRequest = TodoList.Contracts.Tasks.V1.GetTaskRequest;
 using ProtoListTasksReply = TodoList.Contracts.Tasks.V1.ListTasksReply;
 using ProtoListTasksRequest = TodoList.Contracts.Tasks.V1.ListTasksRequest;
+using ProtoReopenTaskRequest = TodoList.Contracts.Tasks.V1.ReopenTaskRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
+using ProtoUpdateTaskRequest = TodoList.Contracts.Tasks.V1.UpdateTaskRequest;
 
 namespace TodoList.Tasks.Api.Grpc;
 
@@ -176,6 +181,82 @@ public static class TaskGrpcMapping
         return Guid.TryParse(request.Id, out taskId);
     }
 
+    /// <summary>Mesma conversão de <see cref="TryParseTaskId(ProtoGetTaskRequest, out Guid)"/>, para <c>UpdateTask</c> (BE-19).</summary>
+    public static bool TryParseTaskId(ProtoUpdateTaskRequest request, out Guid taskId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Guid.TryParse(request.Id, out taskId);
+    }
+
+    /// <summary>Mesma conversão de <see cref="TryParseTaskId(ProtoGetTaskRequest, out Guid)"/>, para <c>CompleteTask</c> (BE-20).</summary>
+    public static bool TryParseTaskId(ProtoCompleteTaskRequest request, out Guid taskId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Guid.TryParse(request.Id, out taskId);
+    }
+
+    /// <summary>Mesma conversão de <see cref="TryParseTaskId(ProtoGetTaskRequest, out Guid)"/>, para <c>ReopenTask</c> (BE-20).</summary>
+    public static bool TryParseTaskId(ProtoReopenTaskRequest request, out Guid taskId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Guid.TryParse(request.Id, out taskId);
+    }
+
+    /// <summary>Mesma conversão de <see cref="TryParseTaskId(ProtoGetTaskRequest, out Guid)"/>, para <c>DeleteTask</c> (BE-21).</summary>
+    public static bool TryParseTaskId(ProtoDeleteTaskRequest request, out Guid taskId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return Guid.TryParse(request.Id, out taskId);
+    }
+
+    /// <summary>
+    /// Converte o request de <c>UpdateTask</c> (BE-19) — mesma lógica de
+    /// <c>due_date</c>/<c>priority</c> de <see cref="ToApplicationRequest(ProtoCreateTaskRequest)"/>
+    /// (nenhuma regra nova, só reaplicada a uma mensagem diferente):
+    /// <c>due_date</c> fora do formato <c>yyyy-MM-dd</c> é erro de validação
+    /// (nunca exceção), e <c>TASK_PRIORITY_UNSPECIFIED</c> vira
+    /// <see cref="TaskPriority.Medium"/> — o padrão de substituição do PUT
+    /// (BE-19, CA-05), já resolvido aqui porque
+    /// <see cref="Domain.Tasks.TodoTask.UpdateDetails"/> exige uma prioridade
+    /// concreta (ao contrário de <c>TodoTask.Create</c>, que aceita nula e
+    /// aplica o padrão internamente).
+    /// </summary>
+    public static UpdateTaskGrpcMappingResult ToApplicationRequest(ProtoUpdateTaskRequest request, Guid taskId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        DateOnly? dueDate = null;
+
+        if (request.HasDueDate)
+        {
+            if (!DateOnly.TryParseExact(
+                    request.DueDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                var errors = new Dictionary<string, string[]>
+                {
+                    [DueDateFieldName] = ["A data de vencimento deve estar no formato 'yyyy-MM-dd'."],
+                };
+
+                return UpdateTaskGrpcMappingResult.Invalid(errors);
+            }
+
+            dueDate = parsed;
+        }
+
+        var priority = request.Priority == ProtoTaskPriority.Unspecified
+            ? TaskPriority.Medium
+            : ToDomainPriority(request.Priority);
+
+        var applicationRequest = new ApplicationUpdateTaskRequest(
+            taskId, request.Title, request.HasDescription ? request.Description : null, priority, dueDate);
+
+        return UpdateTaskGrpcMappingResult.Valid(applicationRequest);
+    }
+
     private static TaskPriority ToDomainPriority(ProtoTaskPriority priority) => priority switch
     {
         ProtoTaskPriority.Low => TaskPriority.Low,
@@ -223,4 +304,30 @@ public sealed class TaskGrpcMappingResult
     public static TaskGrpcMappingResult Valid(ApplicationCreateTaskRequest request) => new(request, null);
 
     public static TaskGrpcMappingResult Invalid(IReadOnlyDictionary<string, string[]> errors) => new(null, errors);
+}
+
+/// <summary>
+/// Resultado de <see cref="TaskGrpcMapping.ToApplicationRequest(TodoList.Contracts.Tasks.V1.UpdateTaskRequest, Guid)"/> —
+/// mesmo desenho de <see cref="TaskGrpcMappingResult"/>, para <c>UpdateTask</c>
+/// (BE-19): nunca lança para "due_date fora do formato", só devolve o
+/// dicionário de erros no mesmo formato de
+/// <c>FluentValidation.Results.ValidationResult.ToDictionary()</c>.
+/// </summary>
+public sealed class UpdateTaskGrpcMappingResult
+{
+    private UpdateTaskGrpcMappingResult(ApplicationUpdateTaskRequest? request, IReadOnlyDictionary<string, string[]>? errors)
+    {
+        Request = request;
+        Errors = errors;
+    }
+
+    public bool IsValid => Request is not null;
+
+    public ApplicationUpdateTaskRequest? Request { get; }
+
+    public IReadOnlyDictionary<string, string[]>? Errors { get; }
+
+    public static UpdateTaskGrpcMappingResult Valid(ApplicationUpdateTaskRequest request) => new(request, null);
+
+    public static UpdateTaskGrpcMappingResult Invalid(IReadOnlyDictionary<string, string[]> errors) => new(null, errors);
 }

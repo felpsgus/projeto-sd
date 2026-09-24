@@ -1,0 +1,76 @@
+.confirm-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--color-overlay-inverse);
+}
+
+.confirm-dialog {
+  position: fixed;
+  z-index: 1001;
+  inset: 0;
+  margin: auto;
+  width: min(26rem, calc(100% - var(--space-md) * 2));
+  max-height: calc(100% - var(--space-md) * 2);
+  padding: var(--space-md);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--color-text) 18%, transparent);
+
+  &:not([open]) {
+    display: none;
+  }
+
+  &__title {
+    margin: 0 0 var(--space-2xs);
+  }
+
+  &__message {
+    margin: 0 0 var(--space-md);
+    color: var(--color-text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+  }
+
+  &__cancel,
+  &__confirm {
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.12s ease;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  &__cancel {
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid var(--color-border);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-text-secondary);
+    }
+  }
+
+  /* Cor de perigo por texto/borda, não por preenchimento sólido — evita introduzir um novo
+     tom fora dos tokens e mantém contraste alto em ambos os temas (FE-04). */
+  &__confirm {
+    color: var(--color-danger);
+    background: var(--color-danger-surface);
+    border: 1px solid var(--color-danger);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--color-danger) 16%, var(--color-surface));
+    }
+  }
+}

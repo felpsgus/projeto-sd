@@ -7,6 +7,9 @@ import { ERROR_MESSAGES, NOT_FOUND_MESSAGE, SERVICE_UNAVAILABLE_MESSAGE } from '
 const KNOWN_CODES: readonly AppErrorCode[] = [
   'auth.invalid_credentials',
   'auth.unauthorized',
+  'task.already_completed',
+  'task.not_completed',
+  'task.active_limit_reached',
   'network',
   'unknown',
 ];

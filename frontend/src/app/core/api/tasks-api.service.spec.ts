@@ -67,4 +67,54 @@ describe('TasksApi', () => {
     expect(req.request.method).toBe('GET');
     req.flush(TASK);
   });
+
+  it('atualiza uma tarefa via PUT /api/tasks/{id} com os quatro campos', () => {
+    tasksApi
+      .update('1', {
+        title: 'Estudar',
+        description: 'Cap. 1',
+        priority: 'High',
+        dueDate: '2026-02-01',
+      })
+      .subscribe();
+
+    const req = httpMock.expectOne('/api/tasks/1');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      title: 'Estudar',
+      description: 'Cap. 1',
+      priority: 'High',
+      dueDate: '2026-02-01',
+    });
+    req.flush(TASK);
+  });
+
+  it('conclui uma tarefa via POST /api/tasks/{id}/complete sem corpo', () => {
+    tasksApi.complete('1').subscribe();
+
+    const req = httpMock.expectOne('/api/tasks/1/complete');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeNull();
+    req.flush(TASK);
+  });
+
+  it('reabre uma tarefa via POST /api/tasks/{id}/reopen sem corpo', () => {
+    tasksApi.reopen('1').subscribe();
+
+    const req = httpMock.expectOne('/api/tasks/1/reopen');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toBeNull();
+    req.flush(TASK);
+  });
+
+  it('remove uma tarefa via DELETE /api/tasks/{id}', () => {
+    let completed = false;
+    tasksApi.remove('1').subscribe({ complete: () => (completed = true) });
+
+    const req = httpMock.expectOne('/api/tasks/1');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
 });

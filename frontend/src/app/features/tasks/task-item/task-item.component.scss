@@ -114,4 +114,59 @@
   &__meta-item--updated {
     margin-left: auto;
   }
+
+  &__action-error {
+    margin: var(--space-2xs) 0 0;
+    padding: var(--space-2xs) var(--space-xs);
+    color: var(--color-danger);
+    background: var(--color-danger-surface);
+    border-left: 2px solid var(--color-danger);
+    font-size: var(--font-size-sm);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-2xs);
+  }
+
+  &__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+
+    input[disabled] {
+      cursor: not-allowed;
+    }
+  }
+
+  &__edit {
+    font-size: var(--font-size-sm);
+  }
+
+  /* Remover não é uma ação de perigo em si — a confirmação é (FE-04): o botão da linha
+     fica neutro, igual a um "cancelar"; só o botão de confirmar no diálogo usa cor de
+     perigo. */
+  &__remove {
+    padding: var(--space-3xs) var(--space-2xs);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-text-secondary);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
 }

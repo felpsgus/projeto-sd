@@ -157,4 +157,63 @@ public class TaskTranslationTests
 
         proto.Id.Should().Be("11111111-1111-1111-1111-111111111111");
     }
+
+    [Fact] // BE-19
+    public void ToProtoRequest_UpdateTaskComPrioridadeAusente_VirmaUnspecified()
+    {
+        var proto = TaskTranslation.ToProtoRequest(
+            "11111111-1111-1111-1111-111111111111", new UpdateTaskHttpRequest("Título", null, null, null));
+
+        proto.Id.Should().Be("11111111-1111-1111-1111-111111111111");
+        proto.Priority.Should().Be(ProtoTaskPriority.Unspecified);
+        proto.HasDescription.Should().BeFalse();
+        proto.HasDueDate.Should().BeFalse();
+    }
+
+    [Fact] // BE-19 — description/dueDate informados setam os campos optional
+    public void ToProtoRequest_UpdateTaskComDescricaoEDueDateInformados_SetamOsCamposOptional()
+    {
+        var proto = TaskTranslation.ToProtoRequest(
+            "11111111-1111-1111-1111-111111111111",
+            new UpdateTaskHttpRequest("Título", "Descrição", "Low", "2026-12-31"));
+
+        proto.HasDescription.Should().BeTrue();
+        proto.Description.Should().Be("Descrição");
+        proto.HasDueDate.Should().BeTrue();
+        proto.DueDate.Should().Be("2026-12-31");
+        proto.Priority.Should().Be(ProtoTaskPriority.Low);
+    }
+
+    [Fact] // BE-19 — título é trimado, mesmo comportamento de CreateTask
+    public void ToProtoRequest_UpdateTaskTitulo_EhTrimado()
+    {
+        var proto = TaskTranslation.ToProtoRequest(
+            "11111111-1111-1111-1111-111111111111", new UpdateTaskHttpRequest("  Título  ", null, null, null));
+
+        proto.Title.Should().Be("Título");
+    }
+
+    [Fact] // BE-20
+    public void ToProtoCompleteTaskRequest_CopiaOId()
+    {
+        var proto = TaskTranslation.ToProtoCompleteTaskRequest("11111111-1111-1111-1111-111111111111");
+
+        proto.Id.Should().Be("11111111-1111-1111-1111-111111111111");
+    }
+
+    [Fact] // BE-20
+    public void ToProtoReopenTaskRequest_CopiaOId()
+    {
+        var proto = TaskTranslation.ToProtoReopenTaskRequest("11111111-1111-1111-1111-111111111111");
+
+        proto.Id.Should().Be("11111111-1111-1111-1111-111111111111");
+    }
+
+    [Fact] // BE-21
+    public void ToProtoDeleteTaskRequest_CopiaOId()
+    {
+        var proto = TaskTranslation.ToProtoDeleteTaskRequest("11111111-1111-1111-1111-111111111111");
+
+        proto.Id.Should().Be("11111111-1111-1111-1111-111111111111");
+    }
 }

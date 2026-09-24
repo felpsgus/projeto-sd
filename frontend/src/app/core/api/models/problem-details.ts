@@ -3,7 +3,12 @@
  * ver FE-03 "Recorte do T2"). Um código novo deve ser adicionado aqui antes de
  * ser tratado em qualquer mapa de mensagens.
  */
-export type ApiErrorCode = 'auth.invalid_credentials' | 'auth.unauthorized';
+export type ApiErrorCode =
+  | 'auth.invalid_credentials'
+  | 'auth.unauthorized'
+  | 'task.already_completed'
+  | 'task.not_completed'
+  | 'task.active_limit_reached';
 
 /**
  * Corpo de erro do Gateway (`ProblemDetails` + extensão `errorCode`).

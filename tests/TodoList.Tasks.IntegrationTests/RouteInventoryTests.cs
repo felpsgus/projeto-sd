@@ -26,6 +26,10 @@ public class RouteInventoryTests : IClassFixture<WebApplicationFactory<Program>>
         "/tasks.v1.TasksService/CreateTask",
         "/tasks.v1.TasksService/ListTasks",
         "/tasks.v1.TasksService/GetTask",
+        "/tasks.v1.TasksService/UpdateTask",
+        "/tasks.v1.TasksService/CompleteTask",
+        "/tasks.v1.TasksService/ReopenTask",
+        "/tasks.v1.TasksService/DeleteTask",
         "/grpc.health.v1.Health/Check",
         "/grpc.health.v1.Health/Watch",
         // Catch-all gerado pelo próprio Grpc.AspNetCore.Server para method

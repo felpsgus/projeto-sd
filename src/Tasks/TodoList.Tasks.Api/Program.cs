@@ -54,6 +54,13 @@ builder.Services.AddScoped<CreateTaskHandler>();
 builder.Services.AddScoped<ListTasksHandler>();
 builder.Services.AddScoped<GetTaskHandler>();
 
+// Fase 1 do PLANO-REGRAS-RESTANTES: editar (BE-19), concluir/reabrir (BE-20)
+// e remover (BE-21) uma tarefa própria.
+builder.Services.AddScoped<UpdateTaskHandler>();
+builder.Services.AddScoped<CompleteTaskHandler>();
+builder.Services.AddScoped<ReopenTaskHandler>();
+builder.Services.AddScoped<DeleteTaskHandler>();
+
 // Cliente gRPC do Identity (BE-27), consumido a partir desta etapa (BE-28)
 // por CreateTaskHandler via IIdentityGateway.
 builder.Services.AddIdentityGrpcClient(builder.Configuration);

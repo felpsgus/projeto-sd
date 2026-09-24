@@ -74,4 +74,27 @@ describe('mapHttpErrorToAppError', () => {
   it('corpo não-JSON não lança exceção não capturada (CA-06)', () => {
     expect(() => mapHttpErrorToAppError(httpError(500, 'not json <html>'))).not.toThrow();
   });
+
+  it('409 task.already_completed vira mensagem específica de conflito (FE-19)', () => {
+    const result = mapHttpErrorToAppError(httpError(409, { errorCode: 'task.already_completed' }));
+
+    expect(result.code).toBe('task.already_completed');
+    expect(result.message).toMatch(/já foi concluída/i);
+  });
+
+  it('409 task.not_completed vira mensagem específica de conflito (FE-19)', () => {
+    const result = mapHttpErrorToAppError(httpError(409, { errorCode: 'task.not_completed' }));
+
+    expect(result.code).toBe('task.not_completed');
+    expect(result.message).not.toMatch(/não foi possível concluir a operação/i);
+  });
+
+  it('409 task.active_limit_reached (reabrir) vira mensagem sobre o limite (FE-19)', () => {
+    const result = mapHttpErrorToAppError(
+      httpError(409, { errorCode: 'task.active_limit_reached' }),
+    );
+
+    expect(result.code).toBe('task.active_limit_reached');
+    expect(result.message).toMatch(/limite/i);
+  });
 });
