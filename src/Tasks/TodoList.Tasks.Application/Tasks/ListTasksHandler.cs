@@ -7,20 +7,28 @@ using TodoList.Tasks.Application.Security;
 namespace TodoList.Tasks.Application.Tasks;
 
 /// <summary>
-/// Caso de uso de listagem de tarefas (BE-41, recorte estrito de BE-22) —
-/// RN-LIST-01, RN-LIST-06 (parcial), RN-LIST-07. Passos:
+/// Caso de uso de listagem de tarefas (BE-22) — RN-LIST-01 a RN-LIST-07.
+/// Passos:
 /// <list type="number">
 /// <item>resolve <c>page</c>/<c>pageSize</c> efetivos, aplicando o padrão
 /// (<see cref="PagingOptions.DefaultPageSize"/>) quando o request manda
-/// <c>0</c> (CA-06);</item>
+/// <c>0</c> (CA-06 de BE-41/CA-24 de BE-22);</item>
 /// <item>valida os valores efetivos contra os limites de <see cref="PagingOptions"/>
-/// (CA-07) — segunda linha de defesa: o Gateway já valida isso na borda,
-/// mas este handler não confia só nisso;</item>
+/// (CA-29/CA-30) — segunda linha de defesa: o Gateway já valida isso na
+/// borda, mas este handler não confia só nisso;</item>
+/// <item>lê <see cref="IClientDate.Today"/> <b>uma única vez</b> e usa o
+/// mesmo valor tanto no <see cref="TaskListFilter"/> (filtro <c>overdue</c>)
+/// quanto na projeção de cada item (<c>isOverdue</c>) — é assim que CA-33c
+/// é garantido: não há como os dois divergirem se os dois lêem a mesma
+/// variável local, em vez de cada um chamar <see cref="IClientDate.Today"/>
+/// de novo;</item>
+/// <item>trata <c>search</c> vazio/só-espaços como ausente (CA-17), com
+/// <c>Trim()</c> do valor efetivo;</item>
 /// <item>consulta <see cref="ITodoTaskRepository.ListByOwnerAsync"/>, que
-/// filtra por <see cref="ICurrentUser.Id"/> e aplica <c>Skip</c>/<c>Take</c>
-/// no banco (CA-02, CA-03, CA-11);</item>
-/// <item>mapeia cada item com <see cref="TaskResponseMapper"/>, usando
-/// <see cref="IClientDate.Today"/> para <c>isOverdue</c> (CA-10, D-18).</item>
+/// filtra por <see cref="ICurrentUser.Id"/> e aplica todo o resto (filtros,
+/// busca, ordenação, <c>Skip</c>/<c>Take</c>) no banco (CA-02, CA-03, CA-32);</item>
+/// <item>mapeia cada item com <see cref="TaskResponseMapper"/>, usando o
+/// mesmo <c>today</c> do passo 3 (CA-10/CA-33b/CA-33c).</item>
 /// </list>
 /// </summary>
 public sealed class ListTasksHandler
@@ -62,9 +70,26 @@ public sealed class ListTasksHandler
         }
 
         var ownerId = _currentUser.Id;
+
+        // CA-33b/CA-33c: uma única leitura de "hoje", reaproveitada pelo
+        // filtro (abaixo, via TaskListFilter) e pela projeção (ToResponse) —
+        // se os dois lessem IClientDate.Today separadamente, um valor
+        // poderia mudar entre as duas leituras (ex.: uma chamada exatamente
+        // na virada da meia-noite) e produzir a divergência que CA-33c
+        // proíbe.
         var today = _clientDate.Today;
 
-        var (tasks, totalCount) = await _repository.ListByOwnerAsync(ownerId, page, pageSize, cancellationToken);
+        // CA-17: search vazio ou só espaços é tratado como ausente.
+        var search = string.IsNullOrWhiteSpace(request.Search) ? null : request.Search.Trim();
+
+        var filter = new TaskListFilter(
+            request.Status,
+            request.Priorities ?? [],
+            request.Overdue,
+            search,
+            today);
+
+        var (tasks, totalCount) = await _repository.ListByOwnerAsync(ownerId, page, pageSize, filter, cancellationToken);
 
         var items = tasks.Select(task => task.ToResponse(today)).ToList();
 

@@ -87,28 +87,36 @@ public sealed class TaskEndpoints : IEndpointRouteHandler
     }
 
     /// <summary>
-    /// BE-41, CA-17/CA-19 — <c>page</c>/<c>pageSize</c> ausentes recebem os
-    /// padrões de <see cref="PagingOptions"/> (a cópia própria do Gateway,
-    /// D-33); informados fora da faixa (page &lt; 1, pageSize fora de
-    /// 1..MaxPageSize) viram 400 sem nenhuma chamada gRPC ao Tasks.
+    /// BE-41 CA-17/CA-19; BE-22 CA-05 a CA-17 — <c>page</c>/<c>pageSize</c>
+    /// ausentes recebem os padrões de <see cref="PagingOptions"/> (a cópia
+    /// própria do Gateway, D-33); <c>status</c>, <c>priority</c> (repetível,
+    /// ex.: <c>priority=low&amp;priority=high</c>) e <c>overdue</c> chegam
+    /// como <c>string</c>/<c>string[]</c> crus, nunca um tipo forte no
+    /// parâmetro — o mesmo motivo de <see cref="CreateTaskHttpRequest"/>:
+    /// um valor fora do vocabulário precisa virar erro por campo, não uma
+    /// falha de binding sem detalhe. Qualquer parâmetro informado fora do
+    /// vocabulário/faixa vira 400 sem nenhuma chamada gRPC ao Tasks (CA-11).
     /// </summary>
     private static async Task<IResult> HandleListTasksAsync(
         int? page,
         int? pageSize,
+        string? status,
+        string[]? priority,
+        string? overdue,
+        string? search,
         ITasksBackend tasksBackend,
         IOptions<PagingOptions> pagingOptions,
         CancellationToken cancellationToken)
     {
         var options = pagingOptions.Value;
-        var errors = ListTasksQueryValidator.Validate(page, pageSize, options);
+        var validation = ListTasksQueryValidator.Validate(page, pageSize, status, priority, overdue, search, options);
 
-        if (errors is not null)
+        if (!validation.IsValid)
         {
-            return Results.ValidationProblem(errors);
+            return Results.ValidationProblem(validation.Errors!);
         }
 
-        var request = new ListTasksHttpRequest(page ?? 1, pageSize ?? options.DefaultPageSize);
-        var response = await tasksBackend.ListTasksAsync(request, cancellationToken);
+        var response = await tasksBackend.ListTasksAsync(validation.Request!, cancellationToken);
 
         return Results.Ok(response);
     }

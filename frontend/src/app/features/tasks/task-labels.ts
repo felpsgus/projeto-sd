@@ -1,4 +1,4 @@
-import { TaskPriority, TaskStatus } from '../../core/api/models/task.models';
+import { TaskPriority, TaskPriorityFilter, TaskStatus } from '../../core/api/models/task.models';
 
 /**
  * Rótulos textuais em pt-BR para prioridade e situação (FE-15, CA-05) — a cor nunca é a
@@ -13,4 +13,11 @@ export const PRIORITY_LABELS: Readonly<Record<TaskPriority, string>> = {
 export const STATUS_LABELS: Readonly<Record<TaskStatus, string>> = {
   Pending: 'Pendente',
   Completed: 'Concluída',
+};
+
+/** Rótulos do filtro de prioridade (FE-16) — chaves minúsculas, como `TaskPriorityFilter`. */
+export const PRIORITY_FILTER_LABELS: Readonly<Record<TaskPriorityFilter, string>> = {
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
 };

@@ -25,13 +25,33 @@ export class TasksApi {
     return this.apiClient.post<TaskResponse>(TASKS_PATH, request);
   }
 
+  /**
+   * `GET /api/tasks` (FE-15/FE-16). Cada filtro só entra nos parâmetros quando tem um valor
+   * que não é o "ausente" da tabela de contrato (`status: 'all'`, `priority: []`, `search`
+   * vazio/só espaços) — mandar o valor ausente explicitamente seria ruído na requisição e,
+   * no caso de `search`, o backend já trata espaços como ausente mesmo assim (CA-17 de
+   * BE-22), então aparar aqui só evita uma viagem de rede inútil.
+   */
   list(query: ListTasksQuery = {}): Observable<PagedResult<TaskResponse>> {
-    const params: Record<string, string | number> = {};
+    const params: Record<string, string | number | readonly string[]> = {};
     if (query.page !== undefined) {
       params['page'] = query.page;
     }
     if (query.pageSize !== undefined) {
       params['pageSize'] = query.pageSize;
+    }
+    if (query.status && query.status !== 'all') {
+      params['status'] = query.status;
+    }
+    if (query.priority && query.priority.length > 0) {
+      params['priority'] = query.priority;
+    }
+    if (query.overdue !== undefined) {
+      params['overdue'] = String(query.overdue);
+    }
+    const search = query.search?.trim();
+    if (search) {
+      params['search'] = search;
     }
     return this.apiClient.get<PagedResult<TaskResponse>>(TASKS_PATH, params);
   }

@@ -11,10 +11,12 @@ using Xunit;
 namespace TodoList.Tasks.UnitTests.Tasks;
 
 /// <summary>
-/// <see cref="ListTasksHandler"/> (BE-41, recorte de BE-22) com
-/// <see cref="ITodoTaskRepository"/> substituído (NSubstitute) — a resolução
-/// de padrão (CA-06), a validação de limites (CA-07) e a passagem do dono
-/// corrente/do "hoje" do cliente para a consulta e a projeção.
+/// <see cref="ListTasksHandler"/> (BE-22) com <see cref="ITodoTaskRepository"/>
+/// substituído (NSubstitute) — a resolução de padrão (CA-06), a validação de
+/// limites (CA-07/CA-29/CA-30), a passagem do dono corrente/do "hoje" do
+/// cliente para o filtro e a projeção (CA-33c), e a montagem do
+/// <see cref="TaskListFilter"/> a partir do request (status/prioridades/
+/// atraso/busca).
 /// </summary>
 public class ListTasksHandlerTests
 {
@@ -28,7 +30,7 @@ public class ListTasksHandlerTests
     {
         _currentUser.Id.Returns(_ownerId);
         _clientDate.Today.Returns(new DateOnly(2026, 1, 1));
-        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<TaskListFilter>(), Arg.Any<CancellationToken>())
             .Returns((Array.Empty<TodoTask>(), 0));
     }
 
@@ -42,7 +44,7 @@ public class ListTasksHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Page.Should().Be(1);
         result.Value.PageSize.Should().Be(20);
-        await _repository.Received(1).ListByOwnerAsync(_ownerId, 1, 20, Arg.Any<CancellationToken>());
+        await _repository.Received(1).ListByOwnerAsync(_ownerId, 1, 20, Arg.Any<TaskListFilter>(), Arg.Any<CancellationToken>());
     }
 
     [Fact] // CA-06 — apenas pageSize=0 aplica só o pageSize padrão, preservando a page informada
@@ -57,7 +59,7 @@ public class ListTasksHandlerTests
         result.Value.PageSize.Should().Be(20);
     }
 
-    [Theory] // CA-07 — page/pageSize negativos são erro de validação, não normalizados
+    [Theory] // CA-29/CA-30 — page/pageSize negativos são erro de validação, não normalizados
     [InlineData(-1, 20)]
     [InlineData(1, -1)]
     public async Task HandleAsync_ComPageOuPageSizeNegativo_RetornaFalhaDeValidacao(int page, int pageSize)
@@ -70,7 +72,7 @@ public class ListTasksHandlerTests
         result.Error.Type.Should().Be(TodoList.SharedKernel.ErrorType.Validation);
     }
 
-    [Fact] // CA-07 — pageSize acima do máximo configurado é erro de validação
+    [Fact] // CA-29 — pageSize acima do máximo configurado é erro de validação
     public async Task HandleAsync_ComPageSizeAcimaDoMaximo_RetornaTaskErrorsInvalidPageSize()
     {
         var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
@@ -82,21 +84,21 @@ public class ListTasksHandlerTests
         result.Error.Message.Should().Contain("100");
     }
 
-    [Fact] // CA-02 — a consulta usa o dono corrente, não outro
+    [Fact] // CA-01/CA-02 — a consulta usa o dono corrente, não outro
     public async Task HandleAsync_ConsultaORepositorioComODonoCorrente()
     {
         var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
 
         await handler.HandleAsync(new ListTasksRequest(1, 20), CancellationToken.None);
 
-        await _repository.Received(1).ListByOwnerAsync(_ownerId, 1, 20, Arg.Any<CancellationToken>());
+        await _repository.Received(1).ListByOwnerAsync(_ownerId, 1, 20, Arg.Any<TaskListFilter>(), Arg.Any<CancellationToken>());
     }
 
     [Fact] // CA-10 — isOverdue de cada item usa IClientDate.Today, não a data do servidor
     public async Task HandleAsync_MapeiaItensUsandoODiaDoClientDate()
     {
         var task = TodoTask.Create(_ownerId, "Tarefa", null, null, new DateOnly(2025, 12, 31), TimeProvider.System).Value;
-        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<TaskListFilter>(), Arg.Any<CancellationToken>())
             .Returns((new[] { task }, 1));
 
         var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
@@ -107,10 +109,10 @@ public class ListTasksHandlerTests
         result.Value.Items[0].IsOverdue.Should().BeTrue("_clientDate.Today (2026-01-01) é posterior ao vencimento (2025-12-31)");
     }
 
-    [Fact] // CA-08 — total_count vem do repositório, não é recalculado a partir da página
+    [Fact] // CA-08/CA-25 — total_count vem do repositório, não é recalculado a partir da página
     public async Task HandleAsync_PropagaOTotalCountDoRepositorio()
     {
-        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<TaskListFilter>(), Arg.Any<CancellationToken>())
             .Returns((Array.Empty<TodoTask>(), 137));
 
         var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
@@ -118,6 +120,91 @@ public class ListTasksHandlerTests
         var result = await handler.HandleAsync(new ListTasksRequest(1, 20), CancellationToken.None);
 
         result.Value.TotalCount.Should().Be(137);
+    }
+
+    [Fact] // BE-22 — sem filtros no request, o TaskListFilter passado ao repositório não filtra por nada
+    public async Task HandleAsync_SemFiltrosNoRequest_MontaFilterSemRestricoes()
+    {
+        var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
+
+        await handler.HandleAsync(new ListTasksRequest(1, 20), CancellationToken.None);
+
+        await _repository.Received(1).ListByOwnerAsync(
+            _ownerId,
+            1,
+            20,
+            Arg.Is<TaskListFilter>(filter =>
+                filter.Status == TaskStatusFilter.All &&
+                filter.Priorities.Count == 0 &&
+                filter.Overdue == null &&
+                filter.Search == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact] // BE-22, RN-LIST-02/03/04 — status, prioridades e overdue do request chegam intactos ao filtro
+    public async Task HandleAsync_ComFiltrosNoRequest_RepassaTodosAoRepositorio()
+    {
+        var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
+        var priorities = new[] { TaskPriority.High, TaskPriority.Low };
+
+        await handler.HandleAsync(
+            new ListTasksRequest(1, 20, TaskStatusFilter.Pending, priorities, Overdue: true, Search: "relatório"),
+            CancellationToken.None);
+
+        await _repository.Received(1).ListByOwnerAsync(
+            _ownerId,
+            1,
+            20,
+            Arg.Is<TaskListFilter>(filter =>
+                filter.Status == TaskStatusFilter.Pending &&
+                filter.Priorities.SequenceEqual(priorities) &&
+                filter.Overdue == true &&
+                filter.Search == "relatório"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Theory] // CA-17 — search vazio ou só espaços é tratado como ausente
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task HandleAsync_ComSearchVazioOuSoEspacos_TrataComoAusente(string search)
+    {
+        var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
+
+        await handler.HandleAsync(new ListTasksRequest(1, 20, Search: search), CancellationToken.None);
+
+        await _repository.Received(1).ListByOwnerAsync(
+            _ownerId, 1, 20, Arg.Is<TaskListFilter>(filter => filter.Search == null), Arg.Any<CancellationToken>());
+    }
+
+    [Fact] // BE-22 — search com espaços nas bordas chega ao filtro já com Trim()
+    public async Task HandleAsync_ComSearchComEspacosNasBordas_AplicaTrim()
+    {
+        var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
+
+        await handler.HandleAsync(new ListTasksRequest(1, 20, Search: "  relatório  "), CancellationToken.None);
+
+        await _repository.Received(1).ListByOwnerAsync(
+            _ownerId, 1, 20, Arg.Is<TaskListFilter>(filter => filter.Search == "relatório"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact] // CA-33c — o "hoje" do filtro (overdue) é exatamente o mesmo usado na projeção (isOverdue)
+    public async Task HandleAsync_UsaOMesmoHojeNoFiltroENaProjecao()
+    {
+        var clientToday = new DateOnly(2026, 8, 20);
+        _clientDate.Today.Returns(clientToday);
+
+        // Vence exatamente em "hoje": se o filtro e a projeção usassem datas
+        // diferentes, um dos dois discordaria sobre isOverdue.
+        var task = TodoTask.Create(_ownerId, "Tarefa", null, null, clientToday, TimeProvider.System).Value;
+        _repository.ListByOwnerAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<TaskListFilter>(), Arg.Any<CancellationToken>())
+            .Returns((new[] { task }, 1));
+
+        var handler = CreateHandler(defaultPageSize: 20, maxPageSize: 100);
+
+        await handler.HandleAsync(new ListTasksRequest(1, 20, Overdue: false), CancellationToken.None);
+
+        await _repository.Received(1).ListByOwnerAsync(
+            _ownerId, 1, 20, Arg.Is<TaskListFilter>(filter => filter.Today == clientToday), Arg.Any<CancellationToken>());
     }
 
     private ListTasksHandler CreateHandler(int defaultPageSize, int maxPageSize) =>

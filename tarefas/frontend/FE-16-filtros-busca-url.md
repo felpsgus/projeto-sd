@@ -9,6 +9,8 @@
 | **Estimativa** | G |
 
 > **Recorte do T2 (21/09/2026):** fica fora do T2 — a listagem do recorte ([FE-15](FE-15-listagem-paginacao.md)) entra só com paginação simples, sem filtros nem busca.
+>
+> **Retomada (24/09/2026):** o recorte acima foi levantado — o backend (BE-22) já está pronto e a Fase 2 do frontend implementa o escopo pleno desta task: filtros combináveis, busca com debounce e sincronia bidirecional com a URL. Junto com esta task, `TasksStore.complete`/`reopen` passaram a recarregar a página atual em silêncio após a transição (dívida da Fase 1: a ordenação de RN-LIST-06, que chegou com BE-22, move o item de posição ao concluir/reabrir).
 
 ## Objetivo
 

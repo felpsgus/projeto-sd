@@ -130,13 +130,16 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     }
 
     /// <summary>
-    /// BE-41, recorte de BE-22 — só tarefas do dono corrente (CA-02), não
-    /// removidas (CA-03), ordenadas por criação decrescente (CA-05),
-    /// paginadas no banco (CA-11). <c>page</c>/<c>page_size</c> fora dos
-    /// limites viram <see cref="StatusCode.InvalidArgument"/> pelo próprio
-    /// <see cref="ListTasksHandler.HandleAsync"/> (CA-07), traduzido aqui
-    /// pelo mesmo <see cref="ResultGrpcStatus"/> de <see cref="CreateTask"/> —
-    /// sem validação duplicada neste método.
+    /// BE-22 — só tarefas do dono corrente (CA-01), não removidas (CA-02),
+    /// filtráveis por estado/prioridade/atraso, buscáveis por título e
+    /// descrição, ordenadas pelo critério fixo de RN-LIST-06, paginadas no
+    /// banco (CA-32). <c>status</c>/<c>priority</c> com valor fora do enum
+    /// viram <see cref="StatusCode.InvalidArgument"/> aqui, pelo mapeamento
+    /// (<see cref="TaskGrpcMapping.ToApplicationRequest(ProtoListTasksRequest)"/>,
+    /// CA-11); <c>page</c>/<c>page_size</c> fora dos limites viram o mesmo
+    /// status pelo <see cref="ListTasksHandler.HandleAsync"/> (CA-29/CA-30),
+    /// os dois traduzidos pelo mesmo <see cref="ResultGrpcStatus"/> de
+    /// <see cref="CreateTask"/>.
     /// </summary>
     public override async Task<ListTasksReply> ListTasks(ProtoListTasksRequest request, ServerCallContext context)
     {
@@ -144,8 +147,17 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
-        var applicationRequest = TaskGrpcMapping.ToApplicationRequest(request);
-        var result = await _listTasksHandler.HandleAsync(applicationRequest, context.CancellationToken);
+        var mapping = TaskGrpcMapping.ToApplicationRequest(request);
+
+        if (!mapping.IsValid)
+        {
+            var invalidFilter = ResultGrpcStatus.ToValidationFailedException(mapping.Errors!);
+            Log.ListTasksCalled(_logger, ownerId, invalidFilter.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalidFilter;
+        }
+
+        var result = await _listTasksHandler.HandleAsync(mapping.Request!, context.CancellationToken);
 
         if (result.IsFailure)
         {

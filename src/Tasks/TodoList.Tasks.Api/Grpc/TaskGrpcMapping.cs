@@ -5,6 +5,7 @@ using ApplicationCreateTaskRequest = TodoList.Tasks.Application.Tasks.CreateTask
 using ApplicationListTasksRequest = TodoList.Tasks.Application.Tasks.ListTasksRequest;
 using ApplicationListTasksResponse = TodoList.Tasks.Application.Tasks.ListTasksResponse;
 using ApplicationTaskResponse = TodoList.Tasks.Application.Tasks.TaskResponse;
+using ApplicationTaskStatusFilter = TodoList.Tasks.Application.Tasks.TaskStatusFilter;
 using ApplicationUpdateTaskRequest = TodoList.Tasks.Application.Tasks.UpdateTaskRequest;
 using ProtoCompleteTaskRequest = TodoList.Contracts.Tasks.V1.CompleteTaskRequest;
 using ProtoCreateTaskRequest = TodoList.Contracts.Tasks.V1.CreateTaskRequest;
@@ -16,6 +17,7 @@ using ProtoReopenTaskRequest = TodoList.Contracts.Tasks.V1.ReopenTaskRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
+using ProtoTaskStatusFilter = TodoList.Contracts.Tasks.V1.TaskStatusFilter;
 using ProtoUpdateTaskRequest = TodoList.Contracts.Tasks.V1.UpdateTaskRequest;
 
 namespace TodoList.Tasks.Api.Grpc;
@@ -48,6 +50,24 @@ public static class TaskGrpcMapping
     /// não é um <see cref="Guid"/> válido (BE-41).
     /// </summary>
     public const string TaskIdFieldName = "Id";
+
+    /// <summary>
+    /// Nome do campo usado no dicionário de erros (BE-22) quando
+    /// <see cref="ProtoListTasksRequest.Status"/> não é um valor definido de
+    /// <see cref="ProtoTaskStatusFilter"/>.
+    /// </summary>
+    public const string StatusFieldName = "Status";
+
+    /// <summary>
+    /// Nome do campo usado no dicionário de erros (BE-22) quando algum
+    /// elemento de <see cref="ProtoListTasksRequest.Priority"/> é
+    /// <see cref="ProtoTaskPriority.Unspecified"/> ou não é um valor definido
+    /// de <see cref="ProtoTaskPriority"/> — um filtro de prioridade "não
+    /// especificada" não tem sentido (nenhuma tarefa tem essa prioridade), e
+    /// por isso é erro de validação, não um elemento ignorado silenciosamente
+    /// (CA-11).
+    /// </summary>
+    public const string PriorityFieldName = "Priority";
 
     /// <summary>
     /// Converte o request gerado pelo proto no request da Application
@@ -132,19 +152,64 @@ public static class TaskGrpcMapping
     }
 
     /// <summary>
-    /// Converte o request de <c>ListTasks</c> (BE-41) — cópia direta de
-    /// campos, sem <see cref="TaskGrpcMappingResult"/>: ao contrário de
-    /// <c>due_date</c> em <see cref="ToApplicationRequest(ProtoCreateTaskRequest)"/>,
-    /// não há formato para rejeitar aqui — <c>page</c>/<c>page_size</c> fora
-    /// da faixa são validados pelo <c>ListTasksHandler</c> (CA-07), não por
-    /// este mapeamento.
+    /// Converte o request de <c>ListTasks</c> (BE-22). <c>page</c>/<c>page_size</c>
+    /// fora da faixa continuam validados pelo <c>ListTasksHandler</c> (CA-07
+    /// de BE-41), não aqui — mas <c>status</c> e cada elemento de
+    /// <c>priority</c> só têm forma válida como um valor definido do enum
+    /// proto correspondente, e isso <b>é</b> responsabilidade deste
+    /// mapeamento (mesmo desenho de <c>due_date</c> em
+    /// <see cref="ToApplicationRequest(ProtoCreateTaskRequest)"/>: nunca uma
+    /// exceção não tratada, sempre um dicionário de erros no formato de
+    /// <c>FluentValidation.Results.ValidationResult.ToDictionary()</c>).
     /// </summary>
-    public static ApplicationListTasksRequest ToApplicationRequest(ProtoListTasksRequest request)
+    public static ListTasksGrpcMappingResult ToApplicationRequest(ProtoListTasksRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return new ApplicationListTasksRequest(request.Page, request.PageSize);
+        var errors = new Dictionary<string, string[]>();
+
+        var status = ToApplicationStatusFilter(request.Status);
+        if (status is null)
+        {
+            errors[StatusFieldName] = ["O parâmetro 'status' tem um valor inválido."];
+        }
+
+        var priorities = new List<TaskPriority>(request.Priority.Count);
+        foreach (var protoPriority in request.Priority)
+        {
+            if (protoPriority == ProtoTaskPriority.Unspecified || !System.Enum.IsDefined(protoPriority))
+            {
+                errors[PriorityFieldName] = ["O parâmetro 'priority' tem um valor inválido."];
+                break;
+            }
+
+            priorities.Add(ToDomainPriority(protoPriority));
+        }
+
+        if (errors.Count > 0)
+        {
+            return ListTasksGrpcMappingResult.Invalid(errors);
+        }
+
+        var applicationRequest = new ApplicationListTasksRequest(
+            request.Page,
+            request.PageSize,
+            status!.Value,
+            priorities,
+            request.HasOverdue ? request.Overdue : null,
+            request.Search);
+
+        return ListTasksGrpcMappingResult.Valid(applicationRequest);
     }
+
+    private static ApplicationTaskStatusFilter? ToApplicationStatusFilter(ProtoTaskStatusFilter status) => status switch
+    {
+        ProtoTaskStatusFilter.Unspecified => ApplicationTaskStatusFilter.All,
+        ProtoTaskStatusFilter.All => ApplicationTaskStatusFilter.All,
+        ProtoTaskStatusFilter.Pending => ApplicationTaskStatusFilter.Pending,
+        ProtoTaskStatusFilter.Completed => ApplicationTaskStatusFilter.Completed,
+        _ => null,
+    };
 
     /// <summary>
     /// Converte o <see cref="ApplicationListTasksResponse"/> na
@@ -330,4 +395,30 @@ public sealed class UpdateTaskGrpcMappingResult
     public static UpdateTaskGrpcMappingResult Valid(ApplicationUpdateTaskRequest request) => new(request, null);
 
     public static UpdateTaskGrpcMappingResult Invalid(IReadOnlyDictionary<string, string[]> errors) => new(null, errors);
+}
+
+/// <summary>
+/// Resultado de <see cref="TaskGrpcMapping.ToApplicationRequest(TodoList.Contracts.Tasks.V1.ListTasksRequest)"/> —
+/// mesmo desenho de <see cref="TaskGrpcMappingResult"/>, para <c>ListTasks</c>
+/// (BE-22): nunca lança para <c>status</c>/<c>priority</c> fora do enum, só
+/// devolve o dicionário de erros no mesmo formato de
+/// <c>FluentValidation.Results.ValidationResult.ToDictionary()</c>.
+/// </summary>
+public sealed class ListTasksGrpcMappingResult
+{
+    private ListTasksGrpcMappingResult(ApplicationListTasksRequest? request, IReadOnlyDictionary<string, string[]>? errors)
+    {
+        Request = request;
+        Errors = errors;
+    }
+
+    public bool IsValid => Request is not null;
+
+    public ApplicationListTasksRequest? Request { get; }
+
+    public IReadOnlyDictionary<string, string[]>? Errors { get; }
+
+    public static ListTasksGrpcMappingResult Valid(ApplicationListTasksRequest request) => new(request, null);
+
+    public static ListTasksGrpcMappingResult Invalid(IReadOnlyDictionary<string, string[]> errors) => new(null, errors);
 }

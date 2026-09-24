@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using TodoList.Tasks.Application.Tasks;
 using TodoList.Tasks.Domain.Tasks;
 using TodoList.Tasks.Infrastructure.Persistence;
 using TodoList.Tasks.Infrastructure.Persistence.Interceptors;
@@ -67,16 +68,59 @@ public class ListTasksPostgresQueryTests : IAsyncLifetime
         var comandosSql = new List<string>();
         await using var context = CreateContext(sql => comandosSql.Add(sql));
         var repository = new TodoTaskRepository(context);
+        var filter = new TaskListFilter(TaskStatusFilter.All, [], null, null, new DateOnly(2026, 1, 1));
 
-        var (items, totalCount) = await repository.ListByOwnerAsync(owner, page: 1, pageSize: 2);
+        var (items, totalCount) = await repository.ListByOwnerAsync(owner, page: 1, pageSize: 2, filter);
 
         items.Should().HaveCount(2, "a página pedida não deve materializar mais linhas que pageSize");
         totalCount.Should().Be(3, "total_count é o total do dono, não o total da página");
 
         var textoCompleto = string.Join('\n', comandosSql);
         textoCompleto.Should().Contain("WHERE", "o filtro por dono precisa ser traduzido para SQL, não avaliado em memória");
-        textoCompleto.Should().Contain("ORDER BY", "a ordenação por criação decrescente precisa acontecer no banco");
+        textoCompleto.Should().Contain("ORDER BY", "a ordenação precisa acontecer no banco");
         textoCompleto.Should().MatchRegex("LIMIT|OFFSET", "a paginação precisa acontecer no banco, via LIMIT/OFFSET (dialeto Postgres)");
+    }
+
+    [Fact] // BE-22, CA-32/CA-33 — filtro de status/prioridade, busca e overdue viram parte do WHERE
+    [Trait("Category", "Docker")]
+    public async Task ListByOwnerAsync_ComFiltrosBuscaEOverdue_ComponemOMesmoWhereNoSql()
+    {
+        var owner = Guid.NewGuid();
+        var today = new DateOnly(2026, 1, 10);
+
+        await using (var seedContext = CreateContext())
+        {
+            var vencida = TodoTask.Create(owner, "Relatório mensal", null, TaskPriority.High, new DateOnly(2026, 1, 5), _timeProvider).Value;
+            seedContext.Tasks.Add(vencida);
+            await seedContext.SaveChangesAsync();
+        }
+
+        var comandosSql = new List<string>();
+        await using var context = CreateContext(sql => comandosSql.Add(sql));
+        var repository = new TodoTaskRepository(context);
+        var filter = new TaskListFilter(
+            TaskStatusFilter.Pending,
+            [TaskPriority.High, TaskPriority.Low],
+            Overdue: true,
+            Search: "relat",
+            Today: today);
+
+        var (items, totalCount) = await repository.ListByOwnerAsync(owner, page: 1, pageSize: 20, filter);
+
+        items.Should().ContainSingle();
+        totalCount.Should().Be(1);
+
+        var textoCompleto = string.Join('\n', comandosSql);
+        textoCompleto.Should().Contain("WHERE", "os filtros combinados precisam estar no WHERE, não avaliados em memória");
+        textoCompleto.Should().MatchRegex(
+            "(?i)like",
+            "a busca textual precisa ser traduzida para LIKE/ILIKE no SQL, nunca comparada em memória");
+
+        // CA-33: overdue é derivado (status=pending AND due_date < hoje), nunca
+        // uma coluna própria — a prova de que não foi avaliado em memória é o
+        // texto "due_date" (ou a coluna equivalente) aparecer dentro do SQL
+        // capturado, ao lado do parâmetro de data.
+        textoCompleto.Should().MatchRegex("(?i)due_date", "o filtro overdue precisa referenciar due_date dentro do SQL enviado ao banco");
     }
 
     private TasksDbContext CreateContext(Action<string>? onCommandLogged = null)

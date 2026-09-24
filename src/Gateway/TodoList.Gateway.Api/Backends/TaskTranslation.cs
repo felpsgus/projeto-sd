@@ -9,6 +9,7 @@ using ProtoReopenTaskRequest = TodoList.Contracts.Tasks.V1.ReopenTaskRequest;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
+using ProtoTaskStatusFilter = TodoList.Contracts.Tasks.V1.TaskStatusFilter;
 using ProtoUpdateTaskRequest = TodoList.Contracts.Tasks.V1.UpdateTaskRequest;
 
 namespace TodoList.Gateway.Api.Backends;
@@ -72,22 +73,51 @@ public static class TaskTranslation
 
     /// <summary>
     /// Converte o request já validado e resolvido de <c>GET /api/tasks</c>
-    /// (BE-41, CA-17/CA-19) no request proto — <see cref="ListTasksHttpRequest.Page"/>/
-    /// <see cref="ListTasksHttpRequest.PageSize"/> chegam aqui já com os
-    /// padrões do Gateway aplicados (nunca <c>0</c>), então o Tasks nunca
-    /// precisa aplicar o próprio padrão numa chamada vinda do Gateway — só
-    /// num chamador gRPC direto (defesa em profundidade, D-09).
+    /// (BE-41 CA-17/CA-19; BE-22 filtros/busca) no request proto —
+    /// <see cref="ListTasksHttpRequest.Page"/>/<see cref="ListTasksHttpRequest.PageSize"/>
+    /// chegam aqui já com os padrões do Gateway aplicados (nunca <c>0</c>),
+    /// então o Tasks nunca precisa aplicar o próprio padrão numa chamada
+    /// vinda do Gateway — só num chamador gRPC direto (defesa em
+    /// profundidade, D-09). <see cref="ListTasksHttpRequest.Overdue"/> nulo
+    /// (BE-22, "não informado") deixa o campo <c>optional bool</c> do proto
+    /// sem valor — <c>HasOverdue</c> só fica <see langword="true"/> quando um
+    /// valor explícito foi validado, nunca por setar <c>false</c> à toa (o
+    /// que colidiria com um <c>overdue=false</c> explícito do lado do
+    /// Tasks). <see cref="ListTasksHttpRequest.Search"/> nulo vira string
+    /// vazia — o mesmo "ausente" que <c>ListTasksRequest.search</c> já
+    /// representa sem precisar de <c>optional</c> (ver o comentário do campo
+    /// em <c>tasks.proto</c>).
     /// </summary>
     public static ProtoListTasksRequest ToProtoRequest(ListTasksHttpRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return new ProtoListTasksRequest
+        var proto = new ProtoListTasksRequest
         {
             Page = request.Page,
             PageSize = request.PageSize,
+            Status = ToProtoStatusFilter(request.Status),
+            Search = request.Search ?? string.Empty,
         };
+
+        proto.Priority.AddRange(request.Priority.Select(ToProtoPriority));
+
+        if (request.Overdue is not null)
+        {
+            proto.Overdue = request.Overdue.Value;
+        }
+
+        return proto;
     }
+
+    private static ProtoTaskStatusFilter ToProtoStatusFilter(string status) => status switch
+    {
+        "pending" => ProtoTaskStatusFilter.Pending,
+        "completed" => ProtoTaskStatusFilter.Completed,
+        "all" => ProtoTaskStatusFilter.All,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(status), status, "Status sem mapeamento proto definido — deveria ter sido barrado pelo validador."),
+    };
 
     /// <summary>Converte a resposta de <c>ListTasks</c> (BE-41) no DTO HTTP devolvido ao cliente (CA-17/CA-24).</summary>
     public static ListTasksHttpResponse ToHttpResponse(ProtoListTasksReply reply)

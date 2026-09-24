@@ -20,8 +20,24 @@ public sealed record FakeTaskReply(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
-/// <summary>Requisição de <c>ListTasks</c>, já traduzida do proto para um POCO simples (BE-41).</summary>
-public sealed record FakeListTasksRequest(int Page, int PageSize);
+/// <summary>
+/// Requisição de <c>ListTasks</c>, já traduzida do proto para um POCO
+/// simples (BE-41; BE-22 acrescenta <see cref="Status"/>/<see cref="Priority"/>/
+/// <see cref="Overdue"/>/<see cref="Search"/>) — os nomes de
+/// <see cref="Status"/>/<see cref="Priority"/> são o <c>ToString()</c> do
+/// enum proto (ex.: <c>"Pending"</c>, <c>"All"</c>), para que o teste consiga
+/// comparar exatamente o que chegou ao Tasks sem precisar do tipo gerado.
+/// <see cref="Overdue"/> é <see langword="null"/> quando o Gateway não
+/// definiu o campo <c>optional bool</c> (não informado), a mesma distinção
+/// que o proto exige.
+/// </summary>
+public sealed record FakeListTasksRequest(
+    int Page,
+    int PageSize,
+    string Status,
+    IReadOnlyList<string> Priority,
+    bool? Overdue,
+    string Search);
 
 /// <summary>Resposta de <c>ListTasks</c> a devolver, como POCO simples (BE-41).</summary>
 public sealed record FakeListTasksReply(IReadOnlyList<FakeTaskReply> Items, int Page, int PageSize, int TotalCount);
@@ -123,7 +139,13 @@ public sealed class FakeTasksService : TasksService.TasksServiceBase
             throw new RpcException(new Status(StatusCode.FailedPrecondition, "FakeTasksService.ListTasksHandler não configurado."));
         }
 
-        var output = ListTasksHandler(new FakeListTasksRequest(request.Page, request.PageSize));
+        var output = ListTasksHandler(new FakeListTasksRequest(
+            request.Page,
+            request.PageSize,
+            request.Status.ToString(),
+            request.Priority.Select(p => p.ToString()).ToList(),
+            request.HasOverdue ? request.Overdue : null,
+            request.Search));
 
         var reply = new ListTasksReply
         {

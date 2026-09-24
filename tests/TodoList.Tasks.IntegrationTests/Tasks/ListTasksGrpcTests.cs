@@ -10,11 +10,18 @@ using Xunit;
 namespace TodoList.Tasks.IntegrationTests.Tasks;
 
 /// <summary>
-/// <c>ListTasks</c> gRPC (BE-41, recorte de BE-22) — CA-02 a CA-10. Não fala
-/// com o Identity: nenhuma das duas rotas de leitura desta task valida o
-/// dono (isso só acontece na criação, BE-28) — por isso
-/// <see cref="TasksApiFactory"/> aqui sempre recebe <c>identityFactory: null</c>
-/// e um endereço que nunca é chamado.
+/// <c>ListTasks</c> gRPC — testes originalmente escritos para o recorte de
+/// BE-41 (CA-02 a CA-10 daquela task: paginação, dono, soft delete). A BE-22
+/// **substituiu** o critério de ordenação de BE-41 (criação decrescente) por
+/// RN-LIST-06 (pendente antes de concluída, depois vencimento, depois
+/// criação, depois Id) — os dois não convivem, então
+/// <see cref="ListTasks_ComVariasTarefas_OrdenaPorCriacaoDecrescente"/> foi
+/// ajustado para o novo critério (ver <see cref="ListTasksFiltersGrpcTests"/>
+/// para a cobertura completa de RN-LIST-06). Não fala com o Identity:
+/// nenhuma das duas rotas de leitura desta task valida o dono (isso só
+/// acontece na criação, BE-28) — por isso <see cref="TasksApiFactory"/> aqui
+/// sempre recebe <c>identityFactory: null</c> e um endereço que nunca é
+/// chamado.
 /// </summary>
 public sealed class ListTasksGrpcTests : IAsyncLifetime, IDisposable
 {
@@ -82,8 +89,8 @@ public sealed class ListTasksGrpcTests : IAsyncLifetime, IDisposable
         reply.TotalCount.Should().Be(0);
     }
 
-    [Fact] // CA-05 — mais recente primeiro
-    public async Task ListTasks_ComVariasTarefas_OrdenaPorCriacaoDecrescente()
+    [Fact] // BE-22, RN-LIST-06 — sem vencimento e no mesmo estado, o desempate é por criação CRESCENTE (não mais decrescente, como em BE-41)
+    public async Task ListTasks_ComVariasTarefas_OrdenaPorCriacaoCrescenteQuandoEmpatadas()
     {
         var owner = Guid.NewGuid();
         await SeedAsync(owner, "Primeira");
@@ -94,7 +101,7 @@ public sealed class ListTasksGrpcTests : IAsyncLifetime, IDisposable
 
         var reply = await ListAsync(owner);
 
-        reply.Items.Select(item => item.Title).Should().Equal("Terceira", "Segunda", "Primeira");
+        reply.Items.Select(item => item.Title).Should().Equal("Primeira", "Segunda", "Terceira");
     }
 
     [Fact] // CA-06 — sem page/pageSize (0), aplica page=1 e Paging:DefaultPageSize

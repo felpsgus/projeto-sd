@@ -53,8 +53,64 @@ export interface PagedResult<T> {
   readonly totalCount: number;
 }
 
-/** Parâmetros de `GET /api/tasks` no recorte do T2 (sem filtros — FE-16 fica fora). */
+/** `status` aceito por `GET /api/tasks` (FE-16) — `'all'` equivale a ausente. */
+export type TaskStatusFilter = 'pending' | 'completed' | 'all';
+
+/**
+ * `priority` aceito por `GET /api/tasks` (FE-16) — minúsculo, como o Gateway espera na
+ * query string. Distinto de {@link TaskPriority} (que é o valor no corpo/resposta,
+ * capitalizado) de propósito: misturar os dois faria um filtro silenciosamente não
+ * combinar com nenhum item.
+ */
+export type TaskPriorityFilter = 'low' | 'medium' | 'high';
+
+/**
+ * Parâmetros de `GET /api/tasks` (FE-16), todos opcionais. Espelha exatamente o contrato do
+ * Gateway: `priority` é repetível (disjunção entre valores), os demais se combinam por
+ * conjunção. Um filtro no valor "ausente" (`status: 'all'`, `priority: []`, `search: ''`)
+ * nunca deve ser enviado à API — quem monta o objeto final antes de chamar {@link TasksApi.list}
+ * omite essas chaves.
+ */
 export interface ListTasksQuery {
   readonly page?: number;
   readonly pageSize?: number;
+  readonly status?: TaskStatusFilter;
+  readonly priority?: readonly TaskPriorityFilter[];
+  readonly overdue?: boolean;
+  readonly search?: string;
+}
+
+/**
+ * Filtros de listagem (FE-16) na forma que a tela mantém — sempre um espelho do que está na
+ * URL, nunca uma segunda fonte de verdade (CA-20 de FE-16): quem lê/escreve isto é
+ * `TasksPageComponent`, a partir de `ActivatedRoute.queryParamMap`. `overdue: null` significa
+ * "sem filtro", distinto de `false`.
+ */
+export interface TasksFilters {
+  readonly status: TaskStatusFilter;
+  readonly priority: readonly TaskPriorityFilter[];
+  readonly overdue: boolean | null;
+  readonly search: string;
+}
+
+/** Filtros no estado inicial — nenhum ativo (FE-16). */
+export const DEFAULT_TASKS_FILTERS: TasksFilters = {
+  status: 'all',
+  priority: [],
+  overdue: null,
+  search: '',
+};
+
+/**
+ * `true` se ao menos um filtro estiver ativo (FE-16). Usado para distinguir "você ainda não
+ * tem tarefas" (`TasksStore.isEmpty`) de "nenhuma tarefa encontrada com esses filtros"
+ * (`TasksStore.isFilteredEmpty`).
+ */
+export function hasActiveTaskFilters(filters: TasksFilters): boolean {
+  return (
+    filters.status !== 'all' ||
+    filters.priority.length > 0 ||
+    filters.overdue !== null ||
+    filters.search.trim() !== ''
+  );
 }

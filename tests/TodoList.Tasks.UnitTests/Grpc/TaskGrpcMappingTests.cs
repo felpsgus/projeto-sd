@@ -126,8 +126,118 @@ public class TaskGrpcMappingTests
 
         var result = TaskGrpcMapping.ToApplicationRequest(request);
 
-        result.Page.Should().Be(2);
-        result.PageSize.Should().Be(10);
+        result.IsValid.Should().BeTrue();
+        result.Request!.Page.Should().Be(2);
+        result.Request.PageSize.Should().Be(10);
+    }
+
+    [Fact] // BE-22, CA-05 — status ausente (default proto) mapeia para TaskStatusFilter.All
+    public void ToApplicationRequest_ComStatusAusente_MapeiaParaAll()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest();
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Status.Should().Be(TodoList.Tasks.Application.Tasks.TaskStatusFilter.All);
+    }
+
+    [Theory] // BE-22, RN-LIST-02
+    [InlineData(TodoList.Contracts.Tasks.V1.TaskStatusFilter.Pending, TodoList.Tasks.Application.Tasks.TaskStatusFilter.Pending)]
+    [InlineData(TodoList.Contracts.Tasks.V1.TaskStatusFilter.Completed, TodoList.Tasks.Application.Tasks.TaskStatusFilter.Completed)]
+    [InlineData(TodoList.Contracts.Tasks.V1.TaskStatusFilter.All, TodoList.Tasks.Application.Tasks.TaskStatusFilter.All)]
+    public void ToApplicationRequest_ComStatusExplicito_MapeiaParaOValorCorrespondente(
+        TodoList.Contracts.Tasks.V1.TaskStatusFilter proto, TodoList.Tasks.Application.Tasks.TaskStatusFilter esperado)
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest { Status = proto };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Status.Should().Be(esperado);
+    }
+
+    [Fact] // BE-22, CA-11 — status fora do enum é erro de validação, nunca ignorado
+    public void ToApplicationRequest_ComStatusForaDoEnum_RetornaInvalido()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest { Status = (TodoList.Contracts.Tasks.V1.TaskStatusFilter)99 };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey(TaskGrpcMapping.StatusFieldName);
+    }
+
+    [Fact] // BE-22, RN-LIST-03 — lista de prioridades preservada e traduzida para o enum de domínio
+    public void ToApplicationRequest_ComPrioridades_MapeiaListaParaDominio()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest();
+        request.Priority.Add(ProtoTaskPriority.High);
+        request.Priority.Add(ProtoTaskPriority.Low);
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Priorities.Should().Equal(TaskPriority.High, TaskPriority.Low);
+    }
+
+    [Fact] // BE-22, CA-11 — TASK_PRIORITY_UNSPECIFIED dentro da lista é erro de validação
+    public void ToApplicationRequest_ComPrioridadeUnspecifiedNaLista_RetornaInvalido()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest();
+        request.Priority.Add(ProtoTaskPriority.Unspecified);
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey(TaskGrpcMapping.PriorityFieldName);
+    }
+
+    [Fact] // BE-22, CA-11 — prioridade fora do enum é erro de validação
+    public void ToApplicationRequest_ComPrioridadeForaDoEnum_RetornaInvalido()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest();
+        request.Priority.Add((ProtoTaskPriority)99);
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey(TaskGrpcMapping.PriorityFieldName);
+    }
+
+    [Fact] // BE-22, RN-LIST-04 — overdue ausente (has_overdue=false) mapeia para null, não para false
+    public void ToApplicationRequest_ComOverdueAusente_MapeiaParaNull()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest();
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Overdue.Should().BeNull();
+    }
+
+    [Theory] // BE-22, RN-LIST-04 — overdue explícito (true ou false) é preservado
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToApplicationRequest_ComOverdueExplicito_PreservaOValor(bool overdue)
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest { Overdue = overdue };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Overdue.Should().Be(overdue);
+    }
+
+    [Fact] // BE-22, RN-LIST-05 — search é copiado sem transformação
+    public void ToApplicationRequest_ComSearch_CopiaOValor()
+    {
+        var request = new TodoList.Contracts.Tasks.V1.ListTasksRequest { Search = "relatório" };
+
+        var result = TaskGrpcMapping.ToApplicationRequest(request);
+
+        result.IsValid.Should().BeTrue();
+        result.Request!.Search.Should().Be("relatório");
     }
 
     [Fact] // BE-41 — cada item passa por ToTaskReply, page/pageSize/totalCount preservados

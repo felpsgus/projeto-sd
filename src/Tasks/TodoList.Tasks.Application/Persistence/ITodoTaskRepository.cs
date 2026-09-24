@@ -1,3 +1,4 @@
+using TodoList.Tasks.Application.Tasks;
 using TodoList.Tasks.Domain.Tasks;
 
 namespace TodoList.Tasks.Application.Persistence;
@@ -51,19 +52,23 @@ public interface ITodoTaskRepository
     public IQueryable<TodoTask> Query();
 
     /// <summary>
-    /// Página de tarefas do dono, não removidas, ordenadas por criação
-    /// decrescente com desempate por <see cref="TodoTask.Id"/> (BE-41,
-    /// recorte de BE-22 — RN-LIST-01, RN-LIST-06 parcial, RN-LIST-07).
-    /// <paramref name="page"/> é 1-based; a implementação aplica
-    /// <c>WHERE</c>/<c>ORDER BY</c>/<c>LIMIT</c>/<c>OFFSET</c> no banco (CA-11)
-    /// — nunca materializa mais linhas que <paramref name="pageSize"/> além
-    /// da contagem. <see cref="ListByOwnerAsync"/> não valida
-    /// <paramref name="page"/>/<paramref name="pageSize"/>: essa validação é
-    /// do caso de uso (<c>ListTasksHandler</c>), que só chega até aqui com
-    /// valores já dentro da faixa permitida.
+    /// Página de tarefas do dono, não removidas, filtradas por
+    /// <paramref name="filter"/> e ordenadas pelo critério fixo de RN-LIST-06
+    /// (BE-22): pendentes antes de concluídas, depois vencimento crescente
+    /// (sem vencimento por último), depois criação crescente, com desempate
+    /// final por <see cref="TodoTask.Id"/> — a mesma ordenação sempre, sem
+    /// parâmetro de ordenação alternativa. <paramref name="page"/> é 1-based;
+    /// a implementação aplica <c>WHERE</c> (filtro base + filtros +
+    /// busca)/<c>ORDER BY</c>/<c>LIMIT</c>/<c>OFFSET</c> inteiramente no banco
+    /// (CA-32) — nunca materializa mais linhas que <paramref name="pageSize"/>
+    /// além da contagem (CA-34), e o filtro <c>overdue</c> nunca é avaliado em
+    /// memória (CA-33). <see cref="ListByOwnerAsync"/> não valida
+    /// <paramref name="page"/>/<paramref name="pageSize"/>/<paramref name="filter"/>:
+    /// essa validação é do caso de uso (<c>ListTasksHandler</c>), que só chega
+    /// até aqui com valores já dentro da faixa permitida.
     /// </summary>
     public Task<(IReadOnlyList<TodoTask> Items, int TotalCount)> ListByOwnerAsync(
-        Guid ownerId, int page, int pageSize, CancellationToken cancellationToken = default);
+        Guid ownerId, int page, int pageSize, TaskListFilter filter, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Único método de resolução de uma tarefa específica por id (BE-41,

@@ -171,6 +171,64 @@ describe('TasksStore', () => {
     req.flush({ ...makeTask('1'), status: 'Completed', completedAt: '2026-01-02T00:00:00Z' });
 
     expect(store.items()[0]!.completedAt).toBe('2026-01-02T00:00:00Z');
+
+    // Recarregamento silencioso pós-transição (FE-16): a página atual é buscada de novo para
+    // refletir a nova posição do item (RN-LIST-06), sem passar `status` por 'loading'.
+    expect(store.status()).toBe('success');
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({
+        items: [{ ...makeTask('1'), status: 'Completed', completedAt: '2026-01-02T00:00:00Z' }],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+  });
+
+  it('complete() recarrega a página atual em silêncio, sem alternar status para loading', () => {
+    store.load(1, 20);
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [makeTask('1'), makeTask('2')], page: 1, pageSize: 20, totalCount: 2 });
+
+    store.complete('1').subscribe();
+    httpMock
+      .expectOne('/api/tasks/1/complete')
+      .flush({ ...makeTask('1'), status: 'Completed', completedAt: '2026-01-02T00:00:00Z' });
+
+    // A lista não desaparece atrás de um spinner enquanto o reload silencioso está em voo.
+    expect(store.status()).toBe('success');
+
+    const reloadReq = httpMock.expectOne((r) => r.url === '/api/tasks');
+    reloadReq.flush({
+      items: [makeTask('2'), { ...makeTask('1'), status: 'Completed' }],
+      page: 1,
+      pageSize: 20,
+      totalCount: 2,
+    });
+
+    // A nova ordem (pendente antes de concluída, RN-LIST-06) vem do servidor.
+    expect(store.items().map((t) => t.id)).toEqual(['2', '1']);
+    expect(store.status()).toBe('success');
+  });
+
+  it('erro no recarregamento silencioso pós-complete não derruba a tela para "error"', () => {
+    store.load(1, 20);
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [makeTask('1')], page: 1, pageSize: 20, totalCount: 1 });
+
+    store.complete('1').subscribe();
+    httpMock
+      .expectOne('/api/tasks/1/complete')
+      .flush({ ...makeTask('1'), status: 'Completed', completedAt: '2026-01-02T00:00:00Z' });
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+
+    expect(store.status()).toBe('success');
+    expect(store.items()[0]!.status).toBe('Completed');
   });
 
   it('complete() reverte para "Pending" se a chamada falhar (rollback obrigatório)', () => {
@@ -213,6 +271,30 @@ describe('TasksStore', () => {
 
     expect(store.items()[0]!.status).toBe('Completed');
     expect(store.items()[0]!.completedAt).toBe('2026-01-01T00:00:00Z');
+  });
+
+  it('reopen() em sucesso também recarrega a página atual em silêncio (RN-LIST-06)', () => {
+    store.load(1, 20);
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({
+        items: [{ ...makeTask('1'), status: 'Completed' }],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+
+    store.reopen('1').subscribe();
+    httpMock
+      .expectOne('/api/tasks/1/reopen')
+      .flush({ ...makeTask('1'), status: 'Pending', completedAt: null });
+
+    expect(store.status()).toBe('success');
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [makeTask('1')], page: 1, pageSize: 20, totalCount: 1 });
+
+    expect(store.items()[0]!.status).toBe('Pending');
   });
 
   it('complete() em 404 remove o item da lista e decrementa totalCount (RN-AUTZ-03)', () => {
@@ -292,5 +374,112 @@ describe('TasksStore', () => {
     expect(store.totalCount()).toBe(0);
     expect(store.status()).toBe('idle');
     expect(store.error()).toBeNull();
+  });
+
+  describe('filtros (FE-16)', () => {
+    it('load() sem filtro não envia status, priority, overdue nem search', () => {
+      store.load(1, 20);
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.has('status')).toBe(false);
+      expect(req.request.params.has('priority')).toBe(false);
+      expect(req.request.params.has('overdue')).toBe(false);
+      expect(req.request.params.has('search')).toBe(false);
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('load() com status="pending" envia status na chamada (CA-01)', () => {
+      store.load(1, 20, { status: 'pending', priority: [], overdue: null, search: '' });
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.get('status')).toBe('pending');
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('load() com prioridades envia um "priority" repetido por valor (CA-03)', () => {
+      store.load(1, 20, {
+        status: 'all',
+        priority: ['low', 'high'],
+        overdue: null,
+        search: '',
+      });
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.getAll('priority')).toEqual(['low', 'high']);
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('load() com overdue=true envia o parâmetro (CA-04)', () => {
+      store.load(1, 20, { status: 'all', priority: [], overdue: true, search: '' });
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.get('overdue')).toBe('true');
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('load() com busca envia "search" com o termo aparado (CA-08/CA-09)', () => {
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: '  relatório  ' });
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.get('search')).toBe('relatório');
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('busca vazia ou só espaços não envia "search" (equivale a ausente)', () => {
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: '   ' });
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.has('search')).toBe(false);
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('os filtros combinam numa única chamada (CA-05)', () => {
+      store.load(1, 20, {
+        status: 'pending',
+        priority: ['high'],
+        overdue: true,
+        search: 'prova',
+      });
+
+      const req = httpMock.expectOne((r) => r.url === '/api/tasks');
+      expect(req.request.params.get('status')).toBe('pending');
+      expect(req.request.params.getAll('priority')).toEqual(['high']);
+      expect(req.request.params.get('overdue')).toBe('true');
+      expect(req.request.params.get('search')).toBe('prova');
+      req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('isEmpty é true sem filtro e zero itens; isFilteredEmpty é true com filtro e zero itens (CA-13)', () => {
+      store.load(1, 20, { status: 'pending', priority: [], overdue: null, search: '' });
+      httpMock
+        .expectOne((r) => r.url === '/api/tasks')
+        .flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+
+      expect(store.isFilteredEmpty()).toBe(true);
+      expect(store.isEmpty()).toBe(false);
+    });
+
+    it('isEmpty é true e isFilteredEmpty é false quando não há filtro nem tarefas', () => {
+      store.load(1, 20);
+      httpMock
+        .expectOne((r) => r.url === '/api/tasks')
+        .flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+
+      expect(store.isEmpty()).toBe(true);
+      expect(store.isFilteredEmpty()).toBe(false);
+    });
+
+    it('resposta fora de ordem de uma busca anterior não sobrescreve a mais recente (CA-11)', () => {
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: 'rel' });
+      const firstReq = httpMock.expectOne((r) => r.url === '/api/tasks');
+
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: 'relatorio' });
+      const secondReq = httpMock.expectOne((r) => r.url === '/api/tasks');
+
+      secondReq.flush({ items: [makeTask('2')], page: 1, pageSize: 20, totalCount: 1 });
+      firstReq.flush({ items: [makeTask('1')], page: 1, pageSize: 20, totalCount: 1 });
+
+      expect(store.items().map((t) => t.id)).toEqual(['2']);
+    });
   });
 });

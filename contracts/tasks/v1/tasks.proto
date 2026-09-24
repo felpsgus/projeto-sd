@@ -13,10 +13,12 @@ service TasksService {
   // Cria uma tarefa (RN-TASK-10) em nome do usuário identificado pela
   // metadata gRPC "x-user-id" (D-34) — nunca por campo desta mensagem.
   rpc CreateTask (CreateTaskRequest) returns (TaskReply);
-  // Lista as tarefas do dono identificado por "x-user-id" (BE-41, recorte
-  // estrito de BE-22): só as não removidas, ordenadas por criação
-  // decrescente, paginadas. Sem filtro, busca ou ordenação configurável —
-  // isso é escopo pleno de BE-22, não desta task.
+  // Lista as tarefas do dono identificado por "x-user-id" (BE-22, que
+  // substitui o recorte provisório de BE-41): só as não removidas,
+  // filtráveis por estado/prioridade/atraso, buscáveis por título e
+  // descrição, ordenadas pelo critério fixo de RN-LIST-06 (não mais só por
+  // criação decrescente) e paginadas. Não há parâmetro de ordenação
+  // alternativa — RN-LIST-06 é *a* ordenação.
   rpc ListTasks (ListTasksRequest) returns (ListTasksReply);
   // Consulta uma tarefa específica pelo mesmo método único de resolução de
   // BE-18: filtra por dono e não-removida na própria query. Tarefa
@@ -101,14 +103,67 @@ message TaskReply {
   google.protobuf.Timestamp updated_at = 10;
 }
 
-// Request de ListTasks (BE-41, recorte de BE-22/RN-LIST-07). Ambos os campos
-// aceitam o valor 0 (default do proto3 para int32) como "não informado" — o
-// Tasks Service aplica page=1 e page_size=Paging:DefaultPageSize nesse caso
-// (D-09). Fora dos limites (page/page_size negativos, ou page_size acima de
-// Paging:MaxPageSize) é erro de validação, nunca truncamento silencioso.
+// Request de ListTasks (BE-22 — filtros, busca, ordenação e paginação; a
+// versão anterior deste request, de BE-41, só tinha page/page_size). "Não
+// informado" é distinguido de um valor explícito campo a campo, comentado
+// abaixo em cada um — nenhum dos quatro filtros novos usa o mesmo truque:
+// cada um tem a forma de "ausente" que faz sentido para o próprio tipo.
 message ListTasksRequest {
+  // Página desejada (1-based). 0 (default do proto3 para int32) é "não
+  // informado" — o Tasks Service aplica page=1 nesse caso (D-09). Fora dos
+  // limites (negativo) é erro de validação, nunca truncamento silencioso.
   int32 page = 1;
+
+  // Tamanho de página desejado. 0 é "não informado" — o Tasks Service
+  // aplica Paging:DefaultPageSize nesse caso (D-09). Fora de
+  // 1–Paging:MaxPageSize é erro de validação.
   int32 page_size = 2;
+
+  // Filtro de estado (RN-LIST-02). TASK_STATUS_FILTER_UNSPECIFIED (0, o
+  // default do proto3 para enum) e TASK_STATUS_FILTER_ALL têm exatamente o
+  // mesmo efeito — nenhum filtro de estado, devolve pendentes e concluídas
+  // —, mas ALL existe para o chamador expressar a escolha explicitamente
+  // (ex.: um cliente que sempre popula todo campo do formulário de filtro).
+  // Qualquer outro valor (fora do enum) é erro de validação.
+  TaskStatusFilter status = 3;
+
+  // Filtro de prioridade (RN-LIST-03): disjunção entre os valores
+  // informados (equivalente a "priority IN (...)" no SQL). Lista vazia é
+  // "não informado" — todas as prioridades. TASK_PRIORITY_UNSPECIFIED
+  // dentro desta lista não é tratado como "ignorar este elemento": é um
+  // valor de filtro sem sentido (não existe tarefa com prioridade
+  // "não especificada") e por isso é erro de validação, assim como
+  // qualquer outro valor fora do enum de TaskPriority.
+  repeated TaskPriority priority = 4;
+
+  // Filtro de atraso (RN-LIST-04, RN-TASK-16) — derivado no servidor a
+  // partir de status=pending e due_date anterior a "hoje" (x-client-date,
+  // D-18), nunca uma coluna própria. Campo `optional`: a ausência (padrão
+  // proto3 do `optional bool` — `has_overdue=false`) significa "não filtra
+  // por atraso"; `overdue=false` explícito significa "só as NÃO atrasadas".
+  // Sem `optional` os dois casos colidiriam no mesmo valor default (false).
+  optional bool overdue = 5;
+
+  // Busca textual em título e descrição (RN-LIST-05, D-16), case-insensitive
+  // (não necessariamente acento-insensível — depende do collation do
+  // banco). Os curingas de LIKE (`%`, `_`) são escapados pelo Tasks Service
+  // antes de compor o filtro, para que uma busca por esses caracteres
+  // encontre o caractere literal, não funcione como curinga. String vazia
+  // ou só espaços é tratada como "não informado" — proto3 já não distingue
+  // "ausente" de "string vazia" para um campo `string` sem `optional`, o
+  // que aqui é exatamente o comportamento desejado (não há necessidade de
+  // `optional string` como em CreateTaskRequest.description).
+  string search = 6;
+}
+
+// Filtro de estado de ListTasks (BE-22, RN-LIST-02). Não é o mesmo enum de
+// TaskStatus (o estado real de uma tarefa nunca é "ALL") — este é só o
+// vocabulário de filtro, com um terceiro valor que significa "não filtrar".
+enum TaskStatusFilter {
+  TASK_STATUS_FILTER_UNSPECIFIED = 0;
+  TASK_STATUS_FILTER_PENDING = 1;
+  TASK_STATUS_FILTER_COMPLETED = 2;
+  TASK_STATUS_FILTER_ALL = 3;
 }
 
 // Reply de ListTasks. total_count é o total de tarefas do dono (não

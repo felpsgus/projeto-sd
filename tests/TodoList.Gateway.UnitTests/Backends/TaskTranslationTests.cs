@@ -7,6 +7,7 @@ using ProtoListTasksReply = TodoList.Contracts.Tasks.V1.ListTasksReply;
 using ProtoTaskPriority = TodoList.Contracts.Tasks.V1.TaskPriority;
 using ProtoTaskReply = TodoList.Contracts.Tasks.V1.TaskReply;
 using ProtoTaskStatus = TodoList.Contracts.Tasks.V1.TaskStatus;
+using ProtoTaskStatusFilter = TodoList.Contracts.Tasks.V1.TaskStatusFilter;
 
 namespace TodoList.Gateway.UnitTests.Backends;
 
@@ -109,10 +110,72 @@ public class TaskTranslationTests
     [Fact] // BE-41, CA-17
     public void ToProtoRequest_ListTasksHttpRequest_CopiaPageEPageSize()
     {
-        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(2, 50));
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(2, 50, "all", [], null, null));
 
         proto.Page.Should().Be(2);
         proto.PageSize.Should().Be(50);
+    }
+
+    [Theory] // BE-22, RN-LIST-02
+    [InlineData("pending", ProtoTaskStatusFilter.Pending)]
+    [InlineData("completed", ProtoTaskStatusFilter.Completed)]
+    [InlineData("all", ProtoTaskStatusFilter.All)]
+    public void ToProtoRequest_Status_Mapeia(string status, ProtoTaskStatusFilter expected)
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, status, [], null, null));
+
+        proto.Status.Should().Be(expected);
+    }
+
+    [Fact] // BE-22, RN-LIST-03, CA-07
+    public void ToProtoRequest_PrioridadesMultiplas_CopiaNaOrdemInformada()
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, "all", ["low", "high"], null, null));
+
+        proto.Priority.Should().Equal(ProtoTaskPriority.Low, ProtoTaskPriority.High);
+    }
+
+    [Fact] // BE-22, RN-LIST-03 — lista vazia não define nenhum elemento
+    public void ToProtoRequest_PrioridadeAusente_ListaProtoVazia()
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, "all", [], null, null));
+
+        proto.Priority.Should().BeEmpty();
+    }
+
+    [Fact] // BE-22, RN-LIST-04 — "não informado" nunca define o campo optional
+    public void ToProtoRequest_OverdueAusente_HasOverdueFalso()
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, "all", [], null, null));
+
+        proto.HasOverdue.Should().BeFalse();
+    }
+
+    [Theory] // BE-22, RN-LIST-04 — valor explícito, inclusive "false", define o campo
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToProtoRequest_OverdueInformado_DefineOCampoExplicitamente(bool overdue)
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, "all", [], overdue, null));
+
+        proto.HasOverdue.Should().BeTrue();
+        proto.Overdue.Should().Be(overdue);
+    }
+
+    [Fact] // BE-22, RN-LIST-05, CA-17 — ausente vira string vazia (equivalente do proto)
+    public void ToProtoRequest_SearchAusente_StringVazia()
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, "all", [], null, null));
+
+        proto.Search.Should().BeEmpty();
+    }
+
+    [Fact] // BE-22, RN-LIST-05
+    public void ToProtoRequest_SearchInformado_CopiaOTexto()
+    {
+        var proto = TaskTranslation.ToProtoRequest(new ListTasksHttpRequest(1, 20, "all", [], null, "relatório"));
+
+        proto.Search.Should().Be("relatório");
     }
 
     [Fact] // BE-41, CA-17/CA-24
