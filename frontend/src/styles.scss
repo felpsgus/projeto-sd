@@ -1,47 +1,110 @@
 /*
- * Tokens de estilo (FE-04, recorte mínimo do T2) — cores, espaçamento, tipografia, raio
- * de borda e sombra em CSS custom properties. Nenhum valor de cor literal deve existir
- * fora daqui (FE-04, CA-05). Fonte grande e bom contraste: a aplicação é operada num
- * projetor, na demo, não só numa tela de escritório.
+ * Tokens de estilo (FE-04, CA-05) — cor, espaço, tipografia e raio vivem só aqui, em custom
+ * properties. Nenhum valor de cor literal deve existir fora deste arquivo.
  *
- * Tema escuro fica fora do escopo do T2 (FD-12), mas os tokens já são nomeados para
- * permitir uma sobrescrita futura sem renomear nada.
+ * Direção visual: superfície calma, fios finos, sombra quase ausente, hierarquia por peso
+ * e espaço — não por cartões com sombra. Tema escuro só por `prefers-color-scheme`, sem
+ * alternância manual e sem persistência (FD-20): o app não grava em localStorage/
+ * sessionStorage.
+ *
+ * A tipografia é servida pelo próprio app (dois arquivos .woff2 em `public/fonts`, latin +
+ * latin-ext para acentos do pt-BR) — nunca por CDN, porque a demo não pode depender da rede
+ * do laboratório.
  */
+
+@font-face {
+  font-family: 'Instrument Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url('/fonts/instrument-sans-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Instrument Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url('/fonts/instrument-sans-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
 :root {
+  /* --- Cor: neutros levemente frios + um único acento --- */
+  --color-bg: #fbfbfa;
   --color-surface: #ffffff;
-  --color-surface-alt: #f3f4f6;
-  --color-surface-inverse: #111827;
-  --color-text: #111827;
-  --color-text-muted: #4b5563;
-  --color-text-inverse: #f9fafb;
-  --color-primary: #1d4ed8;
-  --color-primary-contrast: #ffffff;
-  --color-danger: #b91c1c;
-  --color-danger-surface: #fee2e2;
-  --color-success: #166534;
-  --color-success-surface: #dcfce7;
-  --color-warning: #92400e;
-  --color-warning-surface: #fef3c7;
-  --color-border: #d1d5db;
-  --color-focus-ring: #1d4ed8;
+  --color-text: #14161a;
+  --color-text-secondary: #5b606b;
+  --color-border: #e3e4e8;
+  --color-accent: #1f3fd8;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #b42318;
+  --color-success: #15653f;
+  --color-focus-ring: var(--color-accent);
 
-  --space-xs: 0.5rem;
-  --space-sm: 0.75rem;
-  --space-md: 1.25rem;
-  --space-lg: 2rem;
-  --space-xl: 3rem;
+  /* Superfícies derivadas (mistura com a superfície do próprio tema — nunca um hex novo). */
+  --color-accent-surface: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  --color-danger-surface: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+  --color-success-surface: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+  --color-overlay-inverse: color-mix(in srgb, var(--color-text) 92%, transparent);
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
+  /* --- Régua de prioridade: um único acento, variando espessura e opacidade --- */
+  --priority-low-width: 2px;
+  --priority-low-opacity: 0.32;
+  --priority-medium-width: 3px;
+  --priority-medium-opacity: 0.62;
+  --priority-high-width: 4px;
+  --priority-high-opacity: 1;
 
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 12%);
+  /* --- Espaço --- */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --space-xl: 4rem;
 
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-size-base: 1.125rem;
-  --font-size-lg: 1.5rem;
-  --font-size-xl: 2rem;
+  /* --- Raio e sombra: quase nada --- */
+  --radius-sm: 0.5rem;
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-accent) 30%, transparent);
 
-  --content-max-width: 60rem;
+  /* --- Tipografia: uma família, escala curta e responsiva (projetor e monitor) --- */
+  --font-family:
+    'Instrument Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --font-size-sm: clamp(0.8125rem, 0.78rem + 0.16vw, 0.9375rem);
+  --font-size-base: clamp(0.9375rem, 0.9rem + 0.2vw, 1.0625rem);
+  --font-size-md: clamp(1.0625rem, 1rem + 0.3vw, 1.1875rem);
+  --font-size-lg: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --font-size-xl: clamp(1.625rem, 1.4rem + 1vw, 2rem);
+  --font-size-2xl: clamp(2rem, 1.65rem + 1.6vw, 2.75rem);
+
+  --line-height-tight: 1.25;
+  --line-height-base: 1.55;
+
+  --content-max-width: 46rem;
+}
+
+/* Tema escuro só por preferência do sistema — sem botão, sem persistência (FD-20). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #101114;
+    --color-surface: #16181c;
+    --color-text: #e9eaee;
+    --color-text-secondary: #9aa0ac;
+    --color-border: #26282e;
+    --color-accent: #8aa0ff;
+    --color-accent-contrast: #0b0d12;
+    --color-danger: #ff6b5e;
+    --color-success: #4ade80;
+  }
 }
 
 * {
@@ -55,33 +118,85 @@ body {
 
 body {
   margin: 0;
-  background: var(--color-surface-alt);
+  background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-family);
   font-size: var(--font-size-base);
-  line-height: 1.5;
+  line-height: var(--line-height-base);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Foco visível em qualquer elemento interativo (FE-04, CA-11) — nunca `outline: none` sem substituto. */
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space-sm);
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+}
+
+h1 {
+  font-size: var(--font-size-xl);
+}
+
+h2 {
+  font-size: var(--font-size-lg);
+}
+
+h3 {
+  font-size: var(--font-size-md);
+}
+
+p {
+  margin: 0 0 var(--space-sm);
+}
+
+a {
+  color: var(--color-accent);
+}
+
+button {
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+/* Números tabulares em datas e contadores (FE-04) — nunca em prosa corrida. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Foco visível em qualquer elemento interativo (FE-04, CA-11) — nunca `outline: none` sem
+   substituto. */
 :focus-visible {
-  outline: 3px solid var(--color-focus-ring);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .skip-link {
   position: absolute;
   top: -3rem;
-  left: var(--space-sm);
+  left: var(--space-xs);
   z-index: 2000;
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-2xs) var(--space-xs);
   background: var(--color-surface);
-  color: var(--color-primary);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
   transition: top 0.15s ease-in-out;
 
   &:focus {
-    top: var(--space-sm);
+    top: var(--space-xs);
   }
 }
 
@@ -95,4 +210,14 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

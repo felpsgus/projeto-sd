@@ -106,6 +106,43 @@ describe('TasksPageComponent', () => {
     expect(screen.queryByText('Atrasada')).toBeNull();
   });
 
+  it('destaca o vencimento em atraso com o ponto e a cor de perigo junto à data', async () => {
+    const { httpMock, container } = await setup();
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({
+        items: [makeTask({ isOverdue: true })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+
+    await screen.findByText('Atrasada');
+
+    expect(container.querySelector('.task-item__due-group--overdue')).toBeTruthy();
+    expect(container.querySelector('.task-item__due-dot')).toBeTruthy();
+    expect(container.querySelector('.task-item__meta-item--overdue')).toBeNull();
+  });
+
+  it('não marca o vencimento como atrasado quando a tarefa está em dia', async () => {
+    const { httpMock, container } = await setup();
+
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({
+        items: [makeTask({ isOverdue: false })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+
+    await screen.findByText('Estudar para a prova');
+
+    expect(container.querySelector('.task-item__due-group--overdue')).toBeNull();
+    expect(container.querySelector('.task-item__due-dot')).toBeNull();
+  });
+
   it('exibe erro com "tentar novamente" e refaz a chamada ao clicar', async () => {
     const { httpMock } = await setup();
 

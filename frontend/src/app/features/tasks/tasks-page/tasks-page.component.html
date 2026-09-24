@@ -30,7 +30,7 @@
             <button type="button" (click)="previousPage()" [disabled]="store.page() <= 1">
               Anterior
             </button>
-            <p class="tasks-page__pagination-status" role="status" aria-live="polite">
+            <p class="tasks-page__pagination-status tabular-nums" role="status" aria-live="polite">
               Página {{ store.page() }} de {{ store.totalPages() }} ({{ store.totalCount() }}
               tarefas)
             </p>

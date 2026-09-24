@@ -1,6 +1,6 @@
 .form-field-error {
-  margin: var(--space-xs) 0 0;
-  padding-left: 1.25rem;
+  margin: var(--space-3xs) 0 0;
+  padding-left: 1.1rem;
   color: var(--color-danger);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }

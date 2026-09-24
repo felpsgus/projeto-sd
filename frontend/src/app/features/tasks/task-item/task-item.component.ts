@@ -15,47 +15,63 @@ import { formatDueDate } from '../task-date.util';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <li class="task-item" [class.task-item--completed]="task().status === 'Completed'">
-      <div class="task-item__main">
-        <h3 class="task-item__title">{{ task().title }}</h3>
+      <span
+        class="task-item__rule"
+        [class.task-item__rule--low]="task().priority === 'Low'"
+        [class.task-item__rule--medium]="task().priority === 'Medium'"
+        [class.task-item__rule--high]="task().priority === 'High'"
+        aria-hidden="true"
+      ></span>
+
+      <div class="task-item__body">
+        <div class="task-item__heading">
+          <h3 class="task-item__title">{{ task().title }}</h3>
+
+          <div
+            class="task-item__due-group"
+            [class.task-item__due-group--overdue]="task().isOverdue"
+          >
+            <p class="task-item__due tabular-nums">
+              <span class="visually-hidden">Vencimento: </span>
+              @if (task().isOverdue) {
+                <span class="task-item__due-dot" aria-hidden="true"></span>
+              }
+              @if (dueDateLabel(); as dueDate) {
+                {{ dueDate }}
+              } @else {
+                Sem vencimento
+              }
+            </p>
+
+            @if (task().isOverdue) {
+              <p class="task-item__overdue-label">Atrasada</p>
+            }
+          </div>
+        </div>
+
         @if (task().description; as description) {
           <p class="task-item__description">{{ description }}</p>
         }
+
+        <dl class="task-item__meta">
+          <div class="task-item__meta-item">
+            <dt class="visually-hidden">Prioridade</dt>
+            <dd>{{ priorityLabel() }}</dd>
+          </div>
+
+          <div class="task-item__meta-item">
+            <dt class="visually-hidden">Situação</dt>
+            <dd>{{ statusLabel() }}</dd>
+          </div>
+
+          <div class="task-item__meta-item task-item__meta-item--updated">
+            <dt class="visually-hidden">Última atualização</dt>
+            <dd class="tabular-nums">
+              Atualizada em {{ task().updatedAt | date: 'dd/MM/yyyy HH:mm' }}
+            </dd>
+          </div>
+        </dl>
       </div>
-
-      <dl class="task-item__meta">
-        <div class="task-item__badge task-item__badge--priority">
-          <dt class="visually-hidden">Prioridade</dt>
-          <dd>{{ priorityLabel() }}</dd>
-        </div>
-
-        <div class="task-item__badge task-item__badge--status">
-          <dt class="visually-hidden">Situação</dt>
-          <dd>{{ statusLabel() }}</dd>
-        </div>
-
-        @if (dueDateLabel(); as dueDate) {
-          <div class="task-item__badge task-item__badge--due">
-            <dt class="visually-hidden">Vencimento</dt>
-            <dd>Vence em {{ dueDate }}</dd>
-          </div>
-        } @else {
-          <div class="task-item__badge task-item__badge--due">
-            <dt class="visually-hidden">Vencimento</dt>
-            <dd>Sem vencimento</dd>
-          </div>
-        }
-
-        @if (task().isOverdue) {
-          <div class="task-item__badge task-item__badge--overdue">
-            <dt class="visually-hidden">Alerta</dt>
-            <dd>Atrasada</dd>
-          </div>
-        }
-      </dl>
-
-      <p class="task-item__updated">
-        Atualizada em {{ task().updatedAt | date: 'dd/MM/yyyy HH:mm' }}
-      </p>
     </li>
   `,
   styleUrl: './task-item.component.scss',

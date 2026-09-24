@@ -20,8 +20,19 @@ import { RouterLink } from '@angular/router';
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      gap: var(--space-md);
+      gap: var(--space-sm);
+      padding: var(--space-md);
       text-align: center;
+      color: var(--color-text);
+      background: var(--color-bg);
+    }
+
+    .not-found p {
+      color: var(--color-text-secondary);
+    }
+
+    .not-found a {
+      margin-top: var(--space-xs);
     }
   `,
 })

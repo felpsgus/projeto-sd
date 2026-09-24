@@ -4,13 +4,14 @@
   justify-content: center;
   min-height: 100vh;
   padding: var(--space-md);
+  background: var(--color-bg);
 
   &__card {
     width: 100%;
-    max-width: 28rem;
+    max-width: 24rem;
     padding: var(--space-lg);
     background: var(--color-surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
   }
 }

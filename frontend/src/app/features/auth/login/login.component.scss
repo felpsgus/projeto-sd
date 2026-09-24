@@ -3,34 +3,40 @@
 }
 
 h1 {
-  margin-top: 0;
-  font-size: var(--font-size-xl);
+  margin: 0 0 var(--space-md);
 }
 
 .login {
   &__context {
-    padding: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
     margin-bottom: var(--space-md);
-    color: var(--color-warning);
-    background: var(--color-warning-surface);
-    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    background: var(--color-accent-surface);
+    border-left: 2px solid var(--color-accent);
+    font-size: var(--font-size-sm);
   }
 
   &__field {
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
+    gap: var(--space-3xs);
     margin-bottom: var(--space-md);
 
     label {
-      font-weight: 600;
+      font-weight: 500;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
     }
 
     input {
-      padding: var(--space-sm);
-      font-size: var(--font-size-base);
+      padding: var(--space-xs) var(--space-sm);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-sm);
+      transition: border-color 0.12s ease;
+
+      &:hover {
+        border-color: var(--color-text-secondary);
+      }
 
       &[aria-invalid='true'] {
         border-color: var(--color-danger);
@@ -41,29 +47,35 @@ h1 {
   &__hint {
     margin: 0;
     color: var(--color-danger);
-    font-size: 0.9rem;
+    font-size: var(--font-size-sm);
   }
 
   &__error {
-    padding: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
     margin-bottom: var(--space-md);
     color: var(--color-danger);
     background: var(--color-danger-surface);
-    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--color-danger);
+    font-size: var(--font-size-sm);
   }
 
   &__submit {
     width: 100%;
-    padding: var(--space-sm);
-    font-size: var(--font-size-base);
-    color: var(--color-primary-contrast);
-    background: var(--color-primary);
+    padding: var(--space-xs) var(--space-sm);
+    font-weight: 500;
+    color: var(--color-accent-contrast);
+    background: var(--color-accent);
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
+    transition: opacity 0.12s ease;
+
+    &:hover:not(:disabled) {
+      opacity: 0.92;
+    }
 
     &:disabled {
-      opacity: 0.7;
+      opacity: 0.6;
       cursor: not-allowed;
     }
   }

@@ -1,61 +1,117 @@
 .task-item {
   display: flex;
-  flex-direction: column;
   gap: var(--space-sm);
-  padding: var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  padding: var(--space-sm) 0;
 
   &--completed {
     .task-item__title {
-      color: var(--color-text-muted);
+      color: var(--color-text-secondary);
       text-decoration: line-through;
+      text-decoration-color: var(--color-border);
     }
+  }
+
+  /* A prioridade é uma régua vertical à esquerda: espessura e opacidade crescem de Baixa
+     para Alta — nunca uma cor de semáforo (FE-04). */
+  &__rule {
+    flex: none;
+    width: var(--priority-low-width);
+    align-self: stretch;
+    background: var(--color-accent);
+    opacity: var(--priority-low-opacity);
+    border-radius: 1px;
+
+    &--medium {
+      width: var(--priority-medium-width);
+      opacity: var(--priority-medium-opacity);
+    }
+
+    &--high {
+      width: var(--priority-high-width);
+      opacity: var(--priority-high-opacity);
+    }
+  }
+
+  &__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
   }
 
   &__title {
     margin: 0;
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-md);
+    font-weight: 500;
     overflow-wrap: anywhere;
   }
 
+  /* Vencimento: em atraso, é o elemento mais chamativo da linha depois do título — cor de
+     perigo, peso maior e um ponto cheio à frente (FE-04: vermelho só para atraso/erro). */
+  &__due-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex: none;
+  }
+
+  &__due {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  &__due-group--overdue &__due {
+    color: var(--color-danger);
+    font-weight: 600;
+  }
+
+  &__due-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--color-danger);
+  }
+
+  &__overdue-label {
+    margin: var(--space-3xs) 0 0;
+    color: var(--color-danger);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
   &__description {
-    margin: var(--space-xs) 0 0;
-    color: var(--color-text-muted);
+    margin: var(--space-3xs) 0 0;
+    color: var(--color-text-secondary);
     overflow-wrap: anywhere;
   }
 
   &__meta {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-xs);
-    margin: 0;
-  }
-
-  &__badge {
-    padding: var(--space-xs) var(--space-sm);
-    font-weight: 600;
-    background: var(--color-surface-alt);
-    border-radius: var(--radius-sm);
+    align-items: baseline;
+    gap: var(--space-sm);
+    margin: var(--space-2xs) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
 
     dd {
       margin: 0;
     }
-
-    &--priority {
-      color: var(--color-text);
-    }
-
-    &--overdue {
-      color: var(--color-danger);
-      background: var(--color-danger-surface);
-    }
   }
 
-  &__updated {
-    margin: 0;
-    color: var(--color-text-muted);
-    font-size: 0.9rem;
+  &__meta-item--updated {
+    margin-left: auto;
   }
 }
