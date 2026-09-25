@@ -26,9 +26,15 @@
     gap: var(--space-sm);
   }
 
-  &__email {
+  &__name {
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--color-text);
+      text-decoration: underline;
+    }
   }
 
   &__logout {

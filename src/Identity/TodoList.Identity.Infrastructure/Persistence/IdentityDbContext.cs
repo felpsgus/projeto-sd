@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Persistence.Conventions;
@@ -23,6 +24,9 @@ public sealed class IdentityDbContext : DbContext, IUnitOfWork
 {
     /// <summary>Schema Postgres deste serviço (D-27) — nunca "tasks".</summary>
     public const string Schema = "identity";
+
+    /// <summary>SQLSTATE de violação de unicidade do Postgres (RN-AUTH-02, BE-07 CA-12).</summary>
+    private const string PostgresUniqueViolationSqlState = "23505";
 
     /// <summary>
     /// Tabela de histórico de migrations própria deste serviço. Sem isso os
@@ -57,5 +61,26 @@ public sealed class IdentityDbContext : DbContext, IUnitOfWork
         base.ConfigureConventions(configurationBuilder);
 
         EfConventions.ConfigureUtcDateTime(configurationBuilder);
+    }
+
+    /// <summary>
+    /// BE-07, CA-12: traduz uma violação de unicidade real do Postgres
+    /// (SQLSTATE <see cref="PostgresUniqueViolationSqlState"/> — hoje, só o
+    /// índice único de <c>users.email</c>, RN-AUTH-02) para
+    /// <see cref="UniqueConstraintViolationException"/>, o tipo que a
+    /// Application conhece (ela não referencia Npgsql/EF Core, D-27). Qualquer
+    /// outro <see cref="DbUpdateException"/> continua propagando como está —
+    /// só esta causa específica tem tratamento de negócio conhecido.
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresUniqueViolationSqlState })
+        {
+            throw new UniqueConstraintViolationException("Violação de restrição de unicidade ao salvar usuário.", ex);
+        }
     }
 }

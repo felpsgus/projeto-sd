@@ -4,6 +4,7 @@ option csharp_namespace = "TodoList.Contracts.Identity.V1";
 
 package identity.v1;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 // Fronteira de rede entre o Tasks Service (cliente), o API Gateway (cliente)
@@ -25,6 +26,40 @@ service IdentityService {
   // Login (RN-AUTH-08): troca e-mail + senha por um access token. Recorte
   // de BE-09 para o T2 (D-36) — só o access token, sem refresh/cookie.
   rpc Login (LoginRequest) returns (LoginResponse);
+
+  // Cadastro de usuário (BE-07, RN-AUTH-01/02/03/04/06/07). Extensão
+  // aditiva da Fase 3 — o Gateway traduz `POST /api/auth/register` para
+  // este RPC, no mesmo estilo de `Login` (D-36). E-mail duplicado e senha
+  // fora da política são falha de negócio, sinalizada por status gRPC
+  // (D-35), nunca `succeeded=false`: ao contrário de `Login`, aqui o
+  // vazamento de existência é aceitável e desejável (nota técnica de
+  // BE-07) — não há motivo para esconder a causa da falha.
+  rpc Register (RegisterRequest) returns (RegisterResponse);
+
+  // Consulta o perfil do usuário autenticado (BE-14, RN-USER-01/02/03). O
+  // `user_id` vem do `sub` do token já validado pelo Gateway (D-38) — este
+  // RPC não valida token, apenas confia no id recebido, como `ValidateUser`
+  // já fazia.
+  rpc GetProfile (GetProfileRequest) returns (ProfileResponse);
+
+  // Altera o nome de exibição do usuário autenticado (BE-14, RN-USER-02).
+  // Não existe campo de e-mail nesta mensagem — imutabilidade estrutural
+  // (RN-USER-03), a mesma garantia de `Email` no domínio.
+  rpc UpdateProfile (UpdateProfileRequest) returns (ProfileResponse);
+
+  // Troca a senha do usuário autenticado (BE-15, RN-AUTH-04/21). Exige a
+  // senha atual. A revogação de sessões (RN-AUTH-19) fica para quando
+  // `refresh_tokens` existir (BE-10/BE-11, Fase 4) — ver nota técnica em
+  // ChangePasswordHandler.
+  rpc ChangePassword (ChangePasswordRequest) returns (google.protobuf.Empty);
+
+  // Exclui a conta do usuário autenticado (BE-16, RN-USER-05). Exige a
+  // senha atual (D-19). A remoção das tarefas do usuário acontece em
+  // cascata no banco, pela FK `tasks.tasks.owner_id → identity.users(id)
+  // ON DELETE CASCADE` (D-27) — este RPC não enumera nem chama o Tasks
+  // Service (CA-05b de BE-16): nenhum RPC novo de exclusão de tarefas
+  // entra no contrato.
+  rpc DeleteAccount (DeleteAccountRequest) returns (google.protobuf.Empty);
 }
 
 message ValidateUserRequest {
@@ -86,4 +121,60 @@ message LoginResponse {
   google.protobuf.Timestamp expires_at = 3;
   // Id do usuário autenticado, presente só quando succeeded=true.
   string user_id = 4;
+}
+
+message RegisterRequest {
+  // E-mail informado pelo visitante; normalizado (trim + lowercase) no
+  // Identity antes de checar duplicidade (RN-AUTH-02/RN-AUTH-03).
+  string email = 1;
+  // Senha em texto puro — trafega só nesta chamada interna, nunca em log
+  // (mesma regra de `LoginRequest.password`).
+  string password = 2;
+  // Nome de exibição opcional. String vazia (valor default de proto3) é
+  // tratada como "não informado": o Identity usa a parte do e-mail antes
+  // do "@" (RN-AUTH-07) — mesmo tratamento para ausente ou só espaços.
+  string display_name = 3;
+}
+
+message RegisterResponse {
+  // Id gerado pelo domínio (RN-USER-01), nunca pelo banco.
+  string id = 1;
+  // E-mail já normalizado.
+  string email = 2;
+  string display_name = 3;
+  // Nunca contém senha nem hash (RN-AUTH-05) — a mensagem nem tem esse campo.
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message GetProfileRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway
+  // antes da chamada — este RPC não valida token (BE-14).
+  string user_id = 1;
+}
+
+message UpdateProfileRequest {
+  string user_id = 1;
+  // Obrigatório; 1–100 caracteres após trim, não pode ser só espaços
+  // (RN-USER-02) — validado por `User.Rename`.
+  string display_name = 2;
+}
+
+message ProfileResponse {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message ChangePasswordRequest {
+  string user_id = 1;
+  // Nunca em log (RN-AUTH-05, mesma regra de LoginRequest.password).
+  string current_password = 2;
+  string new_password = 3;
+}
+
+message DeleteAccountRequest {
+  string user_id = 1;
+  // Confirmação de senha (D-19) — mesma proteção da troca de senha.
+  string password = 2;
 }

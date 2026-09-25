@@ -8,10 +8,11 @@ import {
   signal,
 } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 
 import { AuthApi } from '../../../core/api/auth-api.service';
 import { SessionStore } from '../../../core/auth/session-store';
+import { SessionEndReason } from '../../../core/auth/session.model';
 import { resolveReturnUrl } from '../../../core/auth/return-url.util';
 import { AppError } from '../../../core/errors/app-error.model';
 
@@ -25,7 +26,7 @@ import { AppError } from '../../../core/errors/app-error.model';
  */
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
@@ -49,11 +50,42 @@ export class LoginComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Mensagem de contexto quando o usuário chega redirecionado por um 401 de sessão
-    // (FE-06/FE-09, CA-16) — exibida antes de qualquer tentativa de login.
-    if (this.session.lastEndReason() === 'session_expired') {
-      this.contextMessage.set('Sua sessão expirou. Entre novamente.');
+    // Mensagem de contexto quando o usuário chega redirecionado por um encerramento de
+    // sessão (FE-06/FE-09 CA-16, FE-12 CA-02, FE-13 CA-11) — exibida antes de qualquer
+    // tentativa de login. Um reason sem mensagem própria (ex.: `user_logout`) não mostra
+    // nada, mas ainda é limpo para não sobrar para a próxima visita à tela.
+    const reason = this.session.lastEndReason();
+    if (reason) {
+      const message = this.messageForEndReason(reason);
+      if (message) {
+        this.contextMessage.set(message);
+      }
       this.session.clearLastEndReason();
+    } else if (this.route.snapshot.queryParamMap.get('registered') === '1') {
+      // Sucesso do cadastro (FE-08, CA-01) — não passa por `SessionStore` porque o
+      // cadastro não autentica automaticamente (o backend não emite tokens nele).
+      this.contextMessage.set('Conta criada com sucesso. Entre com suas credenciais.');
+    }
+
+    const email = this.route.snapshot.queryParamMap.get('email');
+    if (email) {
+      this.form.patchValue({ email });
+    }
+  }
+
+  private messageForEndReason(reason: SessionEndReason): string | null {
+    switch (reason) {
+      case 'session_expired':
+        return 'Sua sessão expirou. Entre novamente.';
+      case 'session_revoked':
+        // FE-12, RN-AUTH-19 (parcial — ver comentário em ChangePasswordComponent sobre o
+        // texto completo depender de BE-10/BE-11, Fase 4): a senha foi trocada e a sessão
+        // local foi encerrada de propósito, não por expiração.
+        return 'Sua senha foi alterada. Entre novamente com a nova senha.';
+      case 'account_deleted':
+        return 'Sua conta foi excluída.';
+      case 'user_logout':
+        return null;
     }
   }
 

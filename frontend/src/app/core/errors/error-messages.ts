@@ -12,6 +12,12 @@ import { AppErrorCode } from './app-error.model';
 export const ERROR_MESSAGES: Readonly<Record<AppErrorCode, string>> = {
   'auth.invalid_credentials': 'E-mail ou senha inválidos.',
   'auth.unauthorized': 'Sua sessão expirou. Entre novamente.',
+  // FE-08 (409 no cadastro) — a tela mostra este texto junto ao campo de e-mail, com link
+  // para o login (RN-AUTH-02 permite apontar duplicidade no cadastro, diferente de login).
+  'auth.email_already_registered': 'Este e-mail já está cadastrado.',
+  // FE-12/FE-13 (400 com `errors.currentPassword`/`errors.password`) — usado como
+  // mensagem de reserva; a tela sempre prioriza o texto específico do campo (`fieldErrors`).
+  'auth.invalid_current_password': 'Senha atual incorreta.',
   // FE-19 (409, RN-TASK-06): o estado mudou em outro lugar — nunca uma mensagem genérica
   // de falha, porque a ação em si não falhou por engano do usuário.
   'task.already_completed': 'Esta tarefa já foi concluída em outro lugar.',

@@ -1,6 +1,6 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter, Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
@@ -72,6 +72,81 @@ describe('LoginComponent', () => {
 
     expect(screen.getByLabelText(/e-mail/i)).toHaveAttribute('autocomplete', 'username');
     expect(screen.getByLabelText(/senha/i)).toHaveAttribute('autocomplete', 'current-password');
+  });
+
+  it('pré-preenche o e-mail a partir do query param "email" (FE-08 CA-01, FE-12 CA-05)', async () => {
+    await render(LoginComponent, {
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tasks', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({ email: 'nova@example.com' }) },
+          },
+        },
+      ],
+    });
+
+    expect(screen.getByLabelText(/e-mail/i)).toHaveValue('nova@example.com');
+  });
+
+  it('exibe mensagem de cadastro concluído quando chega com "registered=1" (FE-08 CA-01)', async () => {
+    await render(LoginComponent, {
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tasks', children: [] }]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap({ registered: '1' }) } },
+        },
+      ],
+    });
+
+    expect(screen.getByText(/conta criada com sucesso/i)).toBeTruthy();
+  });
+
+  it('exibe mensagem de senha alterada quando a sessão foi encerrada por "session_revoked" (FE-12, CA-02)', async () => {
+    const seededSessionStore = new SessionStore();
+    seededSessionStore.startSession(
+      { accessToken: 'x', expiresAt: new Date().toISOString() },
+      'a@b.com',
+    );
+    seededSessionStore.endSession('session_revoked');
+
+    await render(LoginComponent, {
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tasks', children: [] }]),
+        { provide: SessionStore, useValue: seededSessionStore },
+      ],
+    });
+
+    const message = screen.getByText(/senha foi alterada/i);
+    expect(message.textContent).not.toMatch(/todos os dispositivos/i);
+  });
+
+  it('exibe mensagem de conta excluída quando a sessão foi encerrada por "account_deleted" (FE-13, CA-11)', async () => {
+    const seededSessionStore = new SessionStore();
+    seededSessionStore.startSession(
+      { accessToken: 'x', expiresAt: new Date().toISOString() },
+      'a@b.com',
+    );
+    seededSessionStore.endSession('account_deleted');
+
+    await render(LoginComponent, {
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tasks', children: [] }]),
+        { provide: SessionStore, useValue: seededSessionStore },
+      ],
+    });
+
+    expect(screen.getByText(/sua conta foi excluída/i)).toBeTruthy();
   });
 
   it('exibe "sua sessão expirou" quando chega por sessão expirada (CA-16)', async () => {

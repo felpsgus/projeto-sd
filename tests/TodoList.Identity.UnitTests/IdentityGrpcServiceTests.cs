@@ -8,6 +8,7 @@ using NSubstitute;
 using TodoList.Contracts.Identity.V1;
 using TodoList.Identity.Api.Configuration;
 using TodoList.Identity.Api.Grpc;
+using TodoList.Identity.Api.Validation;
 using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Security;
 using TodoList.Identity.Application.Users;
@@ -285,6 +286,8 @@ public class IdentityGrpcServiceTests : IDisposable
             serviceProvider,
             _accessTokenValidator,
             userStoreOptions,
+            new RegisterUserRequestValidator(),
+            new ChangePasswordRequestValidator(),
             logger ?? NullLogger<IdentityGrpcService>.Instance);
     }
 

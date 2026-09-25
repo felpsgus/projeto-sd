@@ -12,14 +12,21 @@ import { SessionEndReason } from './session.model';
  * backend do T2 emite só um access token — D-36). Isso é esperado e aceito pelo recorte,
  * não um bug a corrigir aqui.
  *
- * O backend do T2 não expõe perfil (`GET /api/me`): o "usuário" exibido no `AppShell` é o
- * e-mail informado no login, guardado aqui só para exibição.
+ * O login não devolve perfil — o e-mail exibido no `AppShell` vem do formulário de login.
+ * O nome de exibição (`displayName`) só fica conhecido quando `/account` (FE-11) carrega
+ * `GET /api/me`; até lá, o cabeçalho cai no e-mail (ver `AppShellComponent`).
+ *
+ * **`displayName` e `/account` compartilham esta única fonte (FE-11, CA-07):** a tela de
+ * perfil chama `setDisplayName` ao carregar e ao salvar, e o `AppShell` só lê o signal —
+ * nunca duplica o valor em outro lugar. É o desenho que evita o cabeçalho ficar defasado
+ * depois de uma edição.
  */
 @Injectable({ providedIn: 'root' })
 export class SessionStore {
   private readonly accessTokenSignal = signal<string | null>(null);
   private readonly expiresAtSignal = signal<Date | null>(null);
   private readonly emailSignal = signal<string | null>(null);
+  private readonly displayNameSignal = signal<string | null>(null);
   private readonly lastEndReasonSignal = signal<SessionEndReason | null>(null);
 
   /** Access token atual — usado só pelo interceptor de autenticação (FE-06). Nunca logar. */
@@ -30,6 +37,9 @@ export class SessionStore {
 
   /** E-mail do usuário autenticado, para exibição no `AppShell`. */
   readonly email = this.emailSignal.asReadonly();
+
+  /** Nome de exibição, quando já carregado por `/account` (FE-11) — `null` até lá. */
+  readonly displayName = this.displayNameSignal.asReadonly();
 
   /** Derivado do access token: nunca escrito manualmente (FE-05, CA-03). */
   readonly isAuthenticated = computed(() => this.accessTokenSignal() !== null);
@@ -42,7 +52,13 @@ export class SessionStore {
     this.accessTokenSignal.set(tokens.accessToken);
     this.expiresAtSignal.set(new Date(tokens.expiresAt));
     this.emailSignal.set(email);
+    this.displayNameSignal.set(null);
     this.lastEndReasonSignal.set(null);
+  }
+
+  /** Chamado por `/account` (FE-11) ao carregar o perfil e ao salvar um novo nome. */
+  setDisplayName(displayName: string): void {
+    this.displayNameSignal.set(displayName);
   }
 
   /**
@@ -54,6 +70,7 @@ export class SessionStore {
     this.accessTokenSignal.set(null);
     this.expiresAtSignal.set(null);
     this.emailSignal.set(null);
+    this.displayNameSignal.set(null);
     this.lastEndReasonSignal.set(reason);
   }
 

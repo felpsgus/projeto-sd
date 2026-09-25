@@ -71,6 +71,16 @@ builder.Services.AddScoped<DemoUserSeeder>();
 builder.Services.AddSingleton<DummyPasswordHash>();
 builder.Services.AddScoped<LoginHandler>();
 
+// Fase 3 (BE-07/BE-14/BE-15/BE-16): mesmo tempo de vida de LoginHandler —
+// todos dependem de IUserRepository (Scoped, via IdentityDbContext).
+// Resolvidos preguiçosamente por IdentityGrpcService via IServiceProvider,
+// pela mesma razão documentada no construtor de IdentityGrpcService.
+builder.Services.AddScoped<RegisterUserHandler>();
+builder.Services.AddScoped<GetProfileHandler>();
+builder.Services.AddScoped<UpdateProfileHandler>();
+builder.Services.AddScoped<ChangePasswordHandler>();
+builder.Services.AddScoped<DeleteAccountHandler>();
+
 builder.Services.AddScoped<IUserLookup>(sp =>
 {
     var provider = sp.GetRequiredService<IOptions<UserStoreOptions>>().Value.Provider;

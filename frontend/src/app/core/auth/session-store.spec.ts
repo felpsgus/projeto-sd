@@ -47,4 +47,33 @@ describe('SessionStore', () => {
 
     expect(document.cookie).not.toContain('abc-secret');
   });
+
+  it('displayName é null até setDisplayName ser chamado (FE-11)', () => {
+    store.startSession({ accessToken: 'abc', expiresAt: '2026-01-01T00:15:00Z' }, 'a@b.com');
+
+    expect(store.displayName()).toBeNull();
+
+    store.setDisplayName('Ana');
+
+    expect(store.displayName()).toBe('Ana');
+  });
+
+  it('endSession limpa displayName junto com o resto da sessão (FE-11)', () => {
+    store.startSession({ accessToken: 'abc', expiresAt: '2026-01-01T00:15:00Z' }, 'a@b.com');
+    store.setDisplayName('Ana');
+
+    store.endSession('user_logout');
+
+    expect(store.displayName()).toBeNull();
+  });
+
+  it('aceita "session_revoked" e "account_deleted" como motivos de encerramento (FE-12/FE-13)', () => {
+    store.startSession({ accessToken: 'abc', expiresAt: '2026-01-01T00:15:00Z' }, 'a@b.com');
+    store.endSession('session_revoked');
+    expect(store.lastEndReason()).toBe('session_revoked');
+
+    store.startSession({ accessToken: 'abc', expiresAt: '2026-01-01T00:15:00Z' }, 'a@b.com');
+    store.endSession('account_deleted');
+    expect(store.lastEndReason()).toBe('account_deleted');
+  });
 });

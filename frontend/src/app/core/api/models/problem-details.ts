@@ -6,6 +6,8 @@
 export type ApiErrorCode =
   | 'auth.invalid_credentials'
   | 'auth.unauthorized'
+  | 'auth.email_already_registered'
+  | 'auth.invalid_current_password'
   | 'task.already_completed'
   | 'task.not_completed'
   | 'task.active_limit_reached';

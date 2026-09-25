@@ -91,4 +91,61 @@ describe('ConfirmDialogComponent', () => {
 
     expect(screen.queryByText('Remover tarefa')).toBeNull();
   });
+
+  it('exibe "errorMessage" dentro do diálogo (FE-13, CA-16)', async () => {
+    const { fixture } = await setup();
+    fixture.componentInstance.open();
+    fixture.componentRef.setInput('errorMessage', 'Senha incorreta.');
+    fixture.detectChanges();
+
+    expect(screen.getByRole('alert').textContent).toContain('Senha incorreta.');
+  });
+
+  it('"confirmDisabled" desabilita só o botão de confirmar', async () => {
+    const { fixture } = await setup();
+    fixture.componentInstance.open();
+    fixture.componentRef.setInput('confirmDisabled', true);
+    fixture.detectChanges();
+
+    expect(screen.getByRole('button', { name: 'Cancelar' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remover' })).toBeDisabled();
+  });
+
+  it('clicar em confirmar não emite "confirmed" quando "confirmDisabled" é true', async () => {
+    const { fixture } = await setup();
+    fixture.componentInstance.open();
+    fixture.componentRef.setInput('confirmDisabled', true);
+    fixture.detectChanges();
+    const confirmed = vi.fn();
+    fixture.componentInstance.confirmed.subscribe(confirmed);
+
+    fixture.componentInstance['onConfirm']();
+
+    expect(confirmed).not.toHaveBeenCalled();
+  });
+
+  it('"preventAutoClose" mantém o diálogo aberto mesmo após "busy" voltar a false (FE-13, CA-16/CA-17)', async () => {
+    const { fixture } = await setup();
+    fixture.componentInstance.open();
+    fixture.componentRef.setInput('preventAutoClose', true);
+    fixture.componentRef.setInput('busy', true);
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('busy', false);
+    fixture.detectChanges();
+
+    expect(screen.getByText('Remover tarefa')).toBeTruthy();
+  });
+
+  it('close() fecha o diálogo quando chamado explicitamente (usado com preventAutoClose)', async () => {
+    const { fixture } = await setup();
+    fixture.componentInstance.open();
+    fixture.componentRef.setInput('preventAutoClose', true);
+    fixture.detectChanges();
+
+    fixture.componentInstance.close();
+    fixture.detectChanges();
+
+    expect(screen.queryByText('Remover tarefa')).toBeNull();
+  });
 });

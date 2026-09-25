@@ -5,12 +5,12 @@ import { guestGuard } from './core/auth/guest.guard';
 import { unsavedChangesGuard } from './features/tasks/edit-task/unsaved-changes.guard';
 
 /**
- * Mapa de rotas (FE-07): `/login` pública, `/tasks`, `/tasks/new` e `/tasks/:id/edit`
- * (FE-18) autenticadas (protegidas pelo `authGuard` do pai), redirect da raiz e 404. Sem
- * `/register` nem `/account*` — ainda fora do recorte.
+ * Mapa de rotas (FE-07): `/login` e `/register` (FE-08) públicas (`guestGuard`);
+ * `/tasks`, `/tasks/new`, `/tasks/:id/edit` (FE-18), `/account` (FE-11) e
+ * `/account/password` (FE-12) autenticadas (`authGuard` do pai); redirect da raiz e 404.
  *
  * Lazy loading por feature via `loadComponent`: o bundle inicial não carrega o código de
- * `auth` nem de `tasks` (FE-07, CA-11).
+ * `auth`, `account` nem `tasks` (FE-07, CA-11).
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'tasks' },
@@ -27,6 +27,44 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/auth/login/login.component').then((m) => m.LoginComponent),
         title: 'Entrar — TodoList',
+      },
+    ],
+  },
+  {
+    path: 'register',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./shared/layout/auth-layout/auth-layout.component').then(
+        (m) => m.AuthLayoutComponent,
+      ),
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/auth/register/register.component').then((m) => m.RegisterComponent),
+        title: 'Cadastro — TodoList',
+      },
+    ],
+  },
+  {
+    path: 'account',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./shared/layout/app-shell/app-shell.component').then((m) => m.AppShellComponent),
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/account/account.component').then((m) => m.AccountComponent),
+        title: 'Minha conta — TodoList',
+      },
+      {
+        path: 'password',
+        loadComponent: () =>
+          import('./features/account/change-password/change-password.component').then(
+            (m) => m.ChangePasswordComponent,
+          ),
+        title: 'Alterar senha — TodoList',
       },
     ],
   },

@@ -42,7 +42,16 @@ Opções:
 
 A escolha muda os critérios de aceite de BE-11 e o texto de RN-AUTH-12.
 
-### 2. Excluir a conta cruza dois serviços (afeta a Fase 3)
+### 2. ~~Excluir a conta cruza dois serviços~~ — decisão inexistente (corrigido em 24/09/2026)
+
+**Este item estava errado.** Ao começar a Fase 3, a leitura de [BE-16](backend/BE-16-exclusao-conta.md) mostrou
+que o problema já está resolvido desde o T1: a FK `tasks.tasks.owner_id → identity.users(id)` tem
+**`ON DELETE CASCADE`** (migration `AddOwnerForeignKeyToIdentityUsers`, BE-02 CA-02c). Apagar o usuário
+apaga as tarefas de forma atômica, **sem RPC novo e sem orquestração no Gateway** — inclusive as que
+estavam com soft delete, porque a cascata opera sobre linhas, não sobre o filtro de query do EF.
+É o ganho concreto de manter um banco só (D-27). O texto original abaixo fica como registro do erro.
+
+### 2. (texto original, superado) Excluir a conta cruza dois serviços
 
 RN-USER-05 exige que excluir a conta remova as tarefas. Quem guarda tarefa é o Tasks; quem guarda
 usuário é o Identity. Hoje a dependência é unidirecional: Tasks → Identity (`ValidateUser`).
@@ -112,7 +121,21 @@ No frontend, os filtros sincronizam com a URL — é o que torna um resultado co
 `UserStore:SeedDemoUsers` e `UserStore:DemoUserPassword` saem de cena, e com eles o aviso de "nunca
 ligue isto em produção" que hoje mora no `identity.env.example`.
 
-**Depende da decisão 2** (exclusão de conta entre serviços).
+**Não depende de decisão nenhuma.** A "decisão 2" que esta linha citava não existia — ver a correção
+acima: a exclusão de conta sai de graça pela cascata da FK.
+
+**Decisão tomada durante a fase (24/09/2026): senha atual errada responde 400, não 401.** A BE-15
+deixava o status aberto ("400/401"). Vale 400 porque a requisição **está autenticada** — o que falhou é
+um campo do corpo, não a credencial que autentica a chamada — e porque o interceptor do frontend
+(FE-06) trata todo 401 como sessão expirada e redireciona ao login, o que expulsaria o usuário do app
+no meio do formulário de troca de senha. O `error-code` continua `auth.invalid_current_password`
+(exigência do CA-04), e a mensagem viaja no trailer de erros por campo. O `auth.user_not_found`
+**segue** 401, de propósito: uma sessão cujo usuário não existe mais é indistinguível de sessão
+inválida (BE-16 CA-09).
+
+**Ordem de execução em ondas:** Identity → Gateway → frontend. O seed de demonstração só é removido no
+**fim** da fase, depois que o cadastro funcionar pelo frontend — tirá-lo antes deixaria o projeto sem
+como entrar no app.
 
 ## Fase 4 — Sessão completa
 

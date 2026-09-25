@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.Extensions.Options;
 using TodoList.Contracts.Identity.V1;
 using TodoList.Gateway.Api.Configuration;
+using TodoList.Gateway.Api.Contracts;
 
 namespace TodoList.Gateway.Api.Backends;
 
@@ -14,8 +16,11 @@ namespace TodoList.Gateway.Api.Backends;
 /// <see cref="BackendUnavailableException"/> (D-28, CA-24); qualquer outro
 /// status inesperado vira <see cref="BackendCallException"/>, para que
 /// <see cref="ErrorHandling.GrpcErrorMapping"/> decida o HTTP. Desde
-/// BE-40/D-38, <c>Login</c> é o único RPC chamado daqui — <c>ValidateToken</c>
-/// saiu com a autenticação passando a ser local (<c>AddJwtBearer</c>).
+/// BE-40/D-38, a autenticação de entrada é local (<c>AddJwtBearer</c>) —
+/// <c>ValidateToken</c> não tem consumidor aqui. Onda 2 da Fase 3 acrescenta
+/// <c>Register</c>/<c>GetProfile</c>/<c>UpdateProfile</c>/<c>ChangePassword</c>/
+/// <c>DeleteAccount</c>, todos com o mesmo padrão de deadline/log/tradução de
+/// erro de <see cref="LoginAsync"/>.
 /// </summary>
 public sealed partial class IdentityBackend : IIdentityBackend
 {
@@ -64,6 +69,159 @@ public sealed partial class IdentityBackend : IIdentityBackend
             throw ToBackendException(ex);
         }
     }
+
+    /// <summary>Chama <c>Register</c> (BE-07) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>.</summary>
+    public async Task<ProfileHttpResponse> RegisterAsync(string? email, string? password, string? displayName, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var callOptions = new CallOptions(
+                headers: BuildTraceparentHeaders(traceId),
+                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            var response = await _client.RegisterAsync(
+                new RegisterRequest { Email = email ?? string.Empty, Password = password ?? string.Empty, DisplayName = displayName ?? string.Empty },
+                callOptions);
+
+            Log.CallSucceeded(_logger, BackendName, "Register", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "Register", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ToBackendException(ex);
+        }
+    }
+
+    /// <summary>Chama <c>GetProfile</c> (BE-14) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>.</summary>
+    public async Task<ProfileHttpResponse> GetProfileAsync(string userId, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var callOptions = new CallOptions(
+                headers: BuildTraceparentHeaders(traceId),
+                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            var response = await _client.GetProfileAsync(new GetProfileRequest { UserId = userId }, callOptions);
+
+            Log.CallSucceeded(_logger, BackendName, "GetProfile", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "GetProfile", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ToBackendException(ex);
+        }
+    }
+
+    /// <summary>Chama <c>UpdateProfile</c> (BE-14, RN-USER-02) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>.</summary>
+    public async Task<ProfileHttpResponse> UpdateProfileAsync(string userId, string? displayName, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var callOptions = new CallOptions(
+                headers: BuildTraceparentHeaders(traceId),
+                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            var response = await _client.UpdateProfileAsync(
+                new UpdateProfileRequest { UserId = userId, DisplayName = displayName ?? string.Empty },
+                callOptions);
+
+            Log.CallSucceeded(_logger, BackendName, "UpdateProfile", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "UpdateProfile", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ToBackendException(ex);
+        }
+    }
+
+    /// <summary>
+    /// Chama <c>ChangePassword</c> (BE-15) — mesmo padrão de deadline/log/tradução
+    /// de erro de <see cref="LoginAsync"/>; a resposta é <c>google.protobuf.Empty</c>,
+    /// então não há nada a traduzir de volta.
+    /// </summary>
+    public async Task ChangePasswordAsync(string userId, string? currentPassword, string? newPassword, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var callOptions = new CallOptions(
+                headers: BuildTraceparentHeaders(traceId),
+                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            await _client.ChangePasswordAsync(
+                new ChangePasswordRequest { UserId = userId, CurrentPassword = currentPassword ?? string.Empty, NewPassword = newPassword ?? string.Empty },
+                callOptions);
+
+            Log.CallSucceeded(_logger, BackendName, "ChangePassword", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "ChangePassword", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ToBackendException(ex);
+        }
+    }
+
+    /// <summary>
+    /// Chama <c>DeleteAccount</c> (BE-16, D-19) — mesmo padrão de deadline/log/tradução
+    /// de erro de <see cref="LoginAsync"/>; a resposta é <c>google.protobuf.Empty</c>.
+    /// </summary>
+    public async Task DeleteAccountAsync(string userId, string? password, CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = Activity.Current?.Id ?? string.Empty;
+
+        try
+        {
+            var callOptions = new CallOptions(
+                headers: BuildTraceparentHeaders(traceId),
+                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            await _client.DeleteAccountAsync(
+                new DeleteAccountRequest { UserId = userId, Password = password ?? string.Empty },
+                callOptions);
+
+            Log.CallSucceeded(_logger, BackendName, "DeleteAccount", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        }
+        catch (RpcException ex)
+        {
+            Log.CallFailed(_logger, BackendName, "DeleteAccount", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw ToBackendException(ex);
+        }
+    }
+
+    /// <summary>
+    /// Tradução comum de <c>RegisterResponse</c>/<c>ProfileResponse</c> (mesmo
+    /// formato de campos) para o DTO HTTP — nunca contém senha/hash (RN-AUTH-05).
+    /// </summary>
+    private static ProfileHttpResponse ToProfileHttpResponse(string id, string email, string displayName, Timestamp createdAt) =>
+        new(id, email, displayName, createdAt.ToDateTimeOffset());
 
     /// <summary>
     /// Propaga o <c>traceparent</c> W3C corrente na metadata gRPC de saída

@@ -33,9 +33,23 @@ export class ApiClient {
     return this.http.put<T>(this.resolve(path), body);
   }
 
+  /** Atualização parcial (semântica de `PATCH`) — só os campos presentes em `body` mudam. */
+  patch<T>(path: string, body: unknown): Observable<T> {
+    return this.http.patch<T>(this.resolve(path), body);
+  }
+
   /** `T` é tipicamente `void`: as rotas que usam este método (ex.: `DELETE /api/tasks/{id}`) devolvem 204 sem corpo. */
   delete<T>(path: string): Observable<T> {
     return this.http.delete<T>(this.resolve(path));
+  }
+
+  /**
+   * `DELETE` com corpo (`DELETE /api/me`, que exige a senha para confirmar a exclusão).
+   * O `HttpClient` do Angular exige `{ body }` explícito nesse método — sem isso o corpo
+   * é silenciosamente descartado e a senha nunca chega ao servidor.
+   */
+  deleteWithBody<T>(path: string, body: unknown): Observable<T> {
+    return this.http.delete<T>(this.resolve(path), { body });
   }
 
   private resolve(path: string): string {
