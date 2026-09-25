@@ -17,6 +17,16 @@ SSH no navegador.
 > Este arquivo é o **runbook** (o que digitar). Para entender **o que cada script faz por
 > dentro e por quê**, veja [ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md).
 
+> **Dois caminhos de deploy, a partir daqui.** O roteiro de apresentação mudou (22/10): o
+> plano agora é uma VM só, tudo em Docker, com o Postgres no Cloud SQL — ver a seção **"9.
+> Caminho Docker"**, mais adiante. As seções **1 a 8 abaixo descrevem o caminho systemd/binário
+> original (T1/T2), mantido como PLANO B até 22/10** — decisão deliberada do usuário, não
+> abandono: `scripts/publish.ps1`, `install-on-vm.sh`, as três units `todolist-*.service` e os
+> `.env.example` de cada serviço continuam funcionando exatamente como descrito nelas, e nada
+> nesta onda os alterou. Os dois caminhos podem coexistir na mesma VM (pastas diferentes), mas
+> só um deve estar servindo a porta 80 de fato antes da apresentação — ver o aviso no topo de
+> `deploy/todolist.service`.
+
 ## Topologia
 
 | VM | Zona | IP interno | Papel |
@@ -679,3 +689,227 @@ executam parte disto estão sendo escritos em paralelo a este documento):
 - [ ] **Ensaio cronometrado do roteiro de apresentação de 10 minutos** (seção 8), do zero ao
       fim do Ato 7, com o tempo real registrado no campo `[PENDENTE]` da seção 8 — obrigatório
       antes do dia da apresentação, não opcional.
+
+## 9. Caminho Docker (Onda D — plano PREFERIDO para 22/10)
+
+> As seções 1 a 8 acima são o caminho systemd/binário e ficam como **plano B até 22/10** (ver
+> o aviso no topo deste arquivo). Esta seção é nova (Onda D) e descreve o caminho Docker: uma
+> VM só, tudo em container, Postgres no Cloud SQL for PostgreSQL. Nenhum comando de escrita do
+> `gcloud` (criar recurso, habilitar API) nem `docker push` foi executado ao preparar esta
+> seção — o que está descrito abaixo foi verificado com `-DryRun`/checagens de leitura, não
+> rodado de ponta a ponta contra a VM real. Trate o primeiro ensaio com folga.
+>
+> Diferente das seções 1-8 (pensadas para o SSH pelo navegador, sem `gcloud` local), este
+> caminho assume que você **tem `gcloud` local** (o usuário confirmou SDK 584.0.0 instalado) —
+> por isso os passos usam `gcloud compute scp`/`gcloud compute ssh` em vez do upload manual
+> pelo navegador que o T1 precisou usar por uma limitação que não existe mais.
+
+### 9.0 Visão geral da ordem
+
+```
+1. Provisionar o Cloud SQL          (manual, uma vez — deploy/cloudsql/README.md)
+2. Habilitar a API do Artifact
+   Registry e criar o repositório   (manual, uma vez — comandos abaixo)
+3. scripts/publish-images.ps1       (na sua máquina — builda e publica as 4 imagens)
+4. Copiar arquivos para a VM        (gcloud compute scp)
+5. deploy/install-docker-on-vm.sh   (na VM — Docker, pastas, chave JWT, auth do registry, unit)
+   5b. Autenticação do registry     (o PRÓPRIO script testa — 9.6, falha cedo se não autenticar)
+6. Preencher o .env na VM           (manual — IP do Cloud SQL, senha, IMAGE_TAG)
+7. Subir a stack                    (systemctl start todolist.service)
+8. Verificar                        (deploy/smoke.sh, scripts/demo-t2.ps1 — SEM MUDANÇA)
+```
+
+### 9.1 Provisionar o Cloud SQL
+
+Runbook completo, nunca executado, com todos os comandos e o porquê de cada um:
+[deploy/cloudsql/README.md](cloudsql/README.md). Resultado esperado ao final: uma instância
+`todolist-cloudsql` com IP privado na mesma VPC de `maquina-1-psd`, banco `todolist`, usuário
+`todolist` com senha definida.
+
+### 9.2 Habilitar a API do Artifact Registry e criar o repositório
+
+Confirmado em 25/09/2026 (leitura, sem alterar nada): no projeto `sd-26-2`, a API
+`artifactregistry.googleapis.com` está **desabilitada** e portanto o repositório `todolist`
+**não existe**. `scripts/publish-images.ps1` detecta os dois problemas e se recusa a publicar
+enquanto eles existirem — mas não os resolve sozinho (habilitar API/criar recurso não é ação
+que um script deva tomar sem pedido explícito). Rode você mesmo, uma vez:
+
+```bash
+gcloud services enable artifactregistry.googleapis.com --project sd-26-2
+# espere alguns minutos para propagar antes do comando abaixo
+
+gcloud artifacts repositories create todolist \
+  --repository-format=docker \
+  --location=us-central1 \
+  --project=sd-26-2
+```
+
+### 9.3 Publicar as quatro imagens
+
+Da sua máquina (Windows, com Docker Desktop e `gcloud` já autenticado no projeto certo):
+
+```powershell
+./scripts/publish-images.ps1 -DryRun    # ensaie primeiro — mostra os 4 builds/tags/pushes sem tocar em nada
+./scripts/publish-images.ps1            # publicação de verdade
+```
+
+Leia o comentário de ajuda do script (`Get-Help ./scripts/publish-images.ps1 -Full`) antes da
+primeira publicação — em especial a seção sobre a **tag**: com a árvore de trabalho suja (o
+estado normal enquanto a Fase 3/Ondas A-D não forem commitadas), a tag NÃO é o SHA do commit
+puro, e o script avisa em destaque qual tag foi usada. Anote essa tag — é ela que entra em
+`IMAGE_TAG` no `.env` da VM (passo 9.7).
+
+### 9.4 Copiar os arquivos para a VM
+
+Com `gcloud` local, sem precisar do SSH pelo navegador:
+
+```powershell
+gcloud compute scp deploy/docker-compose.prod.yml deploy/todolist.env.example deploy/todolist.service `
+  deploy/install-docker-on-vm.sh `
+  maquina-1-psd:~/docker-deploy/ --zone=us-central1-a
+
+gcloud compute scp --recurse artifacts/sql `
+  maquina-1-psd:~/docker-deploy/sql --zone=us-central1-a
+```
+
+(`artifacts/sql/*.sql` vem do mesmo `scripts/publish.ps1` do plano B — os scripts SQL
+idempotentes não mudam entre os dois caminhos de deploy, só o que os aplica muda: `psql` direto
+lá, o serviço `migrate` do compose aqui.)
+
+### 9.5 Preparar a VM
+
+```bash
+gcloud compute ssh maquina-1-psd --zone=us-central1-a
+# já dentro da VM:
+cd ~/docker-deploy
+chmod +x install-docker-on-vm.sh
+sudo ./install-docker-on-vm.sh
+```
+
+Isso instala o Docker Engine + plugin `compose` (repositório oficial, não o pacote da distro),
+monta `/opt/todolist/docker/` com o compose e os SQL, cria (sem sobrescrever) o `.env` a partir
+do `.example`, garante o par de chaves JWT em `/etc/todolist/jwt/` com o dono trocado para uid
+1654 (ver o comentário longo dentro do script e em `docker-compose.prod.yml`, seção
+`secrets:`, sobre por que isso é necessário sem Docker Swarm), e instala/habilita
+`deploy/todolist.service`.
+
+### 9.6 Autenticação do Docker no Artifact Registry — passo crítico, leia antes de subir a stack
+
+`install-docker-on-vm.sh` (passo 9.5) já tenta resolver isto sozinho, mas o resultado importa o
+bastante para merecer um passo próprio aqui, e não só uma frase dentro do 9.5: quem executa
+`docker compose ... up -d` de verdade é a unit `todolist.service`, `Type=oneshot`, **disparada
+no BOOT, como root** (ver `deploy/todolist.service`) — não a pessoa que faz `gcloud compute
+ssh`. Dois fatos, juntos, tornam isto perigoso:
+
+1. A documentação do Artifact Registry só dispensa configurar autenticação para "Cloud Build e
+   ambientes de runtime como GKE e Cloud Run" — **Compute Engine não está nessa lista.** Numa
+   VM comum, sem `gcloud auth configure-docker` rodado como quem executa o `docker pull`, o pull
+   falha com `unauthorized`/`denied`.
+2. A `maquina-1-psd` roda com a service account padrão
+   `36621986996-compute@developer.gserviceaccount.com` e os escopos OAuth padrão do Compute
+   Engine (`devstorage.read_only`, `logging.write`, `monitoring.write`,
+   `service.management.readonly`, `servicecontrol`, `trace.append`) — **sem** `cloud-platform`.
+   Isso pode não bastar para ler o Artifact Registry, dependendo de como o IAM do projeto está
+   configurado.
+
+E, para fechar a armadilha: `gcloud auth configure-docker` rodado pelo usuário comum do SSH
+grava em `/home/<você>/.docker/config.json` — um arquivo que o **root nunca lê**. Testar
+manualmente "funciona" e a unit falha no boot do mesmo jeito, sem nenhuma pista de que a causa é
+"autenticado como a pessoa errada". Por isso `install-docker-on-vm.sh` roda
+`gcloud auth configure-docker us-central1-docker.pkg.dev --quiet` **como root** (o script
+inteiro já exige `sudo`) — o alvo é `/root/.docker/config.json`, o mesmo arquivo que a unit lê.
+
+Depois de configurar, o script tenta um `docker pull` real de `todolist-gateway` **antes de
+habilitar a unit systemd** — falhar aqui, na instalação, com mensagem clara, é infinitamente
+melhor do que a stack ficar parada no primeiro boot sem ninguém notar:
+
+- **Pull funcionou** → autenticação OK, instalação segue.
+- **Imagem não encontrada** (esperado antes do primeiro `publish-images.ps1`) → o script
+  distingue isto de falha de autenticação (o Artifact Registry só revela "não encontrada" para
+  quem já tem permissão de leitura) e apenas AVISA — pede para rodar de novo depois da primeira
+  publicação.
+- **Qualquer outra falha** (unauthorized, denied, ou mensagem não reconhecida) → o script
+  ABORTA antes de habilitar a unit, e imprime os dois remédios possíveis, **nesta ordem**:
+
+  1. Conceder `roles/artifactregistry.reader` à service account da VM:
+
+     ```bash
+     gcloud artifacts repositories add-iam-policy-binding todolist \
+       --location=us-central1 --project=sd-26-2 \
+       --member="serviceAccount:36621986996-compute@developer.gserviceaccount.com" \
+       --role="roles/artifactregistry.reader"
+     ```
+
+  2. **Se mesmo assim continuar falhando**, o escopo OAuth da própria VM pode ser insuficiente.
+     Confirme com:
+
+     ```bash
+     gcloud compute instances describe maquina-1-psd --zone=us-central1-a \
+       --format="value(serviceAccounts[0].scopes)"
+     ```
+
+     **ATENÇÃO — isto exige PARAR A VM.** Mudar o escopo de uma instância do Compute Engine só é
+     possível com ela desligada (`gcloud compute instances stop`, depois `set-scopes`, depois
+     `start`) — derruba a stack em produção enquanto dura. **Descubra isto num ensaio, com
+     folga, não na véspera da apresentação com a VM em uso.** Nem o script nem este runbook
+     param ou reconfiguram a VM sozinhos — é decisão e ação manual do usuário.
+
+### 9.7 Preencher o `.env` e subir
+
+```bash
+sudo nano /opt/todolist/docker/.env
+```
+
+Preencha `<IP_PRIVADO_CLOUDSQL>` (passo 9.1), a senha real, e `IMAGE_TAG` com a tag que
+`publish-images.ps1` imprimiu no passo 9.3. Depois:
+
+```bash
+sudo systemctl start todolist.service
+docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env ps
+```
+
+### 9.8 Firewall — ação manual, fora deste runbook de scripts
+
+Nem `install-docker-on-vm.sh` nem nenhum outro script desta onda abre porta ou mexe em regra
+de firewall — isso é decisão e ação do usuário no Console/`gcloud` (mesmas regras da seção 1
+acima: só a porta 80 pública, os backends internos nunca expostos). Confirme a regra
+`todolist-allow-nginx` (ou equivalente) antes de testar de fora da VPC.
+
+### 9.9 Verificar — logs e smoke test
+
+Para acompanhar os logs durante o ensaio/apresentação: `deploy/tmux-demo-docker.sh` (novo,
+equivalente de `deploy/tmux-demo.sh` usando `docker compose logs -f` por serviço em vez de
+`journalctl -u todolist-*`, que não existe no mundo container).
+
+**`deploy/smoke.sh` e `scripts/demo-t2.ps1` NÃO precisam de nenhuma mudança** — os dois já
+batem em `http://<IP>/` (SPA) e `http://<IP>/api/*` (Gateway via proxy), que é exatamente a
+mesma forma como o `frontend`/nginx do caminho Docker serve a stack na porta 80. A origem HTTP
+pública é idêntica nos dois caminhos de deploy; só o que está por trás dela muda (processos
+systemd vs. containers).
+
+```bash
+DEMO_PASSWORD=... ./deploy/smoke.sh http://<IP_EXTERNO>
+```
+
+```powershell
+./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword ...
+```
+
+### 9.10 O que este runbook do caminho Docker NÃO verificou
+
+- Nenhum comando de escrita do `gcloud` (habilitar API, criar repositório, criar instância
+  Cloud SQL, conceder papel IAM) foi executado — só leitura, para confirmar o estado atual (API
+  desabilitada, repositório inexistente) e escrever as mensagens de erro corretas em
+  `scripts/publish-images.ps1` e `deploy/install-docker-on-vm.sh`.
+- `docker push` nunca rodou — `scripts/publish-images.ps1 -DryRun` foi o único modo exercitado.
+- `deploy/install-docker-on-vm.sh` nunca rodou numa VM real — só revisado linha a linha contra
+  o padrão de `deploy/install-on-vm.sh` e a sintaxe conferida com `bash -n`. Em particular, o
+  teste de `docker pull` do passo 9.6 nunca foi exercitado contra o Artifact Registry real deste
+  projeto (a API está desabilitada — ver 9.2).
+- A instalação do Docker Engine pelo repositório oficial assume Debian/Ubuntu (a família de
+  imagem que o Compute Engine do projeto já usa nas duas VMs do T1/T2) — não testada contra
+  outra distribuição.
+- Os escopos OAuth reais da `maquina-1-psd` não foram confirmados por este agente com
+  `gcloud compute instances describe` (o comando é leitura pura e seria permitido, mas não foi
+  necessário para escrever o runbook — os escopos padrão citados acima vêm da documentação do
+  Compute Engine, não de uma consulta a esta VM específica). Confirme antes do ensaio.

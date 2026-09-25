@@ -1,0 +1,81 @@
+# todolist.service — sobe a stack em container (Onda B, roteiro de 22/10: uma
+# VM, tudo em Docker, Postgres no Cloud SQL) no boot da VM, e derruba no
+# shutdown. Instalar em /etc/systemd/system/todolist.service:
+#
+#   sudo cp deploy/todolist.service /etc/systemd/system/todolist.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now todolist.service
+#
+# Este arquivo NÃO substitui as três units *.service (todolist-identity,
+# todolist-tasks, todolist-gateway) que já existem ao lado deste — aquelas são
+# o caminho systemd/binário (plano B até 22/10) e continuam instaláveis à
+# parte. As duas unit continuam podendo coexistir na mesma VM só porque usam
+# pastas diferentes (/opt/todolist/{identity,tasks,gateway} vs.
+# /opt/todolist/docker/) — decida qual caminho está ATIVO antes da
+# apresentação; rodar os dois ao mesmo tempo faria duas cópias de cada
+# serviço brigarem pelo mesmo Cloud SQL (inofensivo para o schema, mas
+# confuso para logs/porta 80).
+#
+# Type=oneshot + RemainAfterExit=yes: o `docker compose up -d` sobe os
+# containers em BACKGROUND e o próprio comando termina (exit 0) assim que
+# eles estão criados — não existe um processo de primeiro plano para esta
+# unit supervisionar, como haveria com `Type=simple`. RemainAfterExit=yes é o
+# que diz ao systemd "mesmo com o processo do ExecStart já tendo terminado,
+# trate esta unit como ATIVA" — sem isso, `systemctl status todolist` diria
+# "inactive (dead)" segundos depois do boot, mesmo com os cinco containers
+# rodando normalmente, e um `systemctl is-active todolist` num script de
+# verificação (ou um `After=todolist.service` de outra unit) se comportaria
+# errado.
+[Unit]
+Description=TodoList — stack completa em Docker (Identity, Tasks, Gateway, frontend/nginx, migrate)
+Documentation=https://github.com/felpsgus/projeto-sd
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Pasta onde docker-compose.prod.yml E o `.env` preenchido vivem na VM (ver o
+# comentário no topo de docker-compose.prod.yml e o cabeçalho de
+# todolist.env.example) — precisa ser esta pasta para o `docker compose`
+# achar o `.env` sozinho e para o `-f docker-compose.prod.yml` sem caminho
+# funcionar sem repetir a pasta em todo `ExecStart`/`ExecStop`.
+WorkingDirectory=/opt/todolist/docker
+
+# TimeoutStartSec generoso: a PRIMEIRA subida depois de um `git`/imagem nova
+# faz `docker compose up -d` dar `pull` nas cinco imagens (identity, tasks,
+# gateway, frontend, e a postgres:17-alpine do `migrate`) do Artifact
+# Registry/Docker Hub antes de criar qualquer container — numa VM pequena,
+# numa rede mediana, isso facilmente passa do timeout padrão do systemd
+# (90s), e a unit falharia por timeout mesmo com tudo indo bem, só devagar.
+# 5 minutos dá folga sem esconder um travamento real por tempo indefinido.
+TimeoutStartSec=300
+
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml --env-file .env up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml --env-file .env down
+
+# NOTA — por que isto NÃO é redundante com `restart: unless-stopped` dentro de
+# docker-compose.prod.yml, mesmo parecendo cobrir o mesmo caso "a stack volta
+# sozinha":
+#
+#   - `restart: unless-stopped` (no compose) resolve UM CONTAINER que morre
+#     sozinho enquanto o Docker daemon continua no ar — ex.: o Identity crasha
+#     por uma exceção não tratada, ou o Tasks é morto por OOM. O Docker
+#     reinicia SÓ aquele container, sem tocar nos outros nem reexecutar esta
+#     unit.
+#   - Esta unit resolve O DAEMON DO DOCKER (e portanto a VM inteira) reiniciar
+#     — ex.: reboot agendado, atualização de kernel, preempção do GCP. Quando
+#     o `dockerd` volta a subir depois de a VM reiniciar, ele NÃO recria
+#     sozinho containers de um `docker compose up` anterior (isso é diferente
+#     de `docker run --restart`, que o próprio daemon reaplica) — sem uma unit
+#     como esta rodando `docker compose ... up -d` de novo no boot, a VM
+#     subiria com o Docker rodando e a stack inteira parada.
+#
+# Os dois mecanismos cobrem falhas em camadas diferentes (processo vs.
+# máquina) e nenhum sozinho cobre o caso do outro — por isso os dois existem
+# juntos, e não é redundância para remover.
+SyslogIdentifier=todolist
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,248 @@
+# docker-compose.prod.yml — a stack que roda NA VM de aplicação (Onda B do
+# roteiro de 22/10: uma VM só, tudo em container, Postgres fora dela).
+#
+# Este arquivo é IRMÃO, não CLONE, do docker-compose.yml da raiz (dev local):
+#
+#   - Sem `postgres`: o banco é o Cloud SQL for PostgreSQL (projeto sd-26-2,
+#     us-central1), por IP privado na mesma VPC da VM — nunca um container.
+#   - Sem NENHUMA seção `build:`. Quem compila e empurra as imagens para o
+#     Artifact Registry é o notebook do usuário (Onda D) — a VM só dá `pull`.
+#     Por isso `image:` aqui é sempre `${IMAGE_REGISTRY}/todolist-<serviço>:${IMAGE_TAG}`,
+#     nunca um Dockerfile local.
+#   - `restart: unless-stopped` em todos os serviços de vida longa — a VM pode
+#     reiniciar (patch do SO, preempção, manutenção do GCP) e a stack tem que
+#     voltar sozinha, sem alguém logar e dar `docker compose up` na mão. Ver a
+#     exceção deliberada do `migrate`, comentada no próprio serviço abaixo.
+#   - Só o `frontend` publica porta (80:8080) — `identity`, `tasks` e `gateway`
+#     ficam só na rede interna do compose, alcançáveis apenas por quem já está
+#     nela (D-32). Mesma regra da Onda A, agora valendo também para a VM.
+#
+# Onde este arquivo mora na VM: `/opt/todolist/docker/` (ver deploy/todolist.service).
+# Esse caminho é DIFERENTE de `/opt/todolist/{identity,tasks,gateway}`, que é
+# onde o caminho systemd (plano B até 22/10, ver deploy/README.md e as três
+# units *.service ao lado deste arquivo) publica os binários — os dois
+# caminhos de deploy coexistem sem se pisar porque usam pastas distintas.
+#
+# .env desta pasta: copie `deploy/todolist.env.example` para `/opt/todolist/docker/.env`
+# na VM (nome exato `.env`, não `todolist.env`) — é assim que o `docker compose`
+# acha automaticamente os valores usados tanto na interpolação deste arquivo
+# (${IMAGE_REGISTRY}, ${IMAGE_TAG}) quanto no `env_file:` de cada serviço
+# abaixo. Ver o cabeçalho de todolist.env.example para o que entra nele e por
+# quê (a divisão topologia-vs-segredo está explicada lá).
+#
+# ATENÇÃO — esta onda (B) só valida que este arquivo faz `docker compose config`
+# corretamente e que o mecanismo de permissão do secret JWT funciona (uid 1654
+# do container vs. dono do arquivo no host). O `migrate` NÃO foi executado
+# contra um Cloud SQL real: isso é a Onda C, que ainda depende do usuário
+# provisionar a instância (este agente não roda `gcloud` para criar nada).
+services:
+  # --- migrate: aplica os dois SQL idempotentes no Cloud SQL, na ordem exigida
+  # pela FK cruzada (tasks.tasks.owner_id -> identity.users(id): Identity
+  # primeiro) e sai. Mesmos arquivos que a VM já usa hoje no caminho systemd
+  # (scripts/publish.ps1 os gera em artifacts/sql/) e que o compose de dev usa
+  # no perfil "full" — só o alvo (Cloud SQL em vez de um container postgres:17)
+  # muda.
+  #
+  # Restart: "no", DIVERGINDO da regra "unless-stopped em todos os serviços"
+  # do resto deste arquivo — de propósito. `migrate` é vida curta por design:
+  # ele tem que RODAR UMA VEZ por `up` e sair com 0. Se ele tivesse
+  # `unless-stopped`, o Docker o reiniciaria a cada saída bem-sucedida, para
+  # sempre, porque essa política não olha o código de saída — viraria um loop
+  # infinito reaplicando SQL idempotente contra o Cloud SQL a cada poucos
+  # segundos, gerando ruído nos logs e carga desnecessária na instância. A
+  # condição `service_completed_successfully` do `identity`/`tasks` abaixo já
+  # dá a garantia que importa (esperar o migrate terminar OK antes de subir os
+  # backends); reiniciá-lo depois disso não protege nada.
+  migrate:
+    image: postgres:17-alpine
+    restart: "no"
+    # Cada serviço recebe SÓ as variáveis que usa, uma a uma, em vez de
+    # `env_file: - .env`. Isso é deliberado: `env_file` injeta o arquivo
+    # INTEIRO no container, e o `.env` desta stack contém as duas connection
+    # strings, a senha libpq e a senha do seed — declará-lo aqui entregaria ao
+    # `migrate` (e ao `tasks`, e ao `identity`) segredos de que eles não
+    # precisam. O docker-compose.yml de dev já seguia essa regra, comentada no
+    # serviço `tasks` ("Sem env_file e sem secrets:"); aqui ela vale igual.
+    #
+    # A forma `${VAR:?mensagem}` faz o `docker compose` ABORTAR com essa
+    # mensagem se a variável estiver faltando no `.env`, em vez de injetar
+    # string vazia e deixar a falha aparecer lá na frente como "autenticação
+    # recusada" ou "host desconhecido", que manda depurar o lugar errado.
+    #
+    # São as MESMAS credenciais do Cloud SQL que ConnectionStrings__* usam
+    # (formato Npgsql), só que em variáveis libpq separadas, porque `psql` não
+    # sabe interpretar uma connection string no formato "Host=...;Port=...".
+    environment:
+      PGHOST: ${PGHOST:?defina PGHOST no .env (IP privado da instancia Cloud SQL)}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE:-todolist}
+      PGUSER: ${PGUSER:-todolist}
+      PGPASSWORD: ${PGPASSWORD:?defina PGPASSWORD no .env}
+      PGSSLMODE: ${PGSSLMODE:-require}
+    volumes:
+      - ./artifacts/sql:/sql:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        test -f /sql/01-identity.sql && test -f /sql/02-tasks.sql || {
+          echo "artifacts/sql não encontrado — rode scripts/publish.ps1 e copie artifacts/sql/ para o lado deste compose antes de 'docker compose -f docker-compose.prod.yml up'.";
+          exit 1;
+        };
+        psql -v ON_ERROR_STOP=1 -f /sql/01-identity.sql -f /sql/02-tasks.sql
+
+  identity:
+    image: ${IMAGE_REGISTRY}/todolist-identity:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    secrets:
+      - jwt_private
+    environment:
+      # Topologia e configuração FIXA desta stack (não segredo, não varia por
+      # ambiente) — por isso fica aqui em vez de no .env, mesmo padrão do
+      # docker-compose.yml de dev.
+      ASPNETCORE_ENVIRONMENT: Production
+      UserStore__Provider: Persisted
+      UserStore__SeedDemoUsers: "true"
+      # Segredos vindos do .env um a um (ver a explicação no serviço `migrate`):
+      # o Identity recebe a SUA connection string e a senha do seed, e NÃO a
+      # connection string do Tasks nem as variáveis libpq do `migrate`.
+      ConnectionStrings__IdentityDb: ${ConnectionStrings__IdentityDb:?defina ConnectionStrings__IdentityDb no .env}
+      UserStore__DemoUserPassword: ${UserStore__DemoUserPassword:?defina UserStore__DemoUserPassword no .env (obrigatoria com SeedDemoUsers=true)}
+      # Caminho onde o secret é montado DENTRO do container (ver `secrets:` no
+      # fim deste arquivo) — é topologia de container, não segredo em si; a
+      # chave que é segredo é o conteúdo do arquivo, não este caminho fixo.
+      Jwt__PrivateKeyPath: /run/secrets/jwt_private
+    # Sem `ports:` (D-32): só o `frontend`/nginx é alcançável do host.
+
+  tasks:
+    image: ${IMAGE_REGISTRY}/todolist-tasks:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # Sem `secrets:`: o Tasks não recebe nenhuma chave Jwt:* — nem a privada
+    # nem a pública (D-38, D-31). Ele não sabe nada sobre tokens.
+    #
+    # E, pela mesma razão, sem `env_file:` (ver o serviço `migrate`): o Tasks
+    # não recebe a connection string do Identity, nem a senha do seed, nem as
+    # variáveis libpq. Só a SUA connection string, abaixo.
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Endereço de TOPOLOGIA container: "identity", o nome do serviço acima,
+      # resolvido pelo DNS interno do compose — NUNCA 127.0.0.1 (que era o
+      # endereço correto no mundo systemd, onde os três processos dividiam a
+      # mesma VM, mas aponta para "dentro do próprio container" aqui, o que
+      # faria o Tasks tentar falar consigo mesmo). Esta é a armadilha central
+      # de reaproveitar deploy/tasks.env.example sem pensar: aquele arquivo
+      # continua certo para o caminho systemd (plano B) e teria o valor ERRADO
+      # se fosse copiado para cá — por isso ele não é tocado, e este valor é
+      # fixado diretamente aqui.
+      Identity__GrpcAddress: http://identity:8080
+      ConnectionStrings__TasksDb: ${ConnectionStrings__TasksDb:?defina ConnectionStrings__TasksDb no .env}
+    # Sem `ports:` (D-32): só o `frontend`/nginx é alcançável do host.
+
+  gateway:
+    image: ${IMAGE_REGISTRY}/todolist-gateway:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      identity:
+        condition: service_started
+      tasks:
+        condition: service_started
+    secrets:
+      - jwt_public
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Mesma observação do Tasks acima: endereço de topologia container, não
+      # o 127.0.0.1 do deploy/gateway.env.example (que é para o caminho
+      # systemd, onde os três processos são vizinhos na mesma VM).
+      Backends__IdentityGrpcAddress: http://identity:8080
+      Backends__TasksGrpcAddress: http://tasks:8080
+      Jwt__PublicKeyPath: /run/secrets/jwt_public
+      # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway.
+    # Sem `ports:`: quem publica porta é o `frontend` (nginx), que faz proxy
+    # de /api/* para cá pela rede interna — mesma origem para front e API, sem
+    # CORS (FD-16/D-40), igual à Onda A.
+
+  frontend:
+    image: ${IMAGE_REGISTRY}/todolist-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_started
+    environment:
+      GATEWAY_UPSTREAM: gateway:8080
+    ports:
+      - "80:8080"
+
+# Chaves JWT RS256 (BE-40, D-38) — NA VM, e não mais no notebook de
+# desenvolvimento (`.secrets/jwt/` do docker-compose.yml raiz é só para dev
+# local). O arquivo de origem de cada secret é um caminho ABSOLUTO no host da
+# VM, não relativo a este compose:
+#
+#   /etc/todolist/jwt/private.pem  ->  identity, só ele (Jwt__PrivateKeyPath)
+#   /etc/todolist/jwt/public.pem   ->  gateway,  só ele (Jwt__PublicKeyPath)
+#
+# Mesmo caminho que o caminho systemd já usa hoje (deploy/todolist-identity.service,
+# LoadCredential=) — reaproveitado de propósito, para não duplicar "onde a
+# chave mora" em dois lugares da VM.
+#
+# A ARMADILHA CENTRAL DESTA ONDA está aqui, não no resto do arquivo: sem
+# Docker Swarm, um `secrets:` de compose com `file:` é um bind mount comum —
+# o arquivo aparece em /run/secrets/<nome> DENTRO do container com o MESMO
+# dono e MESMO modo que tem no HOST, sem recriação nenhuma (isto já valia no
+# docker-compose.yml de dev — a novidade aqui é que na VM ninguém pode
+# assumir que "já está certo" como no notebook do desenvolvedor).
+#
+# No caminho systemd, private.pem é root:root 0400 e chega ao processo via
+# LoadCredential= do systemd, que resolve a permissão por fora (o systemd,
+# rodando como root, lê o arquivo e entrega o conteúdo já pronto ao processo,
+# não importa quem seja o dono do processo). Isso NÃO existe em container: o
+# arquivo é só um bind mount, ninguém intermedeia a leitura, e o processo
+# dentro do container é quem precisa conseguir abrir o arquivo com as PRÓPRIAS
+# credenciais Unix.
+#
+# A imagem mcr.microsoft.com/dotnet/aspnet:10.0 declara `USER $APP_UID` (ver
+# os três Dockerfiles em src/*/*.Api/Dockerfile) — nela, $APP_UID resolve para
+# uid 1654 (usuário `app`), confirmado rodando a imagem e inspecionando o
+# usuário efetivo. Ou seja:
+#
+#   - private.pem root:root 0400 (o padrão de hoje)  -> ILEGÍVEL para uid 1654
+#     -> o Identity morre na inicialização (não acha/não consegue ler o PEM).
+#   - chmod 0444 "resolveria", mas é INACEITÁVEL para uma chave privada:
+#     qualquer processo da VM (todos os outros containers, qualquer usuário
+#     que logue por SSH) passaria a conseguir ler a chave de assinatura JWT.
+#   - A saída correta: TROCAR O DONO do arquivo no host para uid 1654,
+#     mantendo modo 0400 — só esse uid específico consegue ler, ninguém mais.
+#
+# Comando exato a rodar NA VM, antes do primeiro `docker compose ... up`
+# (depois que install-on-vm.sh, ou o processo que vier a substituí-lo,
+# já tiver gerado o par em /etc/todolist/jwt/):
+#
+#   sudo chown 1654:1654 /etc/todolist/jwt/private.pem
+#   sudo chmod 0400 /etc/todolist/jwt/private.pem
+#   sudo chown 1654:1654 /etc/todolist/jwt/public.pem   # não é segredo, mas
+#   sudo chmod 0444 /etc/todolist/jwt/public.pem        # 0444 continua ok pra ela
+#
+# POR QUE 1654 E NÃO OUTRO NÚMERO: esse uid não é uma escolha nossa, é o que a
+# imagem base mcr.microsoft.com/dotnet/aspnet:10.0 define para o usuário `app`
+# que o Dockerfile ativa com `USER $APP_UID`. Isso é um DETALHE DE IMPLEMENTAÇÃO
+# da imagem oficial da Microsoft, não uma constante estável do .NET — uma
+# atualização futura da imagem (novo minor do .NET, mudança da base Debian por
+# trás dela) pode mudar esse número. Se isso acontecer, o sintoma na VM vai ser
+# o mesmo de hoje com root:root 0400 (Identity não sobe, log de "permission
+# denied" ao tentar ler o PEM, ou pior, um erro genérico do runtime que não
+# menciona arquivo nenhum) — NADA vai apontar para "o uid da imagem mudou".
+# Antes de reinstalar ou depurar qualquer outra coisa, confirme o uid atual
+# rodando, por exemplo:
+#
+#   docker run --rm mcr.microsoft.com/dotnet/aspnet:10.0 id app
+#
+# e ajuste o chown acima se o número tiver mudado.
+secrets:
+  jwt_private:
+    file: /etc/todolist/jwt/private.pem
+  jwt_public:
+    file: /etc/todolist/jwt/public.pem

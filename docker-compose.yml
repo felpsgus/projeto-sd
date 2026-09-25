@@ -17,14 +17,21 @@
 # de BE-02). Nunca usar isso fora da máquina do desenvolvedor; em CI, a
 # connection string vem de variável de ambiente (ver README).
 #
-# Perfil "full" (BE-38): `docker compose --profile full up --build` sobe a
-# stack inteira em container — postgres, migrate, identity, tasks, gateway —
-# para validar os Dockerfiles antes do T3 (Cloud Run). Pré-requisito:
-# `scripts/publish.ps1` já ter gerado artifacts/sql/{01-identity,02-tasks}.sql
-# (o compose não gera SQL — só aplica). Segredo restante (UserStore__DemoUserPassword)
-# vem de um `.env` na raiz, NÃO versionado — veja `.env.example` ao lado deste
-# arquivo. Só o `gateway` publica porta no host (D-32) — `identity` e `tasks`
-# só existem na rede interna do compose.
+# Perfil "full" (BE-38, atualizado na Etapa 13): `docker compose --profile
+# full up --build` sobe a stack inteira em container — postgres, migrate,
+# identity, tasks, gateway, frontend — para validar os Dockerfiles antes do
+# T3 (Cloud Run). Pré-requisito: `scripts/publish.ps1` já ter gerado
+# artifacts/sql/{01-identity,02-tasks}.sql (o compose não gera SQL — só
+# aplica). Segredo restante (UserStore__DemoUserPassword) vem de um `.env` na
+# raiz, NÃO versionado — veja `.env.example` ao lado deste arquivo.
+#
+# Desde a Etapa 13, só o `frontend` publica porta no host: o nginx do seu
+# container (frontend/nginx.conf.template, gêmeo de deploy/nginx/todolist.conf)
+# passa a ser a origem HTTP única, servindo o build do Angular como estático e
+# fazendo proxy de /api/* para o `gateway` — mesma origem para front e API, sem
+# CORS (FD-16/D-40). O `gateway` deixou de publicar porta (antes era a única
+# exceção a D-32); agora `identity`, `tasks` e `gateway` só existem na rede
+# interna do compose, alcançáveis apenas pelo `frontend`.
 #
 # Chaves JWT RS256 (BE-40, D-38): montadas via `secrets:` de nível superior, a
 # partir de `.secrets/jwt/{private,public}.pem` na raiz — gere-as com
@@ -153,8 +160,22 @@ services:
       Jwt__PublicKeyPath: /run/secrets/jwt_public
       # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway — só a
       # chave pública precisa ser apontada aqui (BE-40, D-38).
+    # Sem `ports:` desde a Etapa 13 (D-32 revisado): o gateway deixou de ser
+    # alcançável direto do host. Quem publica porta agora é o `frontend` — seu
+    # nginx é a origem única HTTP e repassa /api/* para cá pela rede interna.
+
+  frontend:
+    build:
+      context: ./frontend
+    image: todolist-frontend
+    profiles: ["full"]
+    depends_on:
+      gateway:
+        condition: service_started
+    environment:
+      GATEWAY_UPSTREAM: gateway:8080
     ports:
-      - "8080:8080"
+      - "80:8080"
 
 volumes:
   todolist-postgres-data:

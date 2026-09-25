@@ -1,33 +1,44 @@
-# nginx — origem única HTTP da VM (BE-42, D-40, D-32).
+# nginx — origem única HTTP do container do frontend (Etapa 13, D-40, D-32).
+#
+# GÊMEO de deploy/nginx/todolist.conf (mesmo conteúdo, dois destinos — este
+# arquivo roda no container `frontend` do docker-compose/Cloud Run; o outro
+# roda direto na VM via systemd/nginx no host, plano B até 22/10). Uma
+# mudança de regra aqui precisa ser replicada lá, e vice-versa.
 #
 # Serve o build do Angular como estático e repassa /api/* para o Gateway, que
-# desde esta task escuta só em 127.0.0.1:8080 (não mais publicado). O nginx NÃO
-# autentica, NÃO valida payload e NÃO decide nada de negócio (D-40) — ele
-# encaminha bytes; qualquer regra que apareça aqui está no lugar errado.
+# nesta Etapa 13 deixou de publicar porta no host (só existe na rede interna
+# do compose / privado no Cloud Run). O nginx NÃO autentica, NÃO valida
+# payload e NÃO decide nada de negócio (D-40) — ele encaminha bytes; qualquer
+# regra que apareça aqui está no lugar errado.
 #
-# Instalado por deploy/install-on-vm.sh em
-# /etc/nginx/sites-available/todolist.conf (link em sites-enabled/), servindo
-# os arquivos publicados em /opt/todolist/frontend — mesmo padrão de destino
-# usado pelos três serviços .NET (/opt/todolist/<serviço>), um nível abaixo.
+# Este arquivo é um TEMPLATE: o entrypoint padrão da imagem nginx
+# (/docker-entrypoint.d/20-envsubst-on-templates.sh) roda envsubst sobre
+# /etc/nginx/templates/*.template e escreve o resultado em
+# /etc/nginx/conf.d/default.conf antes do nginx subir.
 #
-# GÊMEO de frontend/nginx.conf.template (Etapa 13), que roda a mesma lógica
-# dentro do container `frontend` do docker-compose/Cloud Run (porta 8080 em
-# vez de 80, root e proxy_pass parametrizados). Uma mudança de regra aqui
-# precisa ser replicada lá, e vice-versa.
-#
-# ÚNICA divergência deliberada: lá o /api/ usa `resolver` + proxy_pass por
-# variável, porque o upstream é um NOME de container, que muda de IP quando o
-# container é recriado. Aqui o upstream é 127.0.0.1 — IP fixo, sem DNS
-# nenhum — então a forma literal é a correta e não deve ser "alinhada" com a
-# de lá. Ver a nota longa na location /api/ do gêmeo.
-
+# ATENÇÃO envsubst: sem proteção, envsubst substitui TODA sequência $NOME do
+# arquivo, inclusive as variáveis do PRÓPRIO nginx ($uri, $host, $scheme,
+# $proxy_add_x_forwarded_for) — elas não vêm de -e nenhuma, então viram string
+# vazia. `try_files $uri $uri/ /index.html` viraria `try_files   /index.html`
+# e o F5 numa rota profunda (/tasks, /login) passaria a devolver 404 do
+# nginx, com a home continuando a carregar normalmente (sintoma silencioso).
+# A defesa é a variável de ambiente NGINX_ENVSUBST_FILTER, fixada no
+# Dockerfile para permitir só ${GATEWAY_UPSTREAM} — NÃO escape as variáveis
+# do nginx aqui com $${...} ou \$; o filtro é o mecanismo previsto para isso.
 server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 8080 default_server;
     server_name _;
 
-    root /opt/todolist/frontend;
+    root /usr/share/nginx/html;
     index index.html;
+
+    # Resolvedor de DNS usado pelo proxy_pass do /api/ (ver a nota longa lá
+    # embaixo). NGINX_LOCAL_RESOLVERS é montado pelo entrypoint da imagem a
+    # partir do /etc/resolv.conf DESTE container — no compose é o DNS interno
+    # do Docker, no Cloud Run é o resolver de lá. Nenhum IP fixo neste arquivo.
+    # `valid=10s` é o tempo que um nome fica em cache: é o atraso máximo até o
+    # nginx enxergar um container de gateway recriado com IP novo.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
 
     # Headers de segurança básicos (BE-42 CA-08).
     #
@@ -108,9 +119,44 @@ server {
 
     # Proxy reverso da API (D-40): só repassa, nenhuma lógica. O Gateway
     # continua sendo o único ponto de entrada da API (D-32); daqui para a frente
-    # é só encaminhamento de bytes.
+    # é só encaminhamento de bytes. GATEWAY_UPSTREAM vem de variável de
+    # ambiente (docker-compose: gateway:8080; Cloud Run/T3: a URL do serviço
+    # Gateway) — é a ÚNICA substituição que o envsubst do entrypoint faz neste
+    # arquivo (ver NGINX_ENVSUBST_FILTER no Dockerfile).
+    #
+    # ATENÇÃO — por que o upstream passa por uma variável do nginx
+    # (diagnosticado e verificado em 25/09/2026):
+    #
+    # Escrito da forma óbvia — `proxy_pass http://${GATEWAY_UPSTREAM};`, com o
+    # envsubst deixando um hostname LITERAL — o nginx resolve esse nome UMA
+    # VEZ, ao subir, e guarda o IP para sempre. Isso dava dois problemas reais:
+    #
+    #   1. se o nome não resolvia na inicialização, o nginx ABORTAVA
+    #      ("[emerg] host not found in upstream") e o container morria — a
+    #      aplicação inteira saía do ar, não só o /api;
+    #   2. recriar o container do gateway (`docker compose up -d --build
+    #      gateway`) lhe dá um IP novo, e o nginx continuava mandando para o IP
+    #      velho: /api passava a responder 502 sem nenhum erro no log do
+    #      gateway — sintoma que manda você caçar bug no backend errado.
+    #
+    # Quando o proxy_pass contém uma VARIÁVEL, o nginx passa a resolver o nome
+    # a cada requisição, usando a diretiva `resolver` do topo deste server. Os
+    # dois problemas somem: subir sem o gateway agora serve o SPA normalmente e
+    # só o /api responde 502, e um gateway recriado é reencontrado sozinho
+    # dentro do `valid=` do resolver.
+    #
+    # DETALHE QUE NÃO PODE SER PERDIDO: com variável no proxy_pass, o nginx
+    # para de montar a URI de destino automaticamente — sem o `$request_uri`
+    # explícito, /api/tasks chegaria ao Gateway como "/" e toda a API
+    # responderia 404. `$request_uri` é a URI original COM query string, que é
+    # exatamente o que a forma literal enviava.
+    #
+    # O gêmeo deploy/nginx/todolist.conf NÃO precisa disto e continua com o
+    # proxy_pass literal: lá o upstream é 127.0.0.1 (IP fixo, sem DNS). Esta é
+    # a única divergência de regra deliberada entre os dois arquivos.
     location /api/ {
-        proxy_pass http://127.0.0.1:8080;
+        set $api_upstream "http://${GATEWAY_UPSTREAM}";
+        proxy_pass $api_upstream$request_uri;
 
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
