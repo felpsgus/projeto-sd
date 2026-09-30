@@ -26,7 +26,6 @@ tarefas/
 *.env
 .env
 .env.*
-!.env.example
 appsettings.*.local.json
 
 # Scripts e deploy da VM — não usados pelo Dockerfile.

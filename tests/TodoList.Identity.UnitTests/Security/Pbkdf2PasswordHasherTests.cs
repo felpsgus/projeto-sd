@@ -56,7 +56,7 @@ public class Pbkdf2PasswordHasherTests
     [InlineData("pbkdf2-sha256$1000$c2FsdA==$")] // BE-08 (revisão BE-06): segmento de hash vazio — Base64 vazio decodifica sem erro, mas não pode chegar ao Pbkdf2 com tamanho de saída 0
     [InlineData("pbkdf2-sha256$1000$$aGFzaA==")] // BE-08 (revisão BE-06): segmento de salt vazio
     [InlineData("pbkdf2-sha256$1000$$")] // BE-08 (revisão BE-06): salt e hash vazios
-    [InlineData("seed-placeholder-not-a-real-hash-be-06-pending")] // DemoUserSeeder.PlaceholderPasswordHash (BE-33 substitui pelo hash real)
+    [InlineData("seed-placeholder-not-a-real-hash-be-06-pending")] // placeholder legado do T1 — nunca verifica, formato não reconhecido
     public void Verify_ComHashMalformado_RetornaFalseSemLancar(string hashMalformado)
     {
         var hasher = CreateHasher();

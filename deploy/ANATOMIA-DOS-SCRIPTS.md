@@ -195,9 +195,16 @@ done
 Este bloco é o mais importante do script sob o ponto de vista de segurança, e
 **recusa continuar** em dois casos: arquivo ausente, ou algum placeholder ainda
 presente. Desde o T2 o `identity.env` carrega o placeholder `TROQUE_ESTA_SENHA`
-(connection string e `UserStore__DemoUserPassword`) — e o `gateway.env` entra
-na mesma checagem por consistência, ainda que não tenha segredo nenhum: é o
-mesmo portão, para não haver um quarto arquivo com regra própria.
+(connection string) — e o `gateway.env` entra na mesma checagem por
+consistência, ainda que não tenha segredo nenhum: é o mesmo portão, para não
+haver um quarto arquivo com regra própria.
+
+> **Onda E (T2): o seed de demonstração saiu.** Até então, `identity.env`
+> também carregava `UserStore__SeedDemoUsers`/`UserStore__DemoUserPassword` —
+> um segundo placeholder de senha (`DemoUserSeeder`, dois usuários fixos em
+> `identity.users`). Com o cadastro real (`POST /api/auth/register`) esse
+> atalho deixou de fazer sentido e foi removido; `identity.env` só carrega mais
+> a connection string.
 
 > **BE-40 mudou onde a chave JWT vive.** Até o T2, havia um segundo placeholder
 > aqui, `TROQUE_ESTA_CHAVE` (`Jwt__SigningKey`, HS256). Desde BE-40 (RS256,
@@ -560,9 +567,12 @@ Valores que merecem atenção:
   chega via `LoadCredential=` do unit do Identity, o segundo via `Environment=`
   do unit do Gateway. Trocar a chave ainda invalida toda sessão em andamento
   (isso não mudou); o que mudou é onde ela mora e quem pode lê-la.
-- `UserStore__DemoUserPassword` (novo no T2, só em `identity.env`) — obrigatória
-  quando `UserStore__SeedDemoUsers=true` (D-36); é a senha em texto puro que o
-  seed usa para gerar o hash dos usuários de demonstração.
+- **`UserStore__SeedDemoUsers`/`UserStore__DemoUserPassword` não existem mais.**
+  Chegaram a existir em `identity.env` no T2 (D-36), quando ainda não havia
+  cadastro real: o `DemoUserSeeder` populava `identity.users` com dois usuários
+  fixos, e a senha em texto puro deles vinha por aqui. Onda E removeu o seed —
+  cadastro é real agora (`POST /api/auth/register`) — e junto com ele estas
+  duas variáveis.
 - `Backends__IdentityGrpcAddress` / `Backends__TasksGrpcAddress` (novo no T2, só
   em `gateway.env`) — os dois endereços gRPC internos, sempre `127.0.0.1`
   (D-33). Este continua sendo o único `.env` sem segredo (a chave pública do
@@ -616,8 +626,8 @@ pública.
 Tasks, Gateway); o nginx sobe pelo próprio `enable` do pacote da distro,
 independente da ordem dos três `.NET`.
 
-**"Onde estão os segredos (senha do banco, chave JWT, senha de demonstração)?"**
-Senha do banco e senha de demonstração: em `/etc/todolist/*.env` na VM, `600
+**"Onde estão os segredos (senha do banco, chave JWT)?"**
+Senha do banco: em `/etc/todolist/*.env` na VM, `600
 root:root`, fora do repositório — `install-on-vm.sh` se recusa a instalar se
 algum `.env` faltar ou ainda tiver o placeholder `TROQUE_ESTA_SENHA`. A chave
 JWT (desde BE-40) não é um `.env`: é `/etc/todolist/jwt/private.pem`, `root:root

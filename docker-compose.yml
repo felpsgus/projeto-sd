@@ -22,8 +22,11 @@
 # identity, tasks, gateway, frontend — para validar os Dockerfiles antes do
 # T3 (Cloud Run). Pré-requisito: `scripts/publish.ps1` já ter gerado
 # artifacts/sql/{01-identity,02-tasks}.sql (o compose não gera SQL — só
-# aplica). Segredo restante (UserStore__DemoUserPassword) vem de um `.env` na
-# raiz, NÃO versionado — veja `.env.example` ao lado deste arquivo.
+# aplica). Onda E (T2): o seed de demonstração (DemoUserSeeder,
+# UserStore__SeedDemoUsers/DemoUserPassword) foi removido — não sobra mais
+# segredo nenhum do Identity fora das chaves JWT (via `secrets:`, abaixo);
+# cadastre contas pela API/tela (POST /api/auth/register) ou pelo próprio
+# scripts/demo-t2.ps1.
 #
 # Desde a Etapa 13, só o `frontend` publica porta no host: o nginx do seu
 # container (frontend/nginx.conf.template, gêmeo de deploy/nginx/todolist.conf)
@@ -108,18 +111,17 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    env_file:
-      - .env
     secrets:
       - jwt_private
     environment:
       ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=todolist;Username=postgres;Password=postgres
       UserStore__Provider: Persisted
-      UserStore__SeedDemoUsers: "true"
       Jwt__PrivateKeyPath: /run/secrets/jwt_private
-      # UserStore__DemoUserPassword vem do .env (env_file acima) — nunca
-      # fixado aqui (CA-05, nenhum segredo em ENV/imagem). A chave privada não
-      # é variável de ambiente: é o secret montado acima (BE-40, D-38).
+      # A chave privada não é variável de ambiente: é o secret montado acima
+      # (BE-40, D-38). Sem `env_file:` — desde que o seed de demonstração
+      # saiu (Onda E), o Identity não tem mais nenhum segredo de texto puro
+      # próprio; a connection string acima é a credencial de desenvolvimento
+      # local de sempre (CA-11 de BE-02), não um segredo real.
     # Sem `ports:` (D-32): só o gateway é alcançável do host.
 
   tasks:

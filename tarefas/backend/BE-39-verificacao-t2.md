@@ -124,3 +124,37 @@ Os três casos respondem **401** com o mesmo corpo (`errorCode=auth.unauthorized
 - [ ] **CA-03 (revisado)** — O roteiro de apresentação cabe em **10 minutos** num ensaio cronometrado real, partindo do frontend, com o tempo registrado — substitui o limite de 5 minutos do CA-03 original.
 
 Os demais critérios de aceite do texto original (CA-05 a CA-09) continuam válidos: os dois 401 do par sem-token/token-lixo, o 401 do usuário inativo, o 503 do Identity fora do ar, o `traceId` compartilhado e a ausência de segredo em log seguem sendo evidência obrigatória — a diferença é que agora atravessam também o nginx e, no caso do 401, ganham o terceiro caso (token adulterado) e a mediação do frontend.
+
+## Emenda (25/09/2026) — Onda E: seed de demonstração removido, cadastro real abre o roteiro
+
+Com o cadastro real disponível (`POST /api/auth/register`, fase 3, `f7da0e8`), o `DemoUserSeeder` e as
+opções `UserStore:SeedDemoUsers`/`UserStore:DemoUserPassword` foram **removidos** — não fazia mais
+sentido manter, ligado por padrão em `deploy/identity.env.example`, um atalho que o próprio código
+avisava para "nunca ligar em produção". Isso reescreve o passo 3 da sequência original e o item 3 do
+roteiro de 10 minutos:
+
+- **Passo 3 (login do usuário ativo) vira dois passos**: `POST /api/auth/register` com um e-mail novo a
+  cada execução (nunca fixo — rodar o script duas vezes seguidas, ensaio e depois apresentação, não pode
+  colidir com um 409 de e-mail já cadastrado), seguido do login com essa mesma conta. A numeração dos
+  passos seguintes desloca em um (o antigo passo 4 vira 5, o antigo passo 6 — usuário inativo — vira 7).
+- **Passo 7 (usuário inativo, RN-AUTH-09) perdeu a conta pronta.** Não existe rota para desativar uma
+  conta pela API — decisão consciente desta onda: seria superfície de negócio nova, fora de escopo. A
+  conta é criada por cadastro comum e desativada por um `UPDATE` direto no banco, documentado em
+  `deploy/README.md` ("No dia da apresentação"):
+
+  ```sql
+  UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
+  ```
+
+  `scripts/demo-t2.ps1 -InactiveEmail <email>` / `DEMO_INACTIVE_EMAIL=<email> deploy/smoke.sh` apontam
+  para essa conta. **Sem o parâmetro, o passo é PULADO com um aviso explícito** — nunca falha
+  silenciosamente, nunca conta como sucesso por omissão. CA-06 (o 401 do usuário inativo) continua
+  exigível como evidência obrigatória da apresentação; o que muda é que a conta precisa existir de
+  antemão, preparada uma vez, não a cada execução.
+- **Roteiro de 10 minutos, Ato 1**: passa a abrir com cadastro **ao vivo** pelo frontend, não só login —
+  é o que a Onda E chama de "abrir o roteiro pelo cadastro real". Orçamento de tempo ajustado em
+  `deploy/README.md`, seção 8.
+- Todas as menções a `ada.lovelace@todolist.example`/`charles.babbage@todolist.example` no `README.md` e
+  em `deploy/README.md` como contas prontas do roteiro foram removidas ou marcadas como histórico
+  (a tabela de ids fixos de `InMemoryUserLookup`, usada só para `ValidateUser` em memória — D-39 — não é
+  afetada; ela nunca dependeu do seed).

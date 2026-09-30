@@ -40,8 +40,9 @@ public sealed class Pbkdf2PasswordHasher : IPasswordHasher
         // CA-03: qualquer formato inesperado — segmentos faltando, prefixo
         // desconhecido, Base64 inválido, iterações não numéricas ou ≤ 0 —
         // resulta em false, nunca exceção. Isso cobre inclusive um hash
-        // legado que não siga este formato (ex.: o placeholder do T1 que o
-        // DemoUserSeeder sincroniza para um hash real, BE-33 CA-09).
+        // legado que não siga este formato (ex.: o placeholder do T1, que
+        // nunca verifica contra senha nenhuma e por isso força o cadastro
+        // real a regravar um hash de verdade na primeira troca de senha).
         var parts = hash.Split('$');
 
         if (parts.Length != 4 || parts[0] != Prefix)

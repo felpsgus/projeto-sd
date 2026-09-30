@@ -121,6 +121,10 @@ No frontend, os filtros sincronizam com a URL — é o que torna um resultado co
 `UserStore:SeedDemoUsers` e `UserStore:DemoUserPassword` saem de cena, e com eles o aviso de "nunca
 ligue isto em produção" que hoje mora no `identity.env.example`.
 
+**Feito (Onda E, 25/09/2026):** `DemoUserSeeder` removido, junto com as duas opções e o aviso. O passo
+do usuário inativo (RN-AUTH-09) que o seed cobria passou a ser um cadastro comum seguido de um `UPDATE`
+direto no banco — ver `deploy/README.md`, seção 8, e `tarefas/backend/BE-39-verificacao-t2.md`.
+
 **Não depende de decisão nenhuma.** A "decisão 2" que esta linha citava não existia — ver a correção
 acima: a exclusão de conta sai de graça pela cascata da FK.
 

@@ -104,12 +104,12 @@ services:
       # docker-compose.yml de dev.
       ASPNETCORE_ENVIRONMENT: Production
       UserStore__Provider: Persisted
-      UserStore__SeedDemoUsers: "true"
-      # Segredos vindos do .env um a um (ver a explicação no serviço `migrate`):
-      # o Identity recebe a SUA connection string e a senha do seed, e NÃO a
-      # connection string do Tasks nem as variáveis libpq do `migrate`.
+      # Segredo vindo do .env (ver a explicação no serviço `migrate`): o
+      # Identity recebe a SUA connection string, e NÃO a connection string do
+      # Tasks nem as variáveis libpq do `migrate`. Onda E (T2): não existe mais
+      # UserStore__SeedDemoUsers/DemoUserPassword aqui — o seed de
+      # demonstração foi removido (cadastro real, POST /api/auth/register).
       ConnectionStrings__IdentityDb: ${ConnectionStrings__IdentityDb:?defina ConnectionStrings__IdentityDb no .env}
-      UserStore__DemoUserPassword: ${UserStore__DemoUserPassword:?defina UserStore__DemoUserPassword no .env (obrigatoria com SeedDemoUsers=true)}
       # Caminho onde o secret é montado DENTRO do container (ver `secrets:` no
       # fim deste arquivo) — é topologia de container, não segredo em si; a
       # chave que é segredo é o conteúdo do arquivo, não este caminho fixo.

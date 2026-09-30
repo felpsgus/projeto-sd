@@ -91,8 +91,10 @@ for arquivo in /etc/todolist/identity.env /etc/todolist/tasks.env /etc/todolist/
     else
         chmod 600 "$arquivo"
         chown root:root "$arquivo"
-        # TROQUE_ESTA_SENHA cobre a connection string e a UserStore__DemoUserPassword
-        # do identity.env e do tasks.env. Desde BE-40 (D-38/RS256) não existe mais
+        # TROQUE_ESTA_SENHA cobre a connection string do identity.env e do
+        # tasks.env (Onda E, T2: não existe mais UserStore__DemoUserPassword —
+        # o seed de demonstração saiu, cadastro agora é real). Desde BE-40
+        # (D-38/RS256) não existe mais
         # TROQUE_ESTA_CHAVE — a chave JWT não é uma variável de .env, é o par de
         # arquivos PEM gerado logo abaixo, na própria VM. O gateway.env não tem
         # segredo, mas passa pelo mesmo portão por consistência e para pegar o

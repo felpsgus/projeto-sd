@@ -12,8 +12,13 @@
     serviço, é a evidência de que a requisição atravessou Gateway -> Tasks ->
     Identity (e Gateway -> Identity, na validação do token) por gRPC.
 
-    Depois que este script terminar, dispare os seis passos com:
-        ./scripts/demo-t2.ps1 -DemoPassword <a senha impressa abaixo>
+    Depois que este script terminar, dispare os passos com:
+        ./scripts/demo-t2.ps1 -Password <qualquer senha de desenvolvimento, 8+ caracteres, letra e número>
+
+    Onda E (T2): não existe mais seed de demonstração — scripts/demo-t2.ps1
+    cadastra sua própria conta a cada execução (POST /api/auth/register), então
+    a senha aqui não precisa mais ser sincronizada entre este script e aquele:
+    qualquer valor que satisfaça a política de senha (RN-AUTH-04) serve.
 
 .PARAMETER SkipMigrations
     Pula o 'dotnet ef database update' dos dois serviços. Use em ensaios repetidos,
@@ -38,11 +43,6 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $identityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=$PostgresPassword"
 $tasksDb = $identityDb
-
-# UserStore:DemoUserPassword (BE-33) também NUNCA é versionada. Senha aleatória
-# por execução, impressa no console para o roteiro de login — o seed regrava o
-# hash dos dois usuários de demonstração toda vez que ela mudar (idempotente).
-$demoUserPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(12))
 
 function Write-Etapa([string]$texto) {
     Write-Host ""
@@ -119,14 +119,13 @@ if (-not $SkipMigrations) {
 
 # UserStore:Provider=Persisted não é conforto: com o padrão InMemory o Identity
 # aprovaria por gRPC um dono que não existe em identity.users, e a criação da tarefa
-# quebraria só no INSERT, na FK cruzada — falha tardia e confusa. SeedDemoUsers popula
-# os dois ids fixos usados pelo roteiro.
+# quebraria só no INSERT, na FK cruzada — falha tardia e confusa. Onda E: não há
+# mais seed nenhum para popular contas — cadastre pela tela ou por
+# scripts/demo-t2.ps1 (que se cadastra sozinho a cada execução).
 $comandoIdentity = @(
     "Set-Location '$root'"
     "`$env:ConnectionStrings__IdentityDb = '$identityDb'"
     "`$env:UserStore__Provider = 'Persisted'"
-    "`$env:UserStore__SeedDemoUsers = 'true'"
-    "`$env:UserStore__DemoUserPassword = '$demoUserPassword'"
     "`$env:Jwt__PrivateKeyPath = '$jwtPrivateKeyPath'"
     "`$env:ASPNETCORE_ENVIRONMENT = 'Development'"
     "`$Host.UI.RawUI.WindowTitle = 'IDENTITY (servidor gRPC) — 5080 REST / 5081 gRPC'"
@@ -183,8 +182,7 @@ Write-Host '  Identity  http://localhost:5080  (REST /health)   http://localhost
 Write-Host '  Tasks     http://localhost:5100  (REST /health)   http://localhost:5101 (gRPC h2c)'
 Write-Host '  Gateway   http://localhost:8080  (REST — a única borda pública, D-32)'
 Write-Host ''
-Write-Host "  Senha dos usuários de demonstração (Login, BE-33): $demoUserPassword" -ForegroundColor Yellow
-Write-Host ''
-Write-Host "  Próximo passo:  ./scripts/demo-t2.ps1 -DemoPassword $demoUserPassword"
+Write-Host '  Próximo passo:  ./scripts/demo-t2.ps1 -Password "<sua senha de desenvolvimento>"'
+Write-Host '                  (scripts/demo-t2.ps1 cadastra sua própria conta a cada execução — Onda E)'
 Write-Host '  Para encerrar:  feche as três janelas (Ctrl+C) e rode  docker compose down'
 Write-Host ''

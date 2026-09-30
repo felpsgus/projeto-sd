@@ -19,7 +19,7 @@ TodoList.sln
 │   ├── Identity/                          ← Identity Service (servidor gRPC, BE-26)
 │   │   ├── TodoList.Identity.Domain       ← User, Email (Users/, BE-04); IAuditable/ISoftDeletable (Common/, BE-02)
 │   │   ├── TodoList.Identity.Application  ← IUserLookup, IUserRepository (Users/, BE-04); IUnitOfWork (Persistence/, BE-02)
-│   │   ├── TodoList.Identity.Infrastructure ← UserRepository, PersistedUserLookup, InMemoryUserLookup, DemoUserSeeder (Users/, BE-04/BE-26); IdentityDbContext + migrations (Persistence/, BE-02)
+│   │   ├── TodoList.Identity.Infrastructure ← UserRepository, PersistedUserLookup, InMemoryUserLookup (Users/, BE-04/BE-26); IdentityDbContext + migrations (Persistence/, BE-02)
 │   │   └── TodoList.Identity.Api          ← IdentityGrpcService, gera o lado Server do .proto
 │   └── Tasks/                             ← Tasks Service (cliente gRPC, a partir de BE-27)
 │       ├── TodoList.Tasks.Domain          ← IAuditable/ISoftDeletable (Common/, BE-02)
@@ -146,32 +146,28 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
   descartado); `InMemoryUserLookup` continua efetivamente único no processo porque ele mesmo é
   registrado como `Singleton` por baixo do wrapper `Scoped`.
 
-### Seed de usuários de demonstração no banco (`UserStore:SeedDemoUsers`)
+### Cadastro real, não seed (Onda E, T2)
 
-Independente do `Provider` acima, `UserStore:SeedDemoUsers=true` liga o `DemoUserSeeder`, que
-popula `identity.users` com os **mesmos dois ids fixos** da tabela acima — necessário porque a FK
-cruzada `tasks.tasks.owner_id → identity.users(id)` (nota mais abaixo) exige que esses usuários
-existam de verdade no banco, não só no seed em memória. **Desligado por padrão** (nunca ligue em
-produção). Idempotente — rodar de novo não duplica nem falha — e emite **log de aviso** quando roda.
-Nunca chama `EnsureCreated()`/`Migrate()`: pressupõe que a migration do BE-04 (`AddUsersTable`) já foi
-aplicada (seção seguinte).
+Até a fase 3 do T2, sem cadastro de verdade, existia um `UserStore:SeedDemoUsers` que ligava um
+`DemoUserSeeder` populando `identity.users` com dois usuários fixos — necessário na época porque a FK
+cruzada `tasks.tasks.owner_id → identity.users(id)` (nota mais abaixo) exigia que algum usuário
+existisse de verdade no banco, não só no seed em memória. Com o cadastro real
+(`POST /api/auth/register`, ver "gRPC do Identity Service" acima), esse atalho deixou de fazer
+sentido — cadastre a conta que for usar pela tela, por `curl`/Scalar, ou deixe que
+`scripts/demo-t2.ps1` cadastre a sua própria a cada execução — e foi **removido**: não existem mais
+`UserStore:SeedDemoUsers` nem `UserStore:DemoUserPassword`, em nenhum ambiente.
 
-**Senha real (BE-33).** Com `SeedDemoUsers=true`, `UserStore:DemoUserPassword` passa a ser
-**obrigatória** — sem ela, a inicialização **falha** (mesmo padrão de `Jwt:PrivateKeyPath`, BE-40).
-É a senha em texto puro dos dois usuários de demonstração, lida só na inicialização e nunca versionada
-(user-secrets/variável de ambiente):
+**Usuário inativo (RN-AUTH-09).** Não existe rota para desativar uma conta pela API — só o domínio
+tem `User.Deactivate()`, sem endpoint que o exponha (decisão consciente: seria superfície de negócio
+nova, fora do escopo desta onda). Para demonstrar que um usuário inativo recebe a mesma resposta 401
+de uma senha errada, cadastre uma conta normalmente e desative-a com um `UPDATE` direto no banco:
 
-```powershell
-dotnet user-secrets set "UserStore:DemoUserPassword" "<senha de demonstração>" --project src/Identity/TodoList.Identity.Api
-# ou, sem user-secrets:
-$env:UserStore__DemoUserPassword = "<senha de demonstração>"
+```sql
+UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
 ```
 
-O seed sincroniza a senha a cada execução: usuário novo recebe `Hash(senha)`; usuário que já existe
-só tem o hash regravado se a senha atual não bater mais com `DemoUserPassword` (idempotente) — é
-assim que os dois usuários herdados de um ambiente antigo (ou uma troca de `DemoUserPassword` entre
-implantações) ganham uma senha utilizável, sem duplicar nem falhar. `./scripts/demo-local.ps1` gera
-essa senha aleatoriamente a cada execução e a imprime no console ao final.
+Depois disso, `scripts/demo-t2.ps1 -InactiveEmail inativo@todolist.example` exercita o passo — ver
+"No dia da apresentação" em `deploy/README.md` para o roteiro completo.
 
 **Login (BE-33) exige `UserStore:Provider=Persisted`.** Com `Provider=InMemory`, não existe
 senha/hash associado aos usuários semeados em memória — `Login` sempre responde `succeeded=false`
@@ -499,10 +495,9 @@ dotnet ef database update --project src/Tasks/TodoList.Tasks.Infrastructure --st
 Depois, **um terminal para cada serviço** — Identity primeiro, Tasks depois:
 
 ```powershell
-# terminal 1 — Identity: lê os usuários do banco e popula identity.users com os dois ids de demonstração
+# terminal 1 — Identity
 $env:ConnectionStrings__IdentityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
 $env:UserStore__Provider = "Persisted"
-$env:UserStore__SeedDemoUsers = "true"
 dotnet run --project src/Identity/TodoList.Identity.Api
 ```
 
@@ -518,7 +513,17 @@ dotnet run --project src/Tasks/TodoList.Tasks.Api
 > `identity.users` — o Identity aprovaria um dono que o banco não conhece, e a criação falharia no
 > `INSERT`, não na validação. Para o roteiro, os dois lados precisam olhar para o mesmo banco.
 
-Usuários de demonstração (ids fixos, criados pelo `DemoUserSeeder` — ver a seção de store de usuários):
+Este roteiro histórico (BE-31/T1) usa os mesmos dois ids fixos de `InMemoryUserLookup` (seção de
+store de usuários acima), mas contra `Provider=Persisted` eles precisam existir de verdade em
+`identity.users` — antes da Onda E isso vinha de um seed automático (`DemoUserSeeder`, removido: o
+cadastro é real agora, veja "Cadastro real, não seed" acima). Para reproduzir este roteiro específico,
+insira os dois manualmente (nunca faz login, só `ValidateUser`/FK — a senha não importa aqui):
+
+```sql
+INSERT INTO identity.users (id, email, display_name, password_hash, is_active, created_at, updated_at) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'dono-valido@todolist.example', 'Dono válido', 'not-a-real-hash-legacy-be31-walkthrough', true, now(), now()),
+  ('10000000-0000-0000-0000-000000000002', 'dono-inativo@todolist.example', 'Dono inativo', 'not-a-real-hash-legacy-be31-walkthrough', false, now(), now());
+```
 
 | Papel no roteiro | Id | `active` |
 |---|---|---|
@@ -661,9 +666,9 @@ cliente do Identity precisaria repetir o remendo, e um deles vai esquecer. Decla
 | `curl` devolve "connection refused" em `5100` | o Tasks não subiu, ou está em outra porta | ver o terminal 2; conferir `Kestrel:Endpoints:Http:Url` |
 | **503** `identity.unavailable` em toda requisição | o Identity não está no ar, ou `Identity:GrpcAddress` aponta para o lugar errado | subir o Identity primeiro; conferir a chave (seção "Configuração") |
 | Erro de **protocolo** no canal gRPC (`HTTP/1.1` onde se esperava HTTP/2) | o endpoint gRPC não está declarado `Protocols: Http2` | ver a nota sobre h2c acima — corrigir no servidor, não no cliente |
-| **404** `task.owner_not_found` com um id que você acredita existir | o id não existe **no Identity** — ou o Identity está lendo de outro store | conferir `UserStore:Provider` e se o `DemoUserSeeder` rodou |
+| **404** `task.owner_not_found` com um id que você acredita existir | o id não existe **no Identity** — ou o Identity está lendo de outro store | conferir `UserStore:Provider` e se o usuário foi de fato cadastrado/inserido nesse store |
 | **400** apontando `X-User-Id` | header ausente, vazio ou não é um `Guid` | é o comportamento esperado do modo provisório (BE-29): sem dono não há o que validar |
-| **500** no `INSERT`, depois de o Identity aprovar | FK cruzada: o dono existe no store do Identity mas não em `identity.users` | `UserStore__Provider=Persisted` + `SeedDemoUsers=true`, e migration do Identity aplicada |
+| **500** no `INSERT`, depois de o Identity aprovar | FK cruzada: o dono existe no store do Identity mas não em `identity.users` | `UserStore__Provider=Persisted`, com o usuário já cadastrado/inserido em `identity.users`, e migration do Identity aplicada |
 
 > **Dois identificadores diferentes, de propósito — e é uma armadilha.** O `traceId` do **corpo de erro**
 > (`0HNOBBK8JELVK:00000001`) é o `HttpContext.TraceIdentifier`, escolhido em BE-03 para correlacionar a
@@ -689,8 +694,7 @@ Isso executa os quatro projetos de teste. Com Docker de pé são **296 testes**;
   (CA-13 de BE-02), varredura contra connection string versionada (CA-11 de BE-02), validação de
   configuração na inicialização, `IdentityGrpcService`/`InMemoryUserLookup`/`PersistedUserLookup` com
   `IUserLookup`/`IUserRepository` substituídos, `Email`/`User` de domínio (CA-01 a CA-09 de BE-04),
-  reflection sobre `User` (nenhum setter público — CA-07/CA-08 de BE-04) e `DemoUserSeeder` com
-  `IUserRepository` substituído (idempotência).
+  e reflection sobre `User` (nenhum setter público — CA-07/CA-08 de BE-04).
 - `TodoList.Identity.IntegrationTests` — `GET /health` (liveness) e `GET /health/ready` (readiness,
   degradado sem derrubar o processo — CA-03/CA-04 de BE-02), o servidor gRPC real subido por
   `WebApplicationFactory` invocado por um cliente gRPC de teste (`ValidateUser`, `ValidateToken`,
@@ -700,9 +704,8 @@ Isso executa os quatro projetos de teste. Com Docker de pé são **296 testes**;
   Testcontainers/Postgres — round-trip de `timestamptz`, idempotência de migration, readiness com o banco
   de pé (CA-05/CA-02b/CA-04 de BE-02), índice único de e-mail (CA-10/CA-11 de BE-04), serialização JSON
   sem `PasswordHash` (CA-12 de BE-04), `UserRepository.GetByEmailAsync`/`EmailExistsAsync` (comparação do
-  value object `Email` traduzida pelo EF contra a coluna convertida), `PersistedUserLookup` refletindo
-  desativação sem reiniciar (CA-13 de BE-26) e `DemoUserSeeder` rodado duas vezes contra o mesmo banco sem
-  duplicar.
+  value object `Email` traduzida pelo EF contra a coluna convertida) e `PersistedUserLookup` refletindo
+  desativação sem reiniciar (CA-13 de BE-26).
 - `TodoList.Tasks.UnitTests` — mesma cobertura de arquitetura do Identity (incluindo CA-12/CA-13 de BE-02,
   e a varredura por endereço/porta literal fora de `appsettings*.json` — CA-01 de BE-30), para o Tasks
   Service, além da validação de inicialização de `IdentityGrpcOptions` (`Identity:GrpcAddress` ausente ou
@@ -782,7 +785,6 @@ REST de negócio — `POST /api/tasks` (BE-29) foi removido, e `/api/tasks` deix
 | `ASPNETCORE_URLS` | ambos | — | não | já é variável de ambiente — alternativa/complemento a `Kestrel:Endpoints:*`, padrão do ASP.NET Core |
 | `Tasks:MaxActivePerUser` | Tasks | `500` | não (`null` desativa o limite) | `Tasks__MaxActivePerUser` |
 | `UserStore:Provider` | Identity | `Persisted` (D-39, desde BE-40) | não (tem padrão) | `UserStore__Provider` |
-| `UserStore:DemoUserPassword` | Identity | — (nunca versionada) | sim, se `SeedDemoUsers=true` (BE-33) | `UserStore__DemoUserPassword` |
 | `Jwt:Issuer` | Identity, Gateway | `todolist-identity` | sim | `Jwt__Issuer` |
 | `Jwt:Audience` | Identity, Gateway | `todolist` | sim | `Jwt__Audience` |
 | `Jwt:PrivateKeyPath` | Identity | — (nunca versionada, PEM PKCS8 RSA ≥ 2048 bits, CA-03 a CA-06 de BE-40, D-38) | sim | `Jwt__PrivateKeyPath` — ver seção acima |
@@ -838,8 +840,8 @@ O cliente gRPC do Tasks e a validação de dono na criação de tarefa (BE-27/BE
 assim como a configuração por ambiente dos endereços/portas dos dois serviços e do cliente gRPC (BE-30,
 seção "Configuração" acima) e o roteiro de verificação de ponta a ponta dos três caminhos (BE-31, seção
 "Rodando os dois serviços"). Segue fora do escopo desta etapa: validação real de JWT em `ValidateToken`
-(fica para o API Gateway, D-31), autenticação/hash de senha real (BE-06/BE-08/BE-09 — `DemoUserSeeder` usa
-um `PasswordHash` placeholder documentado, não um hash válido), endpoints de usuário (BE-07/BE-14), o
+(fica para o API Gateway, D-31), autenticação/hash de senha real (BE-06/BE-08/BE-09 — o seed em memória
+desta etapa usava um `PasswordHash` placeholder documentado, não um hash válido), endpoints de usuário (BE-07/BE-14), o
 handler `DELETE /api/me` de exclusão de conta (BE-16 — a FK que sustenta a cascata das tarefas já existe,
 mas o endpoint em si ainda não), qualquer regra de negócio de tarefa e o pipeline de CI (BE-24) — inclusive
 a varredura por `JOIN`/nome de schema entre serviços (CA-14 de BE-02), que entra junto das varreduras de
@@ -960,8 +962,11 @@ serviços. Os trechos de log abaixo são saída literal de uma execução real, 
 
 ```powershell
 ./scripts/demo-local.ps1                          # Postgres + migrations na ordem + os três serviços, cada um numa janela
-./scripts/demo-t2.ps1 -DemoPassword <senha impressa por demo-local.ps1>
+./scripts/demo-t2.ps1 -Password "<qualquer senha de desenvolvimento, 8+ caracteres, letra e número>"
 ```
+
+Onda E (T2): não existe mais seed de demonstração — `demo-t2.ps1` cadastra sua própria conta a cada
+execução (`POST /api/auth/register`), então a senha acima não precisa ser a mesma entre execuções.
 
 `demo-t2.ps1` aceita `-BaseUrl` — é o mesmo script que roda no dia da apresentação, apontado para o IP
 externo da VM (BE-39 CA-04, verificação **de fora**, não de `127.0.0.1` dentro da própria VM). Dentro da
@@ -995,8 +1000,6 @@ removeu o gatilho REST provisório), Gateway por último (é quem chama os outro
 # terminal 1 — Identity: gRPC em 5081, REST (só /health) em 5080
 $env:ConnectionStrings__IdentityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
 $env:UserStore__Provider = "Persisted"
-$env:UserStore__SeedDemoUsers = "true"
-$env:UserStore__DemoUserPassword = "<gerada por você, nunca versionada>"
 $env:Jwt__PrivateKeyPath = "$PWD/.secrets/jwt/private.pem"
 dotnet run --project src/Identity/TodoList.Identity.Api
 ```
@@ -1013,22 +1016,22 @@ $env:Jwt__PublicKeyPath = "$PWD/.secrets/jwt/public.pem"
 dotnet run --project src/Gateway/TodoList.Gateway.Api
 ```
 
-Usuários do seed (`DemoUserSeeder` — ver a seção de seed de usuários acima), com a senha de
-`UserStore:DemoUserPassword`:
+Nenhum usuário pronto para logar — cadastre um pelo Scalar/`curl` (`POST /api/auth/register`) ou deixe
+que o próprio `scripts/demo-t2.ps1` cadastre o dele (próxima seção). Para o passo do usuário inativo
+(RN-AUTH-09), cadastre uma segunda conta e desative-a por SQL — ver "Cadastro real, não seed" acima e
+"No dia da apresentação" em `deploy/README.md`.
 
-| Papel no roteiro | E-mail | `active` |
-|---|---|---|
-| Usuário ativo | `ada.lovelace@todolist.example` | `true` |
-| Usuário inativo | `charles.babbage@todolist.example` | `false` |
-
-### 3. `scripts/demo-t2.ps1`: os seis passos
+### 3. `scripts/demo-t2.ps1`
 
 ```powershell
-./scripts/demo-t2.ps1 -DemoPassword "<a senha de UserStore:DemoUserPassword>"
+./scripts/demo-t2.ps1 -Password "<qualquer senha de desenvolvimento>"
+# com a conta inativa já desativada por SQL:
+./scripts/demo-t2.ps1 -Password "<...>" -InactiveEmail "inativo@todolist.example"
 ```
 
 ```text
-API Gateway: http://localhost:8080
+Origem verificada: http://localhost:8080
+Conta desta execução: demo-t2-20260925101530214@todolist.example
 
 --- 1. POST /api/tasks sem token
     OK   HTTP 401 / auth.unauthorized
@@ -1036,27 +1039,34 @@ API Gateway: http://localhost:8080
 --- 2. POST /api/tasks com token lixo
     OK   HTTP 401 / auth.unauthorized
 
---- 3. POST /api/auth/login (usuário ativo)
+--- 3. POST /api/auth/register (conta nova)
+    OK   HTTP 201
+
+--- 4. POST /api/auth/login (conta recém-cadastrada)
     OK   HTTP 200
 
---- 4. POST /api/tasks com título vazio
+--- 2b. POST /api/tasks com token adulterado
+    OK   HTTP 401 / auth.unauthorized
+
+--- 5. POST /api/tasks com título vazio
     OK   HTTP 400
 
---- 5. POST /api/tasks válido
+--- 6. POST /api/tasks válido
     OK   HTTP 201
-    OK   5b. Location: /api/tasks/c5cdd314-5cec-4ca7-9a39-e18793f63524
+    OK   6b. Location: /api/tasks/c5cdd314-5cec-4ca7-9a39-e18793f63524
 
---- 6. POST /api/auth/login (usuário inativo)
-    OK   HTTP 401 / auth.invalid_credentials
+--- 7. POST /api/auth/login (usuário inativo)
+    PULADO — nenhum -InactiveEmail informado. Sem ele, este passo não exercita RN-AUTH-09.
 
 Todos os passos responderam como esperado.
-Agora procure, nos três painéis de log (Gateway, Tasks, Identity), o mesmo traceId do passo 5.
+Agora procure, nos três painéis de log (Gateway, Tasks, Identity), o mesmo traceId do passo 6.
 ```
 
-Saída literal de uma execução real contra os três serviços locais — exit code `0`. Qualquer status
-divergente faz o script sair com `1` (BE-39 CA-02).
+Saída literal (adaptada para omitir o passo 7, que depende de uma conta desativada por SQL) de uma
+execução real contra os três serviços locais — exit code `0`. Qualquer status divergente faz o script
+sair com `1` (BE-39 CA-02); o passo 7 pulado nunca conta como falha.
 
-### 4. Evidência de log: o mesmo `traceId` nos serviços envolvidos (passo 5)
+### 4. Evidência de log: o mesmo `traceId` nos serviços envolvidos (passo 6)
 
 > **Nota (BE-40).** O trecho de log abaixo é da execução do T2 **antes** de BE-40 — capturado
 > quando o Gateway ainda perguntava `ValidateToken` ao Identity por gRPC a cada requisição (D-31
@@ -1069,7 +1079,7 @@ divergente faz o script sair com `1` (BE-39 CA-02).
 > em `deploy/README.md`); a evidência abaixo continua válida para entender o formato do `traceId`
 > correlacionado, só a contagem de saltos que mudou.
 
-O par sucesso é o par login (passo 3) + criação (passo 5). Abaixo, os logs reais do passo 5, de uma
+O par sucesso é o par login (passo 4) + criação (passo 6). Abaixo, os logs reais desse passo, de uma
 execução anterior a BE-40 — a mesma requisição atravessava Gateway → Identity (`ValidateToken`),
 Gateway → Tasks (`CreateTask`), e Tasks → Identity (`ValidateUser`), e as **três** paradas
 carregavam o mesmo `traceId` (`00-2d5590b724dcaf24a7e19108dbc1d95c-...`):
@@ -1146,12 +1156,13 @@ de rodar.
 
 | Requisito de `t2.md` | Passo do roteiro | Evidência |
 |---|---|---|
-| **1. REST público** — pelo menos um endpoint REST adequado ao tema | Passos 3 e 5 (`POST /api/auth/login`, `POST /api/tasks`) contra `http://<host>:8080` | Seção 3 acima — respostas HTTP reais do Gateway, porta única 8080 |
-| **2. Validação na borda** — 400 em payload inválido, 201 em sucesso | Passo 4 (título vazio → 400) e passo 5 (título válido → 201 + `Location`) | Seção 3 acima — `CreateTaskHttpRequestValidator` rejeita antes de qualquer chamada gRPC (seção "O que ele faz" da API Gateway acima) |
+| **1. REST público** — pelo menos um endpoint REST adequado ao tema | Passos 3, 4 e 6 (`POST /api/auth/register`, `POST /api/auth/login`, `POST /api/tasks`) contra `http://<host>:8080` | Seção 3 acima — respostas HTTP reais do Gateway, porta única 8080 |
+| **2. Validação na borda** — 400 em payload inválido, 201 em sucesso | Passo 5 (título vazio → 400) e passo 6 (título válido → 201 + `Location`) | Seção 3 acima — `CreateTaskHttpRequestValidator` rejeita antes de qualquer chamada gRPC (seção "O que ele faz" da API Gateway acima) |
 | **3. Segurança** — 401 com token ausente ou inválido | Passos 1 (sem token) e 2 (token lixo) — dois caminhos de código distintos no middleware (CA-05) | Seção 3 acima — `AddJwtBearer` (BE-40, D-38, substitui `IdentityTokenAuthenticationHandler`), mesmo corpo `auth.unauthorized` nos dois — validado localmente com a chave pública, sem round-trip ao Identity, atendendo ao requisito 6 do enunciado ("middleware de autenticação configurado no próprio Gateway") |
-| **4. Tradução e delegação de protocolo** — JSON → gRPC binário para o backend | Passo 5, evidência de log | Seção 4 acima — `traceId` correlacionado em Gateway (`CreateTask`), Tasks (`CreateTask`/`ValidateUser (Identity gRPC)`) e Identity (`ValidateUser`); a validação do JWT deixou de ser uma chamada gRPC do Gateway ao Identity desde BE-40 |
+| **4. Tradução e delegação de protocolo** — JSON → gRPC binário para o backend | Passo 6, evidência de log | Seção 4 acima — `traceId` correlacionado em Gateway (`CreateTask`), Tasks (`CreateTask`/`ValidateUser (Identity gRPC)`) e Identity (`ValidateUser`); a validação do JWT deixou de ser uma chamada gRPC do Gateway ao Identity desde BE-40 |
 
-O passo 6 (usuário inativo → 401 idêntico ao de senha errada, RN-AUTH-09) e o caminho de indisponibilidade
+O passo 7 (usuário inativo → 401 idêntico ao de senha errada, RN-AUTH-09 — pulado com aviso se
+`-InactiveEmail` não for informado) e o caminho de indisponibilidade
 (seção 5) não mapeiam para um requisito numerado do enunciado, mas são obrigatórios no script (BE-39
 CA-06/CA-07) — a diferença entre "credencial errada" e "não consigo checar" é o tipo de bug que só aparece
 na primeira demonstração real, não em revisão de código.
@@ -1203,25 +1214,15 @@ Isso produz `artifacts/sql/01-identity.sql` e `artifacts/sql/02-tasks.sql` — s
 falha explicitamente com uma mensagem apontando para este comando (em vez de subir "vazio" e mascarar o
 problema).
 
-### Segredos: `.env` e chaves JWT
+### Segredos: chaves JWT
 
-O segredo restante do Identity (`UserStore__DemoUserPassword`) vem de um `.env` na raiz, **nunca
-versionado** — o `.gitignore` já ignora `*.env`/`.env.*` (com exceção explícita de `.env.example`,
-que É versionado, só com placeholders):
+Onda E (T2): o Identity não tem mais nenhum segredo de texto puro próprio nesta stack — o seed de
+demonstração (`UserStore__SeedDemoUsers`/`UserStore__DemoUserPassword`, que costumava vir de um `.env`
+na raiz) foi removido, junto com esse `.env`/`.env.example`. A connection string inline no
+`docker-compose.yml` é a credencial de desenvolvimento local de sempre (`postgres`/`postgres`, CA-11 de
+BE-02), não um segredo real. Cadastre contas pela API/tela ou por `scripts/demo-t2.ps1`.
 
-```powershell
-cp .env.example .env
-```
-
-Preencha `.env` com um valor gerado por você (nunca reaproveitado de outro ambiente):
-
-```powershell
-# UserStore__DemoUserPassword — qualquer senha de desenvolvimento; é a mesma
-# que você passa depois para scripts/demo-t2.ps1 -DemoPassword
-```
-
-**Chaves JWT RS256 (BE-40, D-38) — pré-requisito adicional do perfil `full`.** Diferente de
-`UserStore__DemoUserPassword`, as chaves não vão no `.env`: o `docker-compose.yml` as monta via
+**Chaves JWT RS256 (BE-40, D-38) — pré-requisito do perfil `full`.** O `docker-compose.yml` as monta via
 `secrets:` de nível superior, a partir de `.secrets/jwt/{private,public}.pem` (mesma pasta usada
 pelo fluxo `dotnet run`, ignorada pelo git). Gere o par antes de subir a stack — se você já rodou
 `scripts/demo-local.ps1` ou `scripts/new-jwt-keys.ps1` antes, ele já existe e este passo é um no-op:
@@ -1247,16 +1248,15 @@ Isso constrói as três imagens e sobe, na ordem exigida pelas dependências, `p
 (`8080:8080`, D-32) — `identity` e `tasks` só existem na rede interna do compose, sem `ports:`.
 
 Sem o perfil `full` (`docker compose up -d postgres` ou apenas `docker compose up -d`), o comportamento
-**não muda em nada** em relação a antes desta task — sobe só o Postgres, sem exigir `.env` nem o perfil
-(CA-06).
+**não muda em nada** em relação a antes desta task — sobe só o Postgres, sem exigir o perfil (CA-06).
 
 Verifique com o mesmo roteiro de sempre, agora contra os containers:
 
 ```powershell
-./scripts/demo-t2.ps1 -BaseUrl http://localhost:8080 -DemoPassword "<a senha de UserStore__DemoUserPassword no seu .env>"
+./scripts/demo-t2.ps1 -BaseUrl http://localhost:8080 -Password "<qualquer senha de desenvolvimento>"
 ```
 
-Os seis passos (401/401/200/400/201/401) respondem exatamente como na seção "Rodando o T2" — mesmo
+Os passos respondem exatamente como na seção "Rodando o T2" — mesmo
 `traceId` correlacionando os logs de `gateway`, `tasks` e `identity` (`docker compose logs <serviço>`) no
 par login/criação. O cenário de indisponibilidade também se reproduz da mesma forma, agora derrubando o
 container em vez do processo:

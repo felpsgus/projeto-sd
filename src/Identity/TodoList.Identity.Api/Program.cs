@@ -62,7 +62,6 @@ builder.Services.AddIdentitySecurity(builder.Configuration, builder.Environment)
 // tempo de vida que ela mesma precisa.
 builder.Services.AddSingleton<InMemoryUserLookup>();
 builder.Services.AddScoped<PersistedUserLookup>();
-builder.Services.AddScoped<DemoUserSeeder>();
 
 // Login (BE-33): LoginHandler é Scoped porque depende de IUserRepository
 // (Scoped, por sua vez do IdentityDbContext). DummyPasswordHash é Singleton
@@ -123,18 +122,6 @@ var userStoreOptions = app.Services.GetRequiredService<IOptions<UserStoreOptions
 if (userStoreOptions.Provider == UserStoreOptions.InMemoryProvider)
 {
     StartupLog.LoginNotSupportedWithInMemoryProvider(app.Services.GetRequiredService<ILogger<Program>>());
-}
-
-// Seed de usuários de demonstração (BE-04/BE-26/BE-33, CA-14 de BE-26, CA-08
-// de BE-33): desligado por padrão, ligado só por UserStore:SeedDemoUsers=true
-// — nunca EnsureCreated()/Migrate() automático aqui, a tabela precisa já
-// existir (ver README, seção "Migrations"). DemoUserPassword é obrigatória
-// quando SeedDemoUsers=true (UserStoreOptions.Validate, ValidateOnStart), então
-// já está garantida não-nula neste ponto.
-if (userStoreOptions.SeedDemoUsers)
-{
-    using var seedScope = app.Services.CreateScope();
-    await seedScope.ServiceProvider.GetRequiredService<DemoUserSeeder>().SeedAsync(userStoreOptions.DemoUserPassword!, CancellationToken.None);
 }
 
 if (app.Environment.IsDevelopment())

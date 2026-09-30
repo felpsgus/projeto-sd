@@ -381,8 +381,11 @@ há migration nova.**
    ```
    Jwt__Issuer=todolist-identity
    Jwt__Audience=todolist
-   UserStore__DemoUserPassword=<uma senha de demonstração — nunca versione este valor>
    ```
+
+   Onda E (T2): não acrescente `UserStore__DemoUserPassword` — essa variável (e
+   `UserStore__SeedDemoUsers`) foi removida junto com o seed de demonstração. Cadastro é real agora
+   (`POST /api/auth/register`); veja a seção 8 abaixo para o roteiro de apresentação.
 
    ```bash
    sudo nano /etc/todolist/tasks.env
@@ -543,7 +546,23 @@ $env:DEMO_PASSWORD = "..."
 # não execute ainda — o Ato 5 abaixo é a hora
 ```
 
-**Navegador — aba nova**, apontada para `http://<IP_EXTERNO>/` (a tela de login).
+**Navegador — aba nova**, apontada para `http://<IP_EXTERNO>/` (a tela de login/cadastro).
+
+**Antes de tudo isso, com antecedência (não durante os 10 minutos): a conta do usuário
+inativo.** Onda E removeu o seed de demonstração — não existe rota para desativar uma conta
+pela API (decisão consciente: seria superfície de negócio nova, fora de escopo), então a conta
+usada no Ato 5 (o 401 de usuário inativo, dentro do `demo-t2.ps1`) precisa ser cadastrada e
+desativada por `SQL` antes da apresentação, uma vez só:
+
+```bash
+# 1. Cadastre pela tela (ou por curl) um e-mail qualquer, ex.: inativo@todolist.example
+# 2. Desative-o direto no banco (maquina-2-psd, psql):
+UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
+```
+
+Passe esse e-mail para o Ato 5 com `-InactiveEmail inativo@todolist.example`. Sem isso, o passo
+7 do script é **pulado com aviso** — nunca falha silenciosamente, mas também não demonstra
+RN-AUTH-09 se você esquecer de preparar a conta.
 
 > **Aumente a fonte de tudo antes.** Terminal e navegador — se um identificador de
 > correlação for para a segunda linha do log, ou o formulário for pequeno demais para a
@@ -554,18 +573,20 @@ $env:DEMO_PASSWORD = "..."
 | # | Ato | O que fazer / narrar | Tempo do ato | Acumulado |
 |---|---|---|---|---|
 | 0 | Abertura | Contexto de 1 frase: Angular → nginx → Gateway → gRPC → Identity/Tasks → Postgres. | 0:20 | 0:20 |
-| 1 | **Login pelo frontend** | Tela de login, credencial do usuário ativo do seed (`ada.lovelace@todolist.example`). Narrar: o navegador só fala com o nginx, mesma origem, sem CORS. | 0:50 | 1:10 |
-| 2 | **Título vazio → 400** | Tentar criar tarefa sem título; o formulário mostra o erro **sem** round-trip até o Tasks — é o Gateway validando na borda. | 0:40 | 1:50 |
-| 3 | **Tarefa válida (201) + tarefa atrasada** | Criar uma tarefa com título e, em seguida, **uma segunda com vencimento no passado** — os usuários do seed não têm tarefa vencida; sem criar uma agora, o destaque de atrasada nunca aparece na tela. As duas surgem na lista sem recarregar a página; aponte o destaque visual da atrasada. | 1:10 | 3:00 |
-| 4 | **Banco real, por `psql`** | No painel do roteiro (ou um painel extra), `psql` contra `10.128.0.5`, `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova ao vivo de persistência real do `t2.md`, não só o `201`. | 1:00 | 4:00 |
-| 5 | **401, pelo `demo-t2.ps1`** | No **terminal 2** (notebook): `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword $env:DEMO_PASSWORD`. Narrar os três casos — sem token, token lixo, token **adulterado** (exercita a assinatura RS256) — todos 401 com o mesmo corpo. Mostrar rapidamente o interceptor do frontend redirecionando ao login num 401 (uma vez, não repetido para os três). | 1:30 | 5:30 |
-| 6 | **Logs, mesmo `traceId`** | Voltar ao terminal 1 (tmux); nos três painéis (Identity/Tasks/Gateway), localizar o mesmo `traceId` da criação do Ato 3 — `grep -E 'ValidateToken\|CreateTask\|ValidateUser'`. Mencionar que o nginx (painel de baixo) repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 6:30 |
-| 7 | **Código** | Tela de código: middleware `AddJwtBearer` do Gateway (BE-40), o validador de payload (`CreateTaskHttpRequestValidator`), o handler que traduz JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 8:30 |
-| — | Encerramento/perguntas | Buffer deliberado — não é tempo "sobrando", é a margem contra qualquer travada. | 1:30 | 10:00 |
+| 1 | **Cadastro + login pelo frontend** | Tela de cadastro: criar uma conta nova, ao vivo (e-mail à vista da plateia — prova que é cadastro real, não um usuário fixo pronto), depois login com essa mesma conta. Narrar: o navegador só fala com o nginx, mesma origem, sem CORS. | 1:20 | 1:40 |
+| 2 | **Título vazio → 400** | Tentar criar tarefa sem título; o formulário mostra o erro **sem** round-trip até o Tasks — é o Gateway validando na borda. | 0:40 | 2:20 |
+| 3 | **Tarefa válida (201) + tarefa atrasada** | Criar uma tarefa com título e, em seguida, **uma segunda com vencimento no passado** — a conta é nova, então não tem tarefa vencida; sem criar uma agora, o destaque de atrasada nunca aparece na tela. As duas surgem na lista sem recarregar a página; aponte o destaque visual da atrasada. | 1:10 | 3:30 |
+| 4 | **Banco real, por `psql`** | No painel do roteiro (ou um painel extra), `psql` contra `10.128.0.5`, `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova ao vivo de persistência real do `t2.md`, não só o `201`. | 1:00 | 4:30 |
+| 5 | **401, pelo `demo-t2.ps1`** | No **terminal 2** (notebook): `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password $env:DEMO_PASSWORD -InactiveEmail inativo@todolist.example`. Narrar os três casos de token inválido — sem token, token lixo, token **adulterado** (exercita a assinatura RS256) — todos 401 com o mesmo corpo, e o passo do usuário inativo (a conta preparada com antecedência, ver acima) — mesmo 401, corpo idêntico ao de senha errada (RN-AUTH-09). Mostrar rapidamente o interceptor do frontend redirecionando ao login num 401 (uma vez, não repetido para os três). | 1:30 | 6:00 |
+| 6 | **Logs, mesmo `traceId`** | Voltar ao terminal 1 (tmux); nos três painéis (Identity/Tasks/Gateway), localizar o mesmo `traceId` da criação do Ato 3 — `grep -E 'ValidateToken\|CreateTask\|ValidateUser'`. Mencionar que o nginx (painel de baixo) repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 7:00 |
+| 7 | **Código** | Tela de código: middleware `AddJwtBearer` do Gateway (BE-40), o validador de payload (`CreateTaskHttpRequestValidator`), o handler que traduz JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 9:00 |
+| — | Encerramento/perguntas | Buffer deliberado — não é tempo "sobrando", é a margem contra qualquer travada. | 1:00 | 10:00 |
 
-**Soma dos atos (sem o buffer): 8:30.** Com o buffer de encerramento, o roteiro cabe
+**Soma dos atos (sem o buffer): 9:00.** Com o buffer de encerramento, o roteiro cabe
 exatamente nos 10 minutos **no papel** — o ensaio cronometrado (obrigatório, ver abaixo) é o
-que confirma isso na prática, não a soma aritmética.
+que confirma isso na prática, não a soma aritmética. O cadastro ao vivo do Ato 1 é o item mais
+novo desta tabela (Onda E) e o mais provável de estourar o tempo estimado num primeiro ensaio —
+prefira ter o formulário memorizado (e-mail/senha rápidos de digitar) a economizar no roteiro.
 
 ### Tabela requisito do `t2.md` → ato → evidência
 
@@ -584,10 +605,13 @@ que confirma isso na prática, não a soma aritmética.
 - [ ] As duas VMs **ligadas** (Compute Engine → Instâncias de VM).
 - [ ] `sudo systemctl is-active todolist-identity todolist-tasks todolist-gateway` → `active`
       nos três; `sudo systemctl is-active nginx` → `active`.
-- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde na VM (padrão contra `http://127.0.0.1`, via
-      nginx) — inclui a checagem da rota `/tasks` (BE-42 CA-01).
-- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword ...` verde, do
-      notebook, **de fora** da VM.
+- [ ] A conta do usuário inativo já cadastrada e desativada por `SQL` (ver acima) — sem ela, o
+      passo 7 de `demo-t2.ps1`/`smoke.sh` é pulado, e RN-AUTH-09 fica sem demonstração.
+- [ ] `DEMO_PASSWORD=... DEMO_INACTIVE_EMAIL=inativo@todolist.example ./smoke.sh` verde na VM
+      (padrão contra `http://127.0.0.1`, via nginx) — inclui a checagem da rota `/tasks`
+      (BE-42 CA-01).
+- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password ... -InactiveEmail
+      inativo@todolist.example` verde, do notebook, **de fora** da VM.
 - [ ] Verificação de fora feita de novo pouco antes: **80** responde (Angular); **8080**,
       **5080**, **5081**, **5100**, **5101** **não** respondem (seção 1).
 - [ ] Aquecimento: uma requisição descartável disparada (`./demo.sh --warmup` ou um login
@@ -595,9 +619,11 @@ que confirma isso na prática, não a soma aritmética.
       Core; que isso aconteça antes da plateia.
 - [ ] `tmux` montado, fonte do terminal e do navegador aumentadas, os cinco painéis e a tela
       de login visíveis.
-- [ ] Usuário de demonstração (`ada.lovelace@todolist.example`) sem tarefa atrasada
-      pré-existente que estrague a narrativa do Ato 3 — ou, ao contrário, uma já lá se o
-      plano for só apontá-la em vez de criar ao vivo (decisão de quem apresenta).
+- [ ] A conta cadastrada ao vivo no Ato 1 nasce sem tarefas (conta nova) — não há mais um
+      usuário fixo com histórico para conferir aqui. Se preferir não cadastrar ao vivo por
+      segurança do tempo, cadastre a conta minutos antes e apenas logue no Ato 1 (decisão de
+      quem apresenta) — nesse caso confira que ela não tem tarefa atrasada pré-existente que
+      estrague a narrativa do Ato 3.
 - [ ] O Identity **religado**, se você testou a indisponibilidade no ensaio.
 
 ### Ensaio cronometrado — obrigatório, não opcional
@@ -638,12 +664,14 @@ O T2 resolveu duas delas; a terceira segue de pé:
 1. ~~`Tasks__AllowAnonymousCreate=true`~~ — **caiu.** BE-35 removeu o gatilho HTTP provisório
    do Tasks; a flag deixou de existir no código e no `.env`. A identidade agora chega pela
    metadata gRPC `x-user-id`, preenchida pelo Gateway depois de validar o token (D-34).
-2. `UserStore__SeedDemoUsers=true` — **continua de pé.** Ainda não há cadastro real (BE-07
-   segue fora do escopo do T2); o seed continua sendo a única forma de existir usuário para o
-   roteiro de login. Cai quando o cadastro entrar.
+2. ~~`UserStore__SeedDemoUsers=true`~~ — **caiu (Onda E).** O cadastro real chegou
+   (`POST /api/auth/register`, fase 3) e o seed de demonstração — `DemoUserSeeder`,
+   `UserStore__SeedDemoUsers`/`UserStore__DemoUserPassword` — foi removido do código e de todo
+   `.env`. Cadastre a conta do roteiro pela tela; a conta do usuário inativo é criada por
+   `UPDATE` direto no banco (seção 8 acima).
 3. ~~O `PasswordHash` placeholder dos usuários de demonstração~~ — **caiu.** BE-06 trouxe hash
-   real (PBKDF2), e o seed (BE-33 CA-09) regrava automaticamente qualquer hash placeholder ou
-   senha de demonstração desatualizada que encontrar.
+   real (PBKDF2) desde o cadastro (`RegisterUserHandler`); não existe mais placeholder algum a
+   regravar.
 
 ## Pendências na VM (T2)
 
@@ -659,9 +687,10 @@ executam parte disto estão sendo escritos em paralelo a este documento):
 - [ ] Subir o novo `todolist-deploy.tar.gz`, agora com `publish/frontend/` incluído
       (`scripts/publish.ps1` + upload pelo SSH do navegador).
 - [ ] Editar os três `.env` na VM com os segredos reais: `identity.env` (`Jwt__Issuer`/
-      `Jwt__Audience`, `UserStore__DemoUserPassword` — sem `Jwt__SigningKey`, que não existe
-      mais, BE-40), `tasks.env` (remover `Tasks__AllowAnonymousCreate`), `gateway.env` (criado a
-      partir do `.example`, sem segredo).
+      `Jwt__Audience` — sem `Jwt__SigningKey`, que não existe mais, BE-40, e sem
+      `UserStore__DemoUserPassword`, removida na Onda E), `tasks.env` (remover
+      `Tasks__AllowAnonymousCreate`), `gateway.env` (criado a partir do `.example`, sem
+      segredo).
 - [ ] Rodar `sudo ./install-on-vm.sh` e confirmar as três units `active` na ordem
       Identity → Tasks → Gateway, **e** `nginx` `active` (BE-42 — instalado e configurado pelo
       mesmo script). O script gera o par de chaves RS256 em `/etc/todolist/jwt/` na primeira
@@ -678,7 +707,7 @@ executam parte disto estão sendo escritos em paralelo a este documento):
       a porta pública).
 - [ ] `DEMO_PASSWORD=... ./smoke.sh` verde contra `http://<IP_EXTERNO>` (sem porta — inclui a
       checagem da rota `/tasks` do SPA, BE-42 CA-01).
-- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword ...` verde, do
+- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password ...` verde, do
       notebook, de fora da VM (os três casos de 401: sem token, token lixo, token adulterado).
 - [ ] No navegador, contra `http://<IP_EXTERNO>/`: login, título vazio (400 na tela), tarefa
       válida (aparece na lista), tarefa com vencimento no passado (destaque de atrasada
@@ -892,7 +921,7 @@ DEMO_PASSWORD=... ./deploy/smoke.sh http://<IP_EXTERNO>
 ```
 
 ```powershell
-./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -DemoPassword ...
+./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password ...
 ```
 
 ### 9.10 O que este runbook do caminho Docker NÃO verificou

@@ -24,13 +24,21 @@
 # desde BE-42 o Gateway só escuta em 127.0.0.1:8080 e o nginx é quem
 # responde na porta pública; falar com ele aqui, mesmo estando os dois na
 # mesma VM, é o que de fato prova o caminho que a plateia vai ver.
+# Onda E (T2): o seed de demonstração (DemoUserSeeder) foi removido — não há
+# mais um usuário fixo pronto para logar. Este script cadastra a conta que
+# usa (POST /api/auth/register) num Ato próprio, com e-mail gerado a partir
+# do relógio; se você já cadastrou uma conta pela tela minutos antes (o
+# roteiro de verdade parte do frontend), pode reaproveitá-la passando
+# DEMO_EMAIL — sem isso, o script cadastra a sua própria.
 set -uo pipefail
 
 BASE=http://127.0.0.1
-EMAIL_ATIVO='ada.lovelace@todolist.example'
+EMAIL_ATIVO="${DEMO_EMAIL:-demo-t2-$(date +%Y%m%d%H%M%S%N)@todolist.example}"
+CADASTRAR_CONTA=1
+[[ -n "${DEMO_EMAIL:-}" ]] && CADASTRAR_CONTA=0
 
 if [[ -z "${DEMO_PASSWORD:-}" ]]; then
-    echo "Defina DEMO_PASSWORD (UserStore:DemoUserPassword) antes de rodar:" >&2
+    echo "Defina DEMO_PASSWORD antes de rodar:" >&2
     echo "  DEMO_PASSWORD=sua-senha-de-demo ./demo.sh" >&2
     exit 1
 fi
@@ -64,11 +72,27 @@ criar_tarefa() {
     curl "${args[@]}" | sed -n '1p;/^{/p'
 }
 
+# Cadastro real (POST /api/auth/register) — substitui o antigo usuário fixo
+# do seed (removido, Onda E). Silencioso de propósito: o cadastro "visível"
+# do roteiro acontece no navegador (comentário no topo do arquivo); aqui só
+# precisamos que a conta EXISTA antes do Ato 3 (login) rodar. Idempotente na
+# prática porque EMAIL_ATIVO é novo a cada execução quando DEMO_EMAIL não é
+# informado — um 409 (e-mail já cadastrado) só acontece se você reaproveitar
+# manualmente um DEMO_EMAIL já usado, e nesse caso o login do Ato 3 funciona
+# do mesmo jeito (a conta já existe).
+cadastrar() {
+    [[ $CADASTRAR_CONTA -eq 1 ]] || return 0
+    curl -s -o /dev/null --max-time 20 -X POST "$BASE/api/auth/register" \
+        -H 'Content-Type: application/json' \
+        -d "{\"email\":\"$EMAIL_ATIVO\",\"password\":\"$DEMO_PASSWORD\",\"displayName\":\"Demo T2\"}" || true
+}
+
 # Aquecimento: a primeira chamada de um processo recém-iniciado paga o
 # estabelecimento da conexão HTTP/2 com Identity/Tasks e a primeira query do
 # EF Core. Que esse custo aconteça aqui, e não na primeira requisição diante
 # da banca.
 aquecer() {
+    cadastrar
     curl -s -o /dev/null --max-time 20 -X POST "$BASE/api/auth/login" \
         -H 'Content-Type: application/json' \
         -d "{\"email\":\"$EMAIL_ATIVO\",\"password\":\"$DEMO_PASSWORD\"}" || true
@@ -112,6 +136,7 @@ echo "${VERDE}TodoList — API Gateway: REST na borda, gRPC por dentro (T2)${FIM
 echo "${CINZA}Lembrete: o roteiro de verdade parte do frontend, no navegador (login, título vazio,${FIM}"
 echo "${CINZA}tarefa válida). Os atos abaixo são o apoio em linha de comando — 401 e indisponibilidade —${FIM}"
 echo "${CINZA}que o script scripts/demo-t2.ps1, rodado num SEGUNDO terminal (Windows), também cobre.${FIM}"
+echo "${CINZA}Conta desta execução: $EMAIL_ATIVO${FIM}"
 echo "${CINZA}Aquecendo antes de começar...${FIM}"
 aquecer
 

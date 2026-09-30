@@ -47,8 +47,6 @@ coverage*.info
 appsettings.*.local.json
 *.env
 .env.*
-# BE-38: .env.example é versionado de propósito (placeholders, sem segredo real).
-!.env.example
 
 ## Chaves JWT RS256 geradas localmente (BE-40) — nunca versionadas, nem de teste.
 .secrets/
