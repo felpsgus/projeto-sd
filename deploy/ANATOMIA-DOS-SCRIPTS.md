@@ -132,18 +132,17 @@ em `/home/<você>/.docker/` — um arquivo que o root nunca lê. Testar à mão 
 unit falha no boot do mesmo jeito, sem pista de que a causa é "autenticado como a pessoa
 errada".
 
-Depois ele tenta um `docker pull` real do `todolist-gateway` **antes de habilitar a
-unit** — falhar aqui, com mensagem clara, é muito melhor do que a stack ficar parada no
-primeiro boot sem ninguém notar. O desfecho decide pela **credencial** (o resultado do
-`docker-credential-gcloud get`), não só pela mensagem do registry:
+Antes, testa o `docker-credential-gcloud get` e avisa se ele não obtiver token. Depois
+tenta um `docker pull` real do `todolist-gateway` **antes de habilitar a unit** — falhar
+aqui, com mensagem clara, é muito melhor do que a stack ficar parada no primeiro boot
+sem ninguém notar. O desfecho:
 
 - pull funcionou → segue;
-- imagem não encontrada (esperado antes da primeira publicação) → avisa;
-- falha de pull com a credencial confirmada → avisa e segue, dizendo qual tag testou
-  (`IMAGE_TAG` do `.env`; num `.env` recém-criado é `latest`) — confira a tag contra as
-  publicadas antes de pensar em IAM;
-- falha sem credencial → aborta e imprime os remédios (papel `artifactregistry.reader`,
-  depois escopo OAuth da VM — este último exige **parar a VM**).
+- mensagem de imagem/manifest não encontrado (esperado antes da primeira publicação) →
+  avisa que a imagem provavelmente ainda não foi publicada e segue;
+- qualquer outra falha é tratada como autenticação → aborta e imprime os remédios, nesta
+  ordem: conceder `roles/artifactregistry.reader` à service account da VM e, só depois,
+  o escopo OAuth da VM (este último exige **parar a VM**).
 
 ---
 
@@ -243,13 +242,11 @@ Dois cuidados que valem para qualquer roteiro: um **aquecimento** antes do prime
 enquanto você ainda fala, não diante da banca) e um `trap ... EXIT` em volta de qualquer
 ato que pare um serviço de propósito, para religá-lo mesmo se o script for interrompido.
 
-> **Atenção, não funciona sob Docker:** o `trap` de saída e o ato opcional `--falha` ainda
-> chamam `systemctl ... todolist-identity`, que não existe neste caminho. Não use
-> `--falha`; para demonstrar a indisponibilidade do Identity use
-> `docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file
-> /opt/todolist/docker/.env stop identity` (e `start identity` depois). O `trap` imprime
-> um erro inofensivo de unit inexistente ao sair.
-
+O ato opcional `--falha` (`DEMO_PASSWORD=... ./demo.sh --falha`) derruba o serviço
+`identity` com `docker compose stop` (via o helper `dc()`, que usa o compose de
+`/opt/todolist/docker`), repete a requisição do Ato 5 e o religa. A flag
+`identity_parado` é marcada **antes** do `stop`; se o script morrer no meio do ato, o
+`trap` de saída vê a flag e sobe o Identity de volta.
 O nginx **não** participa da correlação por `traceId` (D-40: só encaminha bytes, o
 `traceparent` atravessa intacto), então não é esperado vê-lo como uma quarta linha do
 `grep` de correlação.
