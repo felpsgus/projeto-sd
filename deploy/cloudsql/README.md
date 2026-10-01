@@ -1,87 +1,268 @@
-# Cloud SQL for PostgreSQL — runbook de provisionamento (Onda C, metade 2)
+# Cloud SQL for PostgreSQL — runbook de uso (corrigido em 30/09/2026)
 
 Runbook para colocar o Postgres do roteiro de 22/10 fora da VM, no Cloud SQL for
 PostgreSQL (projeto `sd-26-2`, `us-central1`), na mesma VPC de `maquina-1-psd`
 (`10.128.0.4`, ver `deploy/README.md`).
 
-> **Este runbook NUNCA foi executado.** Nenhum comando `gcloud` de escrita
-> (`create`, `patch`, peering, firewall) foi rodado — o agente que escreveu isto
-> está proibido de criar recursos que geram custo sem autorização explícita do
-> usuário (ver `deploy/todolist.env.example` e `deploy/docker-compose.prod.yml`
-> para o que a Onda C efetivamente validou: o compose de produção contra um
-> Postgres LOCAL com TLS, não contra este Cloud SQL). Trate cada comando abaixo
-> como PROPOSTA revisada, não como fato testado, e rode o primeiro ensaio com
-> folga — mesmo espírito do aviso no topo de `deploy/README.md` para o T2.
+> **Correção de 30/09/2026 — a instância já existe; não crie nada.** A versão
+> original deste arquivo (escrita na Onda C, nunca executada) mandava criar uma
+> instância `todolist-cloudsql` e, antes dela, o peering de Private Services
+> Access. Uma consulta de leitura ao projeto `sd-26-2` mostrou que **os dois já
+> estão prontos**: existe a instância **`banco-1`** (PostgreSQL 18, parada) com
+> IP privado na VPC `default`, e o peering com o bloco reservado. O runbook
+> abaixo foi reescrito para **usar** o que existe; o caminho de criação ficou na
+> seção 8, como referência para o caso de um dia precisar de outra instância.
+>
+> O que **ainda** nunca foi executado: ligar a instância, conferir/criar o banco
+> e o usuário da aplicação, e conectar a stack a ela. Trate o primeiro ensaio
+> com folga.
 
-## 0. Pré-requisitos que faltam antes do primeiro comando
+## Estado real do projeto (lido em 30/09/2026, só comandos de leitura)
 
-- `gcloud` autenticado no projeto certo: `gcloud config set project sd-26-2`.
-- Saber o nome da VPC onde `maquina-1-psd` vive. Se o projeto nunca criou uma
-  VPC própria, é a rede automática `default`. Confirme antes de continuar —
-  errar a rede aqui faz a instância nascer numa VPC que a VM não enxerga, e o
-  sintoma só aparece depois, como timeout de conexão, não como erro claro:
+| Item | Valor |
+|---|---|
+| Instância | **`banco-1`** — `POSTGRES_18`, região `us-central1`, zonal |
+| Estado | **`STOPPED`** (`activationPolicy: NEVER`) |
+| Tier | `db-custom-2-8192` (2 vCPU, 8 GB) — bem acima do necessário, ver seção 7 |
+| Disco | 10 GB |
+| **IP privado** | **`10.30.240.3`** — é este que entra no `.env` da VM |
+| IP público | `34.67.193.216` (`ipv4Enabled: true`), rede autorizada `200.137.197.75` |
+| IP de saída | `35.226.15.84` |
+| VPC do IP privado | `projects/sd-26-2/global/networks/default` — a mesma de `maquina-1-psd` |
+| Peering (PSA) | `default-ip-range-1790293144149`, `10.30.240.0/20`, `VPC_PEERING`, `RESERVED` |
+| TLS | **`sslMode: ENCRYPTED_ONLY`** — conexão sem TLS é **rejeitada** |
+| CA do servidor | `GOOGLE_MANAGED_INTERNAL_CA` (CA própria da instância) |
 
-  ```
-  gcloud compute instances describe maquina-1-psd --zone=us-central1-a \
-    --format="value(networkInterfaces[0].network)"
-  ```
+Duas consequências que mudam o que o runbook antigo dizia:
 
-## 1. Acesso privado ao serviço (Private Services Access) — o passo que todo mundo esquece
+- **A seção 1 do texto original (criar o peering) está cumprida.** O bloco
+  `10.30.240.0/20` já está reservado e conectado na VPC `default`, e o IP privado
+  da instância (`10.30.240.3`) cai dentro dele. Nada a fazer.
+- **`SSL Mode=Require` deixou de ser "a opção pragmática" e passou a ser o
+  mínimo.** Com `sslMode: ENCRYPTED_ONLY`, uma connection string sem TLS não
+  conecta — não é escolha de rigor, é requisito. O
+  `deploy/todolist.env.example` já traz `SSL Mode=Require` nas duas connection
+  strings e `PGSSLMODE=require` para o `psql`, então **nada precisa mudar** ali;
+  o que muda é o motivo. `VerifyFull` continua sendo o alvo (seção 5).
 
-Uma instância do Cloud SQL com IP privado não fica "dentro" da sua VPC: ela
-mora numa VPC gerenciada pelo Google, e as duas se enxergam por um VPC
-**peering** chamado *Private Services Access*. Sem isso configurado
-**primeiro**, o `gcloud sql instances create --network=... --no-assign-ip`
-mais abaixo falha (ou, pior, fica pendurado) reclamando que não existe uma
-alocação de IP para o serviço `servicenetworking.googleapis.com` nessa rede.
-Isso só precisa ser feito **uma vez por VPC**, não uma vez por instância.
+## 0. Pré-requisitos antes do primeiro comando
+
+- `gcloud` autenticado no projeto certo: `gcloud config set project sd-26-2`
+  (confirmado em 30/09/2026: `gcloud` 584.0.0 local, projeto `sd-26-2` ativo).
+- A VPC **é a `default`** — o projeto tem uma rede só, modo automático,
+  confirmado por `gcloud compute networks list`. O passo de "descubra qual é a
+  VPC" do texto original não é mais necessário; a resposta está acima.
+
+## 1. Ligar a instância
+
+A `banco-1` está com `activationPolicy: NEVER`, que é como o Cloud SQL
+representa "parada". Não existe `gcloud sql instances start` — quem liga é um
+`patch` da política de ativação:
 
 ```bash
-# 1a. Reserva um bloco de IPs (não uma instância, só o intervalo) para o
-#     Google usar nesse peering. /24 é o menor bloco que o Cloud SQL aceita
-#     por região — deixe folga (aqui, /24 já é o próprio tamanho mínimo).
-gcloud compute addresses create google-managed-services-default \
-  --global \
-  --purpose=VPC_PEERING \
-  --prefix-length=24 \
-  --network=default \
-  --project=sd-26-2
-
-# 1b. Cria o peering em si, usando o bloco reservado acima.
-gcloud services vpc-peerings connect \
-  --service=servicenetworking.googleapis.com \
-  --ranges=google-managed-services-default \
-  --network=default \
-  --project=sd-26-2
+gcloud sql instances patch banco-1 \
+  --project=sd-26-2 \
+  --activation-policy=ALWAYS
 ```
 
-Troque `default` pelo nome real da VPC confirmado no passo 0, nos **três**
-lugares onde aparece acima (nome do endereço reservado é só um rótulo seu,
-mas `--network` tem que ser o de verdade nos dois comandos).
+Demora alguns minutos. Enquanto a instância está parada, **nem `gcloud sql
+databases list` nem `gcloud sql users list` funcionam** — os dois respondem
+`HTTPError 400: Invalid request since instance is not running` (foi exatamente o
+que aconteceu na consulta de 30/09/2026). É por isso que o passo 2 vem depois
+deste, e não antes.
 
-## 2. Criar a instância
+## 2. Conferir — e só então criar — o banco e o usuário da aplicação
 
-**Versão: PostgreSQL 17** — a mesma major do `postgres:17-alpine` que a Onda C
-já validou localmente (`deploy/docker-compose.prod.yml` + o override de teste
-usado nesta onda). Divergir de major entre dev/teste e produção é comprar um
-problema de compatibilidade de tipo/extensão que só aparece na hora da
-apresentação.
+**Não se sabe ainda** se a `banco-1` já tem o banco `todolist` e o usuário
+`todolist`: ela é anterior a este trabalho e não deu para listar com a instância
+parada. Portanto, com a instância no ar, **primeiro liste**:
 
-**Tamanho:** `db-f1-micro` (shared-core, 1 vCPU compartilhada, ~0,6 GB de RAM)
-é o menor tier que o Cloud SQL for PostgreSQL oferece e é suficiente para uma
-demonstração com uma dúzia de requisições — não é elegível a desconto por
-compromisso nem tem o SLA padrão do Cloud SQL, o que é irrelevante aqui. Ordem
-de grandeza do custo: **em torno de US$ 7–10/mês rodando 24 horas por dia**
-(cobrança por segundo — poucas horas de uso no dia da apresentação custam
-centavos), mais uma fração pequena de armazenamento (10 GB SSD já é mais que
-suficiente). Não tomei este número de uma fatura real — é o que a
-documentação de preços do Cloud SQL e comparativos de terceiros indicam para
-`us-central1` em 2026; confirme na calculadora de preços do Console antes de
-criar, porque preço de nuvem muda sem aviso.
+```bash
+gcloud sql databases list --instance=banco-1 --project=sd-26-2
+gcloud sql users list     --instance=banco-1 --project=sd-26-2
+```
 
-**IP privado, sem IP público** (`--no-assign-ip`): é o que o briefing pede e o
-que faz sentido com a VM já estando na mesma VPC — nenhum motivo para expor a
-instância à internet.
+Se o banco não existir:
+
+```bash
+gcloud sql databases create todolist --instance=banco-1 --project=sd-26-2
+```
+
+Se o usuário não existir (use `--prompt-for-password` para a senha não ficar no
+histórico do shell):
+
+```bash
+gcloud sql users create todolist \
+  --instance=banco-1 \
+  --project=sd-26-2 \
+  --prompt-for-password
+```
+
+Se o usuário **já existir** com senha desconhecida, redefina em vez de criar:
+
+```bash
+gcloud sql users set-password todolist \
+  --instance=banco-1 \
+  --project=sd-26-2 \
+  --prompt-for-password
+```
+
+Essa senha é a mesma que entra em `PGPASSWORD` e nas duas
+`ConnectionStrings__*Db` do `.env` real na VM (`deploy/todolist.env.example`) —
+e em nenhum arquivo versionado.
+
+> **Atenção, a instância não é exclusiva deste trabalho.** A `banco-1` existe no
+> projeto desde antes desta onda e pode ter banco, usuário e dados de outra
+> atividade da disciplina. Por isso este runbook **lista antes de criar** e
+> **nunca** manda apagar a instância (o texto original recomendava `gcloud sql
+> instances delete` depois da demonstração — ver seção 7: isso não vale mais).
+
+## 3. Onde ler o IP privado
+
+Já lido e registrado: **`10.30.240.3`**. Para reconferir (a instância precisa
+estar no ar para o `describe` trazer tudo, mas o IP aparece mesmo parada):
+
+```bash
+gcloud sql instances describe banco-1 \
+  --project=sd-26-2 \
+  --format="value(ipAddresses.filter(\"type:PRIVATE\").extract(\"ipAddress\"))"
+```
+
+Esse valor é o que substitui `<IP_PRIVADO_CLOUDSQL>` nas duas connection strings
+e em `PGHOST` de `deploy/todolist.env.example`, no `.env` real da VM (nunca
+commitado).
+
+**Use o IP privado, não o público.** A instância tem um IP público
+(`34.67.193.216`) com uma rede autorizada `200.137.197.75` — pelo nome da
+entrada (`maquina-1-psd`), alguém a cadastrou achando que era o IP da VM; é um
+endereço externo que não corresponde a nenhum recurso atual do projeto e que,
+se for a saída de uma rede doméstica ou do campus, muda sem aviso. A VM alcança
+a instância pelo caminho privado, dentro da VPC, sem depender dessa lista.
+
+## 4. Versão do servidor: 18 aqui, 17 nos containers
+
+A instância é **PostgreSQL 18**. O compose de desenvolvimento
+(`docker-compose.yml`) e o serviço `migrate` de `deploy/docker-compose.prod.yml`
+usam a imagem **`postgres:17-alpine`**.
+
+- **No `migrate`, isso é só o cliente `psql`.** Um `psql` 17 aplicando DDL num
+  servidor 18 é um cenário suportado — libpq é compatível com servidores mais
+  novos, e os dois arquivos aplicados (`artifacts/sql/01-identity.sql` e
+  `02-tasks.sql`) são DDL gerado pelo EF Core, sem recurso de versão. Risco
+  baixo, mas **não testado contra a `banco-1`**.
+- **Mesmo assim, vale alinhar.** Subir o `migrate` para `postgres:18-alpine`
+  elimina a divergência de major entre quem aplica a migration e quem a recebe,
+  pelo custo de uma linha. Fica registrado como ajuste recomendado em
+  `deploy/docker-compose.prod.yml` — não aplicado aqui, porque este arquivo é
+  runbook, não configuração.
+- O argumento do texto original ("não divirja de major entre dev e produção")
+  continua de pé; o que mudou é que a divergência já existe e veio da instância
+  pronta, não de uma escolha desta onda.
+
+## 5. `VerifyFull` — o que ainda falta
+
+`deploy/todolist.env.example` documenta duas formas de TLS: a usada hoje
+(`SSL Mode=Require` — cifra o canal, não valida a cadeia nem protege contra
+man-in-the-middle) e o alvo (`SSL Mode=VerifyFull`).
+
+> Cuidado ao migrar: **não** edite a linha ativa trocando `Require` por
+> `VerifyFull`. Use a linha `VerifyFull` já pronta, comentada logo acima dela no
+> `.env.example`. O motivo está explicado lá — um
+> `Trust Server Certificate=true` sobrevivendo à edição desligaria em silêncio
+> exatamente a validação que o `VerifyFull` deveria ligar, e a conexão
+> continuaria funcionando, sem nada denunciar o engano.
+
+Dois passos, nenhum feito:
+
+1. Baixar a CA desta instância (a instância usa
+   `GOOGLE_MANAGED_INTERNAL_CA`, isto é, uma CA própria — o certificado sai do
+   `describe`):
+
+   ```bash
+   gcloud sql instances describe banco-1 \
+     --project=sd-26-2 \
+     --format="value(serverCaCert.cert)" > banco-1-ca.pem
+   ```
+
+   (ou pelo Console: **SQL → `banco-1` → Connections → Security → "Download the
+   server CA certificate"**.)
+
+2. **Mudar o compose de produção** para montar esse arquivo nos containers
+   `identity` e `tasks` — hoje `deploy/docker-compose.prod.yml` só declara os
+   dois secrets JWT (`jwt_private`, `jwt_public`). Seria preciso:
+   - copiar o `.pem` para a VM (ex.: `/etc/todolist/cloudsql/ca.pem`, `0444` —
+     um certificado de CA não é segredo, então não precisa acertar dono como as
+     chaves JWT precisam);
+   - acrescentar um terceiro `secrets:` (`cloudsql_ca`) e montá-lo em `identity`
+     e `tasks` (hoje só `identity`/`gateway` recebem secrets — o Tasks passaria
+     a receber um pela primeira vez, mudança de forma, não de conteúdo);
+   - trocar, no `.env` real, as duas connection strings pela linha
+     `SSL Mode=VerifyFull;Root Certificate=/run/secrets/cloudsql_ca` que o
+     `.env.example` já traz pronta.
+
+   Trabalho futuro, registrado para não se perder. **Não é bloqueio do 22/10**:
+   com `ENCRYPTED_ONLY`, o canal já é cifrado com `Require`.
+
+## 6. Testar a conexão pela VM antes de subir a stack inteira
+
+Da própria `maquina-1-psd` (SSH), sem Docker envolvido, só para confirmar que
+rede e credencial funcionam antes de colocar o compose na jogada:
+
+```bash
+sudo apt-get install -y postgresql-client
+
+psql "host=10.30.240.3 port=5432 dbname=todolist user=todolist sslmode=require" \
+  -c "SELECT version();"
+```
+
+Esperado: a linha de versão dizendo **PostgreSQL 18**.
+
+Diagnóstico, na ordem de probabilidade agora que o peering está confirmado:
+
+- **erro de autenticação** → senha ou usuário (passo 2);
+- **`database "todolist" does not exist`** → o passo 2 não criou o banco;
+- **erro de SSL / conexão recusada sem TLS** → `sslmode` ausente; a instância é
+  `ENCRYPTED_ONLY` e não aceita conexão em claro;
+- **travou sem erro** → a instância ainda está subindo (passo 1 leva minutos) ou
+  voltou para `NEVER`. O peering, suspeito número um do runbook antigo, já está
+  verificado — não comece a investigação por ele.
+
+Cloud SQL com IP privado **não** passa pelas regras de firewall da VPC: a rota
+vem do peering. A regra `todolist-allow-postgres` (tcp:5432 da VM para a tag
+`todolist-db`) existe por causa do Postgres em VM do T1 e **não tem efeito
+nenhum** sobre o Cloud SQL.
+
+## 7. Custo: pare depois do ensaio — não apague
+
+O tier da `banco-1` é `db-custom-2-8192` (2 vCPU, 8 GB), muito acima do que uma
+demonstração de dez minutos precisa, e é o item mais caro do ambiente enquanto
+estiver ligada. Parada, cobra essencialmente o disco (10 GB).
+
+```bash
+# depois de cada ensaio e depois da apresentação: parar.
+gcloud sql instances patch banco-1 --project=sd-26-2 --activation-policy=NEVER
+```
+
+**Não apague a `banco-1`.** O runbook original recomendava `gcloud sql instances
+delete` como defesa contra "esquecer a fatura ligada"; isso valia para uma
+instância criada por este trabalho e descartável. A `banco-1` é anterior a esta
+onda e pode ter dados de outra atividade — apagar é irreversível e não é nossa
+decisão de tomar. Parar resolve o custo.
+
+Duas ressalvas conhecidas de Cloud SQL parado: ele continua cobrando
+armazenamento, e o Google pode reiniciar automaticamente uma instância parada
+por muito tempo. Para o intervalo entre hoje e 03/12 isso é irrelevante; só não
+conte com "parada para sempre e custo zero".
+
+Quando o T3 fechar, a `maquina-2-psd` (o Postgres em VM do T1) pode ser
+desligada de vez — o T3 **exige** que nenhuma VM de aplicação siga de pé, e a
+`banco-1` já é o banco gerenciado que esse requisito pede.
+
+## 8. Referência: criar uma instância nova (não é o caminho de hoje)
+
+Guardado só para o caso de a `banco-1` não servir. Com o peering da VPC
+`default` já existente (seção "Estado real"), o passo de PSA do runbook antigo
+não se repete:
 
 ```bash
 gcloud sql instances create todolist-cloudsql \
@@ -95,157 +276,27 @@ gcloud sql instances create todolist-cloudsql \
   --no-assign-ip
 ```
 
-Isso demora alguns minutos (o Cloud SQL provisiona uma VM gerenciada por
-trás). Espere o comando retornar antes de seguir — ele bloqueia até a
-instância existir ou falhar.
-
-## 3. Banco e usuário de aplicação
-
-A instância acima não vem com o banco `todolist` nem o usuário `todolist` —
-só a instância em si (que já tem um usuário `postgres` administrativo,
-inutilizado pela aplicação).
-
-```bash
-gcloud sql databases create todolist --instance=todolist-cloudsql --project=sd-26-2
-
-gcloud sql users create todolist \
-  --instance=todolist-cloudsql \
-  --password=TROQUE_ESTA_SENHA \
-  --project=sd-26-2
-```
-
-A senha aqui é a mesma que entra em `PGPASSWORD`/`ConnectionStrings__*Db` do
-`.env` real na VM (`deploy/todolist.env.example`) — nunca a mesma senha do
-`.env` de teste local que a Onda C usou e já apagou.
-
-## 4. Onde ler o IP privado
-
-Console: **SQL → `todolist-cloudsql` → Overview → "Private IP address"**.
-
-Por linha de comando:
-
-```bash
-gcloud sql instances describe todolist-cloudsql \
-  --project=sd-26-2 \
-  --format="value(ipAddresses[?type=PRIVATE].ipAddress)"
-```
-
-Esse valor é o que substitui `<IP_PRIVADO_CLOUDSQL>` nas duas connection
-strings e nas variáveis `PGHOST`/etc. de `deploy/todolist.env.example`, no
-`.env` real da VM (nunca commitado).
-
-## 5. Baixar o certificado da CA — o que falta para `VerifyFull`
-
-`deploy/todolist.env.example` documenta duas formas de TLS: a pragmática usada
-hoje (`SSL Mode=Require` — cifra o canal, não valida a CA nem protege contra
-man-in-the-middle) e o alvo (`SSL Mode=VerifyFull` — valida a cadeia
-completa). A Onda C testou contra um Postgres local com certificado
-autoassinado e confirmou que `Require` conecta.
-
-> Cuidado ao migrar: **não** edite a linha ativa trocando a palavra `Require`
-> por `VerifyFull`. Use a linha `VerifyFull` já pronta, comentada logo acima
-> dela no `.env.example`. O motivo está explicado lá — um
-> `Trust Server Certificate=true` sobrevivendo à edição desligaria em silêncio
-> exatamente a validação que o `VerifyFull` deveria ligar, e a conexão
-> continuaria funcionando, sem nada denunciar o engano.
-
-Migrar para `VerifyFull` contra o Cloud SQL de verdade exige dois passos que
-não foram feitos ainda:
-
-1. Baixar o certificado da CA do servidor desta instância:
-
-   ```bash
-   gcloud sql instances describe todolist-cloudsql \
-     --project=sd-26-2 \
-     --format="value(serverCaCert.cert)" > todolist-cloudsql-ca.pem
-   ```
-
-   (ou pelo Console: **SQL → instância → Connections → Security → "Download
-   the server CA certificate"**.)
-
-2. **Mudar o compose de produção** para montar esse arquivo dentro dos
-   containers `identity` e `tasks` — hoje `deploy/docker-compose.prod.yml` só
-   declara os dois secrets JWT (`jwt_private`, `jwt_public`). Seria preciso:
-   - copiar `todolist-cloudsql-ca.pem` para a VM (ex.:
-     `/etc/todolist/cloudsql/ca.pem`, dono/permissão de leitura para o uid do
-     container — mesma lógica do `chown 1654` documentada para as chaves JWT
-     em `docker-compose.prod.yml`, mas mais simples: um certificado de CA não
-     é segredo, então `0444` já basta, sem precisar acertar dono);
-   - acrescentar um terceiro `secrets:` (`cloudsql_ca`) e montá-lo em
-     `identity` e `tasks` (hoje só `identity`/`gateway` recebem secrets — o
-     Tasks passaria a receber um secret pela primeira vez, o que é uma mudança
-     de forma, não só de conteúdo, e merece revisão);
-   - trocar, no `.env` real, `SSL Mode=Require` por
-     `SSL Mode=VerifyFull;Root Certificate=/run/secrets/cloudsql_ca` nas duas
-     connection strings, usando a linha comentada que
-     `deploy/todolist.env.example` já traz pronta para isso.
-
-   Nada disso foi feito nesta onda — é trabalho futuro, registrado aqui para
-   não se perder.
-
-## 6. Testar a conexão pela VM antes de subir a stack inteira
-
-Da própria `maquina-1-psd` (SSH), sem Docker envolvido, só para confirmar que
-rede + firewall + credencial funcionam antes de colocar o compose inteiro na
-jogada:
-
-```bash
-# instala psql se ainda não tiver (mesma VM do systemd/plano B)
-sudo apt-get install -y postgresql-client
-
-psql "host=<IP_PRIVADO_CLOUDSQL> port=5432 dbname=todolist user=todolist sslmode=require" \
-  -c "SELECT version();"
-```
-
-Se isso travar (nem conecta nem dá erro rápido), o suspeito número um é o
-peering do passo 1 não ter sido criado antes da instância, ou a instância ter
-sido criada numa VPC diferente da VM — não é caso de firewall de porta (Cloud
-SQL com IP privado não passa pelas regras de firewall da VPC do jeito que uma
-segunda VM passaria; o próprio peering já implica a rota). Se der erro de
-autenticação, é senha ou usuário; se dor "database does not exist", o passo 3
-não rodou.
-
-## 7. A instância custa dinheiro enquanto existir — e como parar isso
-
-Diferente de uma VM que se pode desligar de graça, um Cloud SQL PARADO
-(`STOPPED`) ainda cobra armazenamento (pouco, mas não zero) e o Cloud SQL só
-aceita ficar parado por um número limitado de dias antes de reiniciar
-sozinho. Para uma demonstração de um dia só, a opção mais simples e mais
-segura contra "esquecer e a fatura continuar" é **apagar a instância** depois
-da apresentação, não só parar:
-
-```bash
-# opção 1 (recomendada pós-demo): apaga de vez.
-gcloud sql instances delete todolist-cloudsql --project=sd-26-2
-
-# opção 2 (se for reusar em poucos dias): só para, sem apagar.
-gcloud sql instances patch todolist-cloudsql --project=sd-26-2 --activation-policy=NEVER
-```
-
-Depois de apagar a instância, o peering do passo 1 (`google-managed-services-*`)
-pode continuar existindo sem custo — ele é só uma reserva de IP e uma
-conexão de rede, reutilizável se um novo Cloud SQL nascer nessa VPC no
-futuro; não precisa (nem deveria, sem necessidade) ser desfeito.
+`db-f1-micro` (1 vCPU compartilhada, 614,4 MiB) **existe** neste projeto em
+`us-central1` — verificado em 25/09/2026 com `gcloud sql tiers list`. O custo em
+uso contínuo fica na ordem de **US$ 7–10/mês** segundo a documentação de preços
+e comparativos de 2026, não uma fatura real; confirme na calculadora do Console.
+`POSTGRES_17` aqui casaria com as imagens `postgres:17-alpine` do compose — o
+oposto do que a seção 4 descreve para a `banco-1`.
 
 ## O que este runbook NÃO verificou
 
-- Nenhum comando `gcloud sql`/`gcloud compute addresses`/`gcloud services
-  vpc-peerings` acima foi executado — só validados por leitura da
-  documentação oficial do Cloud SQL e comparativos de preço de 2026 (ver
-  fontes usadas na pesquisa desta onda: a página oficial
-  `cloud.google.com/sql/pricing`, `cloud.google.com/sql/docs/postgres/
-  configure-private-services-access` e `cloud.google.com/sql/docs/postgres/
-  create-instance`).
-- O valor de `--network` ficou como `default` porque não há evidência no
-  repositório de que o projeto usa outra VPC — confirme com o comando do
-  passo 0 antes de rodar qualquer coisa.
-- O preço de `db-f1-micro` é uma ordem de grandeza (~US$ 7–10/mês em uso
-  contínuo), não uma cotação exata — confirme na calculadora de preços do
-  Console antes de criar, e lembre que storage/backup são cobrados à parte.
-  A **existência** do tier, essa sim, foi verificada em 25/09/2026 com
-  `gcloud sql tiers list --project=sd-26-2`: `db-f1-micro` (614,4 MiB de RAM)
-  aparece disponível em `us-central1` para este projeto. Só o preço é
-  estimativa; o nome do tier não é.
+- **Nenhum comando de escrita foi executado.** O estado da seção "Estado real"
+  vem só de leitura (`gcloud sql instances describe/list`, `gcloud compute
+  networks/addresses/firewall-rules list`, `gcloud compute instances describe`,
+  `gcloud services list`), em 30/09/2026. Ligar a instância, criar banco/usuário
+  e conectar a stack continuam por fazer.
+- **Não se sabe se `banco-1` já tem o banco `todolist` e o usuário
+  `todolist`** — a listagem exige a instância no ar (seção 2).
+- **Não se sabe o que mais usa a `banco-1`.** Ela é anterior a este trabalho;
+  este runbook assume que conviver é possível (um banco novo ao lado do que
+  houver), e por isso lista antes de criar e não apaga nada.
+- `psql` 17 (imagem do `migrate`) contra servidor 18 **não foi exercitado**
+  contra esta instância — ver seção 4.
 - A migração para `SSL Mode=VerifyFull` (seção 5) está descrita, não
-  implementada: o `docker-compose.prod.yml` real ainda não tem o terceiro
-  secret `cloudsql_ca`.
+  implementada: o `docker-compose.prod.yml` real ainda não tem o secret
+  `cloudsql_ca`.

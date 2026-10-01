@@ -17,6 +17,14 @@ SSH no navegador.
 > Este arquivo é o **runbook** (o que digitar). Para entender **o que cada script faz por
 > dentro e por quê**, veja [ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md).
 
+> **Decisão de 30/09/2026 — o T2 é apresentado pelo caminho Docker com Cloud SQL.** O
+> usuário confirmou: Docker na `maquina-1-psd`, banco na instância **`banco-1`** do Cloud SQL
+> (que já existe e está parada). Comece pela **seção 9**, e use a **seção 10** como lista de
+> pendências — ela é a que vale para o 22/10. As seções 1 a 8 seguem como plano B. O estado
+> real do projeto GCP, lido em 30/09/2026, está em 9.1, 9.10 e na tabela de correção da
+> seção 1 — ele dispensa a criação da instância e das regras de firewall que estas seções
+> mandavam criar.
+
 > **Dois caminhos de deploy, a partir daqui.** O roteiro de apresentação mudou (22/10): o
 > plano agora é uma VM só, tudo em Docker, com o Postgres no Cloud SQL — ver a seção **"9.
 > Caminho Docker"**, mais adiante. As seções **1 a 8 abaixo descrevem o caminho systemd/binário
@@ -74,8 +82,26 @@ ver a verificação explícita mais abaixo.
 
 ## 1. Firewall VPC (Console web)
 
+> **Correção de 30/09/2026 — a porta 80 já está liberada; não crie regra nenhuma.** Uma
+> consulta de leitura (`gcloud compute firewall-rules list`, `gcloud compute instances
+> describe maquina-1-psd`) mostrou que o estado real do projeto `sd-26-2` dispensa **todas** as
+> ações da tabela original abaixo — item por item:
+>
+> | O que esta seção manda fazer | Estado real em 30/09/2026 |
+> |---|---|
+> | Criar `todolist-allow-nginx` (`tcp:80`, pública, tag `todolist-app`) | **Desnecessário.** A regra automática **`default-allow-http`** já libera `tcp:80` de `0.0.0.0/0` para a tag **`http-server`**, e a `maquina-1-psd` **já tem** essa tag (`http-server`, `https-server`, `todolist-app`). |
+> | Fechar/remover `todolist-allow-gateway` (`tcp:8080`, pública) | **Não existe.** Nunca foi criada neste projeto — nada a remover. A `regra-1` abre `tcp:5000,8080,9090-9092` ao mundo, mas só para a tag `aula-1-sd`, que a `maquina-1-psd` **não** tem. |
+> | Criar `todolist-allow-iap-ssh` (`tcp:22` de `35.235.240.0/20`) | **Desnecessário para funcionar.** A `default-allow-ssh` já libera `tcp:22` — de `0.0.0.0/0`, bem mais largo que o range do IAP. Criar a regra estreita não fecha a larga; se quiser SSH só por IAP, o trabalho é **remover a `default-allow-ssh`**, decisão que este runbook não toma por você. |
+> | `todolist-allow-grpc-internal` | **Existe, com `tcp:5081` só** (a tabela pede `5081,5101`). No caminho Docker (seção 9) ela é inócua: os containers conversam pela rede interna do compose, não pela VPC. Deixe como está; o argumento de "regra declarativa para a banca" abaixo continua valendo. |
+> | `todolist-allow-postgres` (`tcp:5432` de `10.128.0.4/32`, tag `todolist-db`) | **Existe, e perdeu a função.** Com o banco no Cloud SQL (seção 9), o tráfego vai pelo peering de IP privado, que **não** passa por regra de firewall da VPC. A regra só importaria se a `maquina-2-psd` voltasse a servir Postgres. |
+>
+> Resumo: para o caminho Docker do 22/10, **nenhuma regra de firewall precisa ser criada,
+> alterada ou removida**. O que continua obrigatório é a **verificação de fora** descrita no
+> fim desta seção — ela comprova o efeito das regras, e nada a substitui.
+
 **VPC network → Firewall → Create firewall rule.** Quatro regras (a quarta mudou de porta no
-BE-42 — era `todolist-allow-gateway`/`tcp:8080`, virou `todolist-allow-nginx`/`tcp:80`):
+BE-42 — era `todolist-allow-gateway`/`tcp:8080`, virou `todolist-allow-nginx`/`tcp:80`) —
+texto original, mantido como registro; ver a correção acima antes de executar:
 
 | Nome | Targets (tags) | Source IPv4 ranges | Protocolos/portas | Para quê |
 |---|---|---|---|---|
@@ -139,6 +165,30 @@ pode trocar se a VM for parada e reiniciada; promover **depois** que ele já mud
 demais, porque qualquer material de apresentação (slide, script salvo) que cite o IP
 precisaria ser refeito. Reservar com antecedência custa uma tela do Console e elimina o
 risco — faça isso bem antes do ensaio, não no dia.
+
+> **Estado em 30/09/2026 — nada reservado, e a VM está desligada.**
+> `gcloud compute addresses list` mostra um único endereço no projeto, e ele é o bloco de
+> peering do Cloud SQL (`default-ip-range-1790293144149`, `10.30.240.0/20`, `VPC_PEERING`) —
+> **não** há IP externo estático reservado. A `maquina-1-psd` está `TERMINATED`, então o IP
+> externo que ela tinha no T1 **já foi perdido**: ao ligar, ela recebe um efêmero novo.
+>
+> Consequência prática: o IP que você usar no primeiro ensaio **não** é garantido no dia da
+> apresentação se a VM for reiniciada no meio. Os scripts aceitam o endereço por parâmetro
+> (`-BaseUrl`/argumento do `smoke.sh`), então dá para trabalhar com IP efêmero — mas
+> reservar o estático **depois** de ligar a VM, e antes do ensaio, remove o risco por um
+> comando:
+>
+> ```bash
+> # com a VM já no ar, promove o IP efêmero atual a estático, sem trocá-lo
+> gcloud compute addresses create maquina-1-psd-ip \
+>   --project=sd-26-2 --region=us-central1 \
+>   --addresses="$(gcloud compute instances describe maquina-1-psd --zone=us-central1-a \
+>       --format='value(networkInterfaces[0].accessConfigs[0].natIP)')"
+> ```
+>
+> Um IP estático reservado e **não** usado por nenhuma VM é cobrado; preso a uma VM ligada,
+> não. Se a VM ficar desligada por semanas, solte o endereço ou conte com essa cobrança
+> pequena.
 
 ## 2. PostgreSQL na `maquina-2-psd`
 
@@ -679,11 +729,21 @@ O que falta fazer manualmente, na VM real, para fechar BE-37/BE-42 (nada disto f
 por este agente — só preparado no repositório; o `install-on-vm.sh`/`deploy/nginx/` que
 executam parte disto estão sendo escritos em paralelo a este documento):
 
-- [ ] Criar a regra de firewall `todolist-allow-nginx` (`tcp:80`, pública) e revisar
-      `todolist-allow-grpc-internal` para `tcp:5081,5101` (seção 1).
-- [ ] **Fechar/remover** a regra antiga `todolist-allow-gateway` (`tcp:8080`, pública), se ela
-      existir de uma implantação anterior a BE-42 — o Gateway deixou de ser público.
-- [ ] Reservar o IP estático da `maquina-1-psd` (seção 1.1).
+> **Esta lista é do caminho systemd (plano B).** A decisão de 30/09/2026 é apresentar pelo
+> **caminho Docker com Cloud SQL** (seção 9) — ver a lista equivalente no fim desta seção
+> ("Pendências do caminho Docker"). Os itens de `.env`, chave RS256, verificação de fora,
+> smoke test e ensaio cronometrado valem nos dois caminhos; os de `install-on-vm.sh`,
+> `nginx -t` e units systemd, só aqui.
+
+- [x] ~~Criar a regra de firewall `todolist-allow-nginx` (`tcp:80`, pública)~~ — **não é
+      necessária** (30/09/2026): a `default-allow-http` já cobre a `tcp:80` para a tag
+      `http-server`, que a VM tem. Revisar `todolist-allow-grpc-internal` para `tcp:5081,5101`
+      também perdeu o sentido no caminho Docker. Ver a tabela de correção na seção 1.
+- [x] ~~**Fechar/remover** a regra antiga `todolist-allow-gateway` (`tcp:8080`, pública)~~ —
+      **nunca existiu** neste projeto (verificado em 30/09/2026). Nada a remover.
+- [ ] Reservar o IP estático da `maquina-1-psd` (seção 1.1) — **nada reservado hoje**, e a VM
+      está `TERMINATED`, então o IP do T1 já foi perdido: o endereço só pode ser promovido
+      **depois** de ligar a VM. Comando pronto na seção 1.1.
 - [ ] Subir o novo `todolist-deploy.tar.gz`, agora com `publish/frontend/` incluído
       (`scripts/publish.ps1` + upload pelo SSH do navegador).
 - [ ] Editar os três `.env` na VM com os segredos reais: `identity.env` (`Jwt__Issuer`/
@@ -748,16 +808,41 @@ executam parte disto estão sendo escritos em paralelo a este documento):
 8. Verificar                        (deploy/smoke.sh, scripts/demo-t2.ps1 — SEM MUDANÇA)
 ```
 
-### 9.1 Provisionar o Cloud SQL
+### 9.1 Ligar o Cloud SQL que já existe (não provisionar)
 
-Runbook completo, nunca executado, com todos os comandos e o porquê de cada um:
-[deploy/cloudsql/README.md](cloudsql/README.md). Resultado esperado ao final: uma instância
-`todolist-cloudsql` com IP privado na mesma VPC de `maquina-1-psd`, banco `todolist`, usuário
-`todolist` com senha definida.
+> **Corrigido em 30/09/2026.** Esta seção mandava criar uma instância `todolist-cloudsql`.
+> Ela **não precisa existir**: o projeto `sd-26-2` já tem a instância **`banco-1`**
+> (`POSTGRES_18`, `us-central1`, tier `db-custom-2-8192`, 10 GB), **parada**
+> (`activationPolicy: NEVER`), com **IP privado `10.30.240.3`** na VPC `default` — a mesma de
+> `maquina-1-psd` — e o peering de Private Services Access já reservado e conectado
+> (`10.30.240.0/20`). Também já está em `sslMode: ENCRYPTED_ONLY`, o que torna o
+> `SSL Mode=Require` do `.env.example` **obrigatório**, não opcional.
+
+Runbook corrigido, com o estado real lido do projeto e os comandos de cada passo:
+[deploy/cloudsql/README.md](cloudsql/README.md). O caminho curto é:
+
+```bash
+# 1) ligar (não existe `gcloud sql instances start` — quem liga é o patch da política)
+gcloud sql instances patch banco-1 --project=sd-26-2 --activation-policy=ALWAYS
+
+# 2) com a instância NO AR, conferir se o banco e o usuário da aplicação já existem
+#    (com ela parada, estes dois comandos respondem HTTP 400)
+gcloud sql databases list --instance=banco-1 --project=sd-26-2
+gcloud sql users list     --instance=banco-1 --project=sd-26-2
+
+# 3) criar o que faltar (senha pelo prompt, nunca no histórico do shell)
+gcloud sql databases create todolist --instance=banco-1 --project=sd-26-2
+gcloud sql users create todolist --instance=banco-1 --project=sd-26-2 --prompt-for-password
+```
+
+Resultado esperado ao final: banco `todolist` e usuário `todolist` na `banco-1`, alcançáveis
+de `maquina-1-psd` por `10.30.240.3:5432` com TLS. **A `banco-1` é anterior a este trabalho**
+— pode ter dados de outra atividade, então liste antes de criar e **não** a apague depois da
+apresentação; pare (`--activation-policy=NEVER`) e pronto.
 
 ### 9.2 Habilitar a API do Artifact Registry e criar o repositório
 
-Confirmado em 25/09/2026 (leitura, sem alterar nada): no projeto `sd-26-2`, a API
+Reconfirmado em 30/09/2026, ainda de pé (leitura, sem alterar nada): no projeto `sd-26-2`, a API
 `artifactregistry.googleapis.com` está **desabilitada** e portanto o repositório `todolist`
 **não existe**. `scripts/publish-images.ps1` detecta os dois problemas e se recusa a publicar
 enquanto eles existirem — mas não os resolve sozinho (habilitar API/criar recurso não é ação
@@ -901,8 +986,15 @@ docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/t
 
 Nem `install-docker-on-vm.sh` nem nenhum outro script desta onda abre porta ou mexe em regra
 de firewall — isso é decisão e ação do usuário no Console/`gcloud` (mesmas regras da seção 1
-acima: só a porta 80 pública, os backends internos nunca expostos). Confirme a regra
-`todolist-allow-nginx` (ou equivalente) antes de testar de fora da VPC.
+acima: só a porta 80 pública, os backends internos nunca expostos).
+
+> **Corrigido em 30/09/2026: não há regra para criar.** A `default-allow-http` já libera
+> `tcp:80` de `0.0.0.0/0` para a tag `http-server`, e a `maquina-1-psd` já carrega essa tag —
+> o "equivalente a `todolist-allow-nginx`" pedido aqui **já está no ar**. A
+> `todolist-allow-gateway` (`tcp:8080` pública) nunca existiu neste projeto. Ver a tabela de
+> correção no início da seção 1. O que permanece obrigatório é a **verificação de fora** (a
+> 80 responde o `index.html`; 8080/5080/5081/5100/5101 não respondem) — regra correta no
+> Console não é prova de porta fechada.
 
 ### 9.9 Verificar — logs e smoke test
 
@@ -938,7 +1030,99 @@ DEMO_PASSWORD=... ./deploy/smoke.sh http://<IP_EXTERNO>
 - A instalação do Docker Engine pelo repositório oficial assume Debian/Ubuntu (a família de
   imagem que o Compute Engine do projeto já usa nas duas VMs do T1/T2) — não testada contra
   outra distribuição.
-- Os escopos OAuth reais da `maquina-1-psd` não foram confirmados por este agente com
-  `gcloud compute instances describe` (o comando é leitura pura e seria permitido, mas não foi
-  necessário para escrever o runbook — os escopos padrão citados acima vêm da documentação do
-  Compute Engine, não de uma consulta a esta VM específica). Confirme antes do ensaio.
+- ~~Os escopos OAuth reais da `maquina-1-psd` não foram confirmados~~ — **confirmados em
+  30/09/2026** com `gcloud compute instances describe`. A VM roda com a conta de serviço
+  padrão (`36621986996-compute@developer.gserviceaccount.com`) e os escopos incluem
+  **`devstorage.read_only`**, que é o que o `docker pull` do Artifact Registry exige — o
+  passo 9.6 deve passar. Não há escopo `cloud-platform`, então o `gcloud` **dentro** da VM
+  não serve para administrar o projeto; só para o que esses escopos cobrem.
+
+### Estado verificado em 30/09/2026 (leitura, nada alterado)
+
+Uma rodada de consultas de leitura ao projeto `sd-26-2` fechou parte das lacunas acima e
+corrigiu três passos deste runbook (seções 1, 1.1, 9.1 e 9.8):
+
+| Recurso | Estado |
+|---|---|
+| `banco-1` (Cloud SQL) | **existe**, `POSTGRES_18`, `STOPPED`, IP privado `10.30.240.3`, VPC `default`, `sslMode: ENCRYPTED_ONLY` |
+| Peering PSA | **existe** — `10.30.240.0/20`, `RESERVED`, rede `default` |
+| `maquina-1-psd` | **`TERMINATED`**, Debian 13 (trixie), `e2-small`, IP interno `10.128.0.4`, tags `http-server`/`https-server`/`todolist-app` |
+| IP externo estático | **nenhum reservado** — a VM pega um efêmero novo ao ligar (ver 1.1) |
+| Firewall | `default-allow-http` cobre a `tcp:80`; `todolist-allow-gateway` nunca existiu |
+| API do Artifact Registry | **ainda desabilitada**; repositório inexistente |
+
+O que **continua** sem verificação de campo: tudo que exige escrita ou a VM no ar — ligar a
+instância, conferir/criar banco e usuário, `docker push`, `install-docker-on-vm.sh` numa VM
+real, e a stack respondendo na porta 80.
+
+Dois pontos que a leitura levantou e nenhum documento registrava:
+
+- **Debian 13 (trixie).** O passo de instalação do Docker monta o repositório oficial a
+  partir de `$ID`/`$VERSION_CODENAME` do `/etc/os-release`, então ele vai pedir o
+  componente `trixie`. Se o `apt-get update` falhar dizendo que esse release não existe,
+  é porque o canal do Docker ainda não publica para essa versão — a saída é apontar o
+  `.list` para `bookworm` (Debian 12), que é compatível. Não exercitado.
+- **`e2-small` são 2 GB de RAM para quatro containers** (três .NET + nginx) mais o `migrate`
+  na subida. Deve caber, mas é o tipo de limite que só o primeiro ensaio revela — mais um
+  motivo para ensaiar com folga, não na véspera.
+
+## 10. Pendências do caminho Docker (a lista que vale para 22/10)
+
+Decidido em 30/09/2026: a apresentação do T2 é pelo **caminho Docker na `maquina-1-psd` com o
+Cloud SQL `banco-1`** (seção 9). Esta é a lista de verdade; a "Pendências na VM (T2)" acima
+cobre o plano B (systemd). Nada abaixo foi executado.
+
+**Provisionamento (uma vez)**
+
+- [ ] Ligar a `banco-1`: `gcloud sql instances patch banco-1 --activation-policy=ALWAYS` (9.1).
+- [ ] Com ela no ar, **listar** banco e usuário e criar o que faltar — `todolist`/`todolist`,
+      senha pelo prompt (9.1). A instância é anterior a este trabalho: liste antes de criar.
+- [ ] Habilitar `artifactregistry.googleapis.com` e criar o repositório `todolist` em
+      `us-central1` (9.2).
+- [ ] `scripts/publish-images.ps1` — publicar as quatro imagens (até hoje só rodou em
+      `-DryRun`).
+
+**VM**
+
+- [ ] `gcloud compute instances start maquina-1-psd` e anotar o **novo** IP externo.
+- [ ] Promover esse IP a estático (1.1) — opcional, mas elimina o risco de o endereço mudar
+      entre o ensaio e a apresentação.
+- [ ] `gcloud compute scp` dos arquivos (9.4) e `deploy/install-docker-on-vm.sh` na VM (9.5) —
+      nunca rodou numa VM real; atenção ao componente `trixie` do repositório do Docker (9.10).
+- [ ] Passo 9.6 (autenticação no Artifact Registry) verde — o script falha cedo se não
+      autenticar. Os escopos da VM já foram confirmados suficientes (9.10).
+- [ ] Preencher o `.env` na VM: `PGHOST=10.30.240.3`, as duas connection strings com
+      `SSL Mode=Require` (obrigatório: a instância é `ENCRYPTED_ONLY`), a senha do usuário
+      `todolist` e `IMAGE_TAG` (9.7).
+- [ ] `psql` direto da VM contra `10.30.240.3` antes de subir a stack (seção 6 do
+      [runbook do Cloud SQL](cloudsql/README.md)) — separa problema de rede/credencial de
+      problema de aplicação.
+- [ ] `systemctl start todolist.service` e as quatro imagens no ar; conferir que o `migrate`
+      rodou sem erro (é ele que aplica `artifacts/sql/01-identity.sql` e `02-tasks.sql`).
+
+**Verificação (as mesmas exigências de BE-39, independentes do caminho de deploy)**
+
+- [ ] De fora da VPC: a **80** responde o `index.html` do Angular; **8080, 5080, 5081, 5100,
+      5101 não respondem** (seção 1).
+- [ ] `DEMO_PASSWORD=... ./deploy/smoke.sh http://<IP_EXTERNO>` verde.
+- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password ...` verde, do notebook,
+      com os três casos de 401 (sem token, token lixo, token adulterado).
+- [ ] Conta inativa preparada por `UPDATE` no banco e o 401 indistinguível verificado
+      (BE-39 CA-06, seção 8).
+- [ ] Identity derrubado (`docker compose stop identity`) → `POST /api/tasks` responde **503**
+      com `Retry-After`, nunca 401 nem 500 (BE-39 CA-07).
+- [ ] Mesmo `traceId` nas linhas de Gateway, Tasks e Identity para a criação de tarefa
+      (BE-39 CA-08) — `deploy/tmux-demo-docker.sh` para acompanhar os logs.
+- [ ] Permissão da chave privada RS256 dentro do container `identity` (equivalente ao CA-25 de
+      BE-40 no mundo systemd — aqui o arquivo vem por `secrets:`, com o `chown 1654`
+      documentado em `docker-compose.prod.yml`).
+- [ ] Roteiro no navegador, Atos 1 a 4 da seção 8, contra `http://<IP_EXTERNO>/`.
+- [ ] **Ensaio cronometrado de 10 minutos**, com o tempo real registrado no campo
+      `[PENDENTE]` da seção 8 — obrigatório, não opcional (BE-39 CA-03).
+
+**Depois de cada ensaio**
+
+- [ ] Parar a `banco-1` (`--activation-policy=NEVER`) — é o item mais caro do ambiente
+      ligado. **Não apagar.**
+- [ ] A `maquina-2-psd` fica desligada: o banco agora é o Cloud SQL, e o T3 vai exigir que
+      ela não volte.
