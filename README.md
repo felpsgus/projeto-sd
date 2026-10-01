@@ -1,8 +1,8 @@
 # TodoList — Backend
 
 Solution .NET 10 com **dois microsserviços independentes** — **Identity Service** e **Tasks Service** —
-que se comunicam por gRPC (BE-25/BE-26). O Identity já expõe um servidor gRPC real (`ValidateUser`,
-`ValidateToken` stub); o Tasks ainda não chama nada (cliente/wiring ficam para BE-27/BE-28). Cada serviço
+que se comunicam por gRPC (BE-25/BE-26). O Identity já expõe um servidor gRPC real (`ValidateUser`);
+o Tasks ainda não chama nada (cliente/wiring ficam para BE-27/BE-28). Cada serviço
 sobe de forma independente, responde a health checks de liveness/readiness e expõe OpenAPI em
 desenvolvimento. Os dois persistem no **mesmo** banco Postgres, cada um no seu schema (BE-02, D-27).
 
@@ -64,7 +64,7 @@ nunca hardcoded no código):
 | Serviço | Endpoint | Porta (dev) | Protocolo |
 |---|---|---|---|
 | Identity | HTTP/REST | `5080` | HTTP/1.1 |
-| Identity | gRPC (`IdentityService.ValidateUser`, `ValidateToken`) | `5081` | HTTP/2 (h2c) |
+| Identity | gRPC (`IdentityService`) | `5081` | HTTP/2 (h2c) |
 | Tasks | HTTP/REST | `5100` | HTTP/1.1 |
 
 > **Antes do primeiro `dotnet run` do Identity:** gere o par de chaves RSA (BE-40, RS256) com
@@ -106,19 +106,10 @@ Em ambiente de desenvolvimento, cada serviço também expõe a documentação Op
 O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contracts/identity/v1/identity.proto) —
 único `.proto` do repositório, referenciado por caminho relativo pelos dois serviços (decisão D-29):
 `TodoList.Identity.Api` gera o lado `Server`, `TodoList.Tasks.Infrastructure` gera o lado `Client`
-(cujo wiring/uso real fica para BE-27/BE-28). O serviço `IdentityService` expõe dois RPCs:
+(cujo wiring/uso real fica para BE-27/BE-28). O serviço `IdentityService` expõe, entre outros, estes RPCs:
 
 - **`ValidateUser`** — consulta o usuário pelo id; nunca lança nem devolve erro gRPC para id
   malformado ou usuário inexistente (resposta negativa, status `OK`).
-- **`ValidateToken`** (BE-34) — valida assinatura, issuer, audience e expiração de um access token
-  JWT, reaproveitando os mesmos `TokenValidationParameters` que assinam o token (BE-08, agora
-  RS256). Não consulta o store de usuários: não checa `IsActive` (ver nota técnica de BE-34 —
-  decisão deliberada, não omissão). Nunca lança nem devolve erro gRPC para entrada malformada —
-  sempre `OK` com `valid=false`. **Desde BE-40 (D-38), o Gateway não chama mais este RPC** — ele
-  valida o JWT localmente com a chave pública (`AddJwtBearer`), o que o requisito de middleware do
-  T2 exige. `ValidateToken` continua existindo e funcionando (ver "Rodando o T2" e a seção de
-  chaves abaixo), só que sem consumidor ativo nesta etapa — fica registrado como capacidade do
-  Identity, não como o mecanismo de autenticação do sistema.
 - **`Login`** (BE-33, recorte de BE-09 — D-36) — troca e-mail e senha por um access token. Exige
   `UserStore:Provider=Persisted` (ver seção seguinte). Nunca revela, por resposta ou por tempo, qual
   das causas de falha ocorreu (e-mail inexistente, senha errada, usuário inativo) — sempre
@@ -690,7 +681,7 @@ Isso executa os quatro projetos de teste. Com Docker de pé são **296 testes**;
   e reflection sobre `User` (nenhum setter público — CA-07/CA-08 de BE-04).
 - `TodoList.Identity.IntegrationTests` — `GET /health` (liveness) e `GET /health/ready` (readiness,
   degradado sem derrubar o processo — CA-03/CA-04 de BE-02), o servidor gRPC real subido por
-  `WebApplicationFactory` invocado por um cliente gRPC de teste (`ValidateUser`, `ValidateToken`,
+  `WebApplicationFactory` invocado por um cliente gRPC de teste (`ValidateUser`,
   id malformado, inclusive com `UserStore:Provider=Persisted` contra Postgres real — CA-13 de BE-26), o
   CRUD trivial sobre SQLite in-memory exercitando o interceptor de auditoria/soft delete real
   (CA-06/CA-07/CA-08 de BE-02), as convenções de modelo (CA-05, sem Docker) e os testes
@@ -832,7 +823,7 @@ O cliente gRPC do Tasks e a validação de dono na criação de tarefa (BE-27/BE
 `GrpcIdentityGateway`/`IIdentityGateway` e a rejeição de dono inexistente/inativo em `POST /api/tasks` —,
 assim como a configuração por ambiente dos endereços/portas dos dois serviços e do cliente gRPC (BE-30,
 seção "Configuração" acima) e o roteiro de verificação de ponta a ponta dos três caminhos (BE-31, seção
-"Rodando os dois serviços"). Segue fora do escopo desta etapa: validação real de JWT em `ValidateToken`
+"Rodando os dois serviços"). Segue fora do escopo desta etapa: validação real de JWT
 (fica para o API Gateway, D-31), autenticação/hash de senha real (BE-06/BE-08/BE-09 — o seed em memória
 desta etapa usava um `PasswordHash` placeholder documentado, não um hash válido), endpoints de usuário (BE-07/BE-14), o
 handler `DELETE /api/me` de exclusão de conta (BE-16 — a FK que sustenta a cascata das tarefas já existe,
@@ -865,7 +856,7 @@ tipos compartilhados com os backends.
   original de BE-36): todo endpoint exige token por padrão (fallback policy); só `/health`,
   `POST /api/auth/login` e a documentação OpenAPI/Scalar (Development) são anônimos. O Bearer é
   validado **localmente**, com a chave pública (`Jwt:PublicKeyPath`) — o Gateway não pergunta mais
-  ao Identity a cada requisição (`ValidateToken` deixou de ter esse consumidor). A chave de
+  ao Identity a cada requisição. A chave de
   assinatura continua nunca saindo do Identity (D-31/D-38); o Gateway só tem a metade que verifica,
   nunca a que assina.
 - Indisponibilidade do Identity ou do Tasks nunca vira 401/400 "normal" — vira **503** com `Retry-After`
@@ -892,7 +883,7 @@ Chaves de configuração (`appsettings.json`/`appsettings.Development.json`, val
 |---|---|---|
 | `Backends:IdentityGrpcAddress` | `http://localhost:5081` | Endereço gRPC (h2c local) do Identity Service |
 | `Backends:TasksGrpcAddress` | `http://localhost:5101` | Endereço gRPC (h2c local) do Tasks Service |
-| `Backends:IdentityGrpcTimeoutSeconds` | `2` | Deadline de `Login` (`ValidateToken` deixou de ser chamado pelo Gateway desde BE-40) |
+| `Backends:IdentityGrpcTimeoutSeconds` | `2` | Deadline de `Login` |
 | `Backends:TasksGrpcTimeoutSeconds` | `5` | Deadline de `CreateTask` — maior que o do Identity porque o Tasks faz, dentro dele, uma chamada aninhada ao Identity com deadline próprio de 2s |
 | `Jwt:Issuer` / `Jwt:Audience` | `todolist-identity` / `todolist` | Já vêm em `appsettings.json` — mesmo valor do Identity |
 | `Jwt:PublicKeyPath` | — (obrigatória, sem padrão, BE-40/D-38) | Caminho do PEM SubjectPublicKeyInfo usado por `AddJwtBearer` para validar a assinatura RS256 localmente — ver seção de chaves acima |
@@ -1060,7 +1051,8 @@ sair com `1` (BE-39 CA-02); o passo 7 pulado nunca conta como falha.
 
 > **Nota (BE-40).** O trecho de log abaixo é da execução do T2 **antes** de BE-40 — capturado
 > quando o Gateway ainda perguntava `ValidateToken` ao Identity por gRPC a cada requisição (D-31
-> original). Desde BE-40 (D-38), essa chamada **não existe mais**: o Gateway valida o JWT
+> original). Desde BE-40 (D-38), essa chamada **não existe mais** e o RPC `ValidateToken` foi
+> **removido do contrato** do Identity (não só deixou de ser chamado): o Gateway valida o JWT
 > localmente com `AddJwtBearer` e a chave pública, sem round-trip de rede — é exatamente o que o
 > requisito de middleware do T2 exige. A cadeia de chamadas gRPC de um `POST /api/tasks`
 > autenticado passa a ser só **Gateway → Tasks (`CreateTask`)** e, dentro dela, **Tasks →
@@ -1075,7 +1067,7 @@ Gateway → Tasks (`CreateTask`), e Tasks → Identity (`ValidateUser`), e as **
 carregavam o mesmo `traceId` (`00-2d5590b724dcaf24a7e19108dbc1d95c-...`):
 
 ```text
-# terminal 3 (Gateway) — ATÉ BE-40: chamava ValidateToken; DESDE BE-40: valida local, sem esta linha
+# terminal 3 (Gateway) — ATÉ BE-40: chamava ValidateToken; hoje: valida local, sem esta linha
 info: TodoList.Gateway.Api.Backends.IdentityBackend[432667118]
       Chamada gRPC de saída: backend=Identity, rpc=ValidateToken, statusCode=OK, durationMs=52.2405,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
@@ -1084,7 +1076,7 @@ info: TodoList.Gateway.Api.Backends.TasksBackend[432667118]
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
 
 # terminal 1 (Identity) — ATÉ BE-40: respondia ValidateToken (Gateway) e ValidateUser (Tasks);
-# DESDE BE-40: só ValidateUser — ValidateToken perdeu o consumidor
+# hoje: só ValidateUser — ValidateToken foi removido do contrato
 info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1049219497]
       ValidateToken: valid=True, durationMs=33.7856,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
@@ -1114,7 +1106,7 @@ Contra a VM, o comando equivalente para achar essas linhas é:
 
 ```bash
 sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \
-  logs --since 2m | grep -E 'ValidateToken|CreateTask|ValidateUser'
+  logs --since 2m | grep -E 'CreateTask|ValidateUser'
 ```
 
 ### 5. Caminho de falha controlada: Identity fora do ar → 503, nunca 401
