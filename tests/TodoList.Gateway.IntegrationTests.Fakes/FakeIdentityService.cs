@@ -12,9 +12,6 @@ namespace TodoList.Gateway.IntegrationTests.Fakes;
 /// </summary>
 public sealed class FakeIdentityService : IdentityService.IdentityServiceBase
 {
-    /// <summary>Dado o access token recebido, devolve (válido?, userId) — ou lança para simular indisponibilidade.</summary>
-    public Func<string, (bool Valid, string UserId)>? ValidateTokenHandler { get; set; }
-
     /// <summary>Dado e-mail/senha, devolve (succeeded?, accessToken, expiresAt, userId) — ou lança para simular indisponibilidade.</summary>
     public Func<string, string, (bool Succeeded, string AccessToken, DateTimeOffset ExpiresAt, string UserId)>? LoginHandler { get; set; }
 
@@ -51,11 +48,6 @@ public sealed class FakeIdentityService : IdentityService.IdentityServiceBase
 
     public string? LastDeleteAccountUserId { get; private set; }
 
-    /// <summary>Metadata recebida na última chamada a <see cref="ValidateToken"/> (CA-25: verificação do <c>traceparent</c>).</summary>
-    public Metadata? LastValidateTokenRequestHeaders { get; private set; }
-
-    public int ValidateTokenCallCount { get; private set; }
-
     public int LoginCallCount { get; private set; }
 
     public int RegisterCallCount { get; private set; }
@@ -67,21 +59,6 @@ public sealed class FakeIdentityService : IdentityService.IdentityServiceBase
     public int ChangePasswordCallCount { get; private set; }
 
     public int DeleteAccountCallCount { get; private set; }
-
-    public override Task<ValidateTokenResponse> ValidateToken(ValidateTokenRequest request, ServerCallContext context)
-    {
-        ValidateTokenCallCount++;
-        LastValidateTokenRequestHeaders = context.RequestHeaders;
-
-        if (ValidateTokenHandler is null)
-        {
-            throw new RpcException(new Status(StatusCode.FailedPrecondition, "FakeIdentityService.ValidateTokenHandler não configurado."));
-        }
-
-        var (valid, userId) = ValidateTokenHandler(request.AccessToken);
-
-        return Task.FromResult(new ValidateTokenResponse { Valid = valid, UserId = userId ?? string.Empty });
-    }
 
     public override Task<LoginResponse> Login(LoginRequest request, ServerCallContext context)
     {

@@ -47,7 +47,8 @@ public static class ServiceCollectionExtensions
 
         // D-34: ClientMetadataInterceptor acrescenta x-user-id/x-client-date
         // só nas chamadas ao Tasks — o cliente do Identity nunca leva essa
-        // metadata (ValidateToken roda antes de existir usuário autenticado).
+        // metadata (Login/Register rodam sem usuário autenticado, e os demais
+        // RPCs carregam user_id explícito na mensagem).
         services.AddGrpcClient<TasksService.TasksServiceClient>((provider, options) =>
         {
             var backendOptions = provider.GetRequiredService<IOptions<BackendOptions>>().Value;

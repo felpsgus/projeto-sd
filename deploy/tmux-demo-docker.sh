@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Equivalente de tmux-demo.sh para o caminho DOCKER (Onda D). O original
-# abre painéis com `journalctl -u todolist-*`, que não existe no mundo
-# container — os quatro serviços de vida longa (identity, tasks, gateway,
-# frontend) e o log de acesso viram, em vez disso, `docker compose logs -f
-# <serviço>` a partir de /opt/todolist/docker/ (ver docker-compose.prod.yml).
+# Abre uma sessão tmux para a demonstração: o roteiro (demo.sh) de um lado e,
+# do outro, um painel de `docker compose logs -f <serviço>` para cada um dos
+# quatro serviços de vida longa (identity, tasks, gateway, frontend), a partir
+# de /opt/todolist/docker/ (ver docker-compose.prod.yml).
 #
 #     ./tmux-demo-docker.sh
 #
@@ -17,21 +16,10 @@
 #     │                       │  log do FRONTEND (nginx) │
 #     └───────────────────────┴──────────────────────────┘
 #
-# Este arquivo NÃO SUBSTITUI tmux-demo.sh — aquele continua servindo o
-# caminho systemd (plano B até 22/10). Os dois nunca deveriam ser usados na
-# mesma apresentação, pela mesma razão que os dois caminhos de deploy não
-# deveriam rodar juntos na VM (ver o comentário no topo de
-# deploy/todolist.service): use o painel que corresponde ao que está
-# realmente no ar.
-#
-# Diferença de conteúdo do painel "FRONTEND" em relação ao "NGINX" do
-# original: lá, o nginx é um pacote da distro rodando FORA de qualquer
-# container, sem log próprio no journal, então o painel acompanhava
-# /var/log/nginx/access.log. Aqui, o nginx roda DENTRO do container
-# `frontend` (frontend/Dockerfile, imagem nginx-unprivileged) — o `docker
-# compose logs` dele já traz para o stdout do container tanto o access quanto
-# o error log da imagem base, então um `docker compose logs -f frontend` já
-# basta, sem precisar de `tail` num arquivo dentro do container.
+# O nginx roda DENTRO do container `frontend` (frontend/Dockerfile, imagem
+# nginx-unprivileged): o `docker compose logs` dele já traz para o stdout tanto
+# o access quanto o error log da imagem base, então `docker compose logs -f
+# frontend` basta, sem `tail` num arquivo dentro do container.
 #
 # Se a sessão já existir, ele apenas reconecta (nada é recriado).
 set -uo pipefail

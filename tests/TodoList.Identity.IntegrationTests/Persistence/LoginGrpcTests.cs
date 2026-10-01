@@ -13,8 +13,7 @@ using InfrastructurePersistence = TodoList.Identity.Infrastructure.Persistence.S
 namespace TodoList.Identity.IntegrationTests.Persistence;
 
 /// <summary>
-/// Fluxo ponta a ponta <c>Login</c> → <c>ValidateToken</c> contra um servidor
-/// gRPC real (BE-33 CA-01/CA-08, BE-34 CA-01/CA-08/CA-09/CA-10), com
+/// <c>Login</c> contra um servidor gRPC real (BE-33 CA-01/CA-08), com
 /// <c>UserStore:Provider=Persisted</c> e Postgres real (Testcontainers).
 /// <b>Requer Docker.</b>
 ///
@@ -23,11 +22,11 @@ namespace TodoList.Identity.IntegrationTests.Persistence;
 /// seed de demonstração saiu do produto, ver <see cref="TodoList.Identity.Api.Configuration.UserStoreOptions"/>).
 /// Os usuários de teste são criados diretamente pelo repositório, do mesmo
 /// jeito que o próprio cadastro real (<c>RegisterUserHandler</c>) os criaria
-/// — só sem passar pelo gRPC, para manter o teste focado em Login/ValidateToken.
+/// — só sem passar pelo gRPC, para manter o teste focado em Login.
 /// </para>
 /// </summary>
 [Collection("Postgres")]
-public class LoginAndValidateTokenGrpcTests : IAsyncLifetime
+public class LoginGrpcTests : IAsyncLifetime
 {
     private const string DemoPassword = "senha-de-demonstracao-para-teste-123";
     private const string ActiveUserEmail = "ada.lovelace@todolist.example";
@@ -39,7 +38,7 @@ public class LoginAndValidateTokenGrpcTests : IAsyncLifetime
     private Guid _activeUserId;
     private Guid _inactiveUserId;
 
-    public LoginAndValidateTokenGrpcTests(PostgresContainerFixture fixture)
+    public LoginGrpcTests(PostgresContainerFixture fixture)
     {
         _fixture = fixture;
     }
@@ -72,9 +71,9 @@ public class LoginAndValidateTokenGrpcTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [Fact] // BE-33 CA-01, BE-34 CA-01 — fluxo ponta a ponta
+    [Fact] // BE-33 CA-01
     [Trait("Category", "Docker")]
-    public async Task Login_UsuarioAtivoComSenhaCorreta_GeraAccessTokenValidoParaValidateToken()
+    public async Task Login_UsuarioAtivoComSenhaCorreta_RetornaAccessToken()
     {
         using var client = CreateClient();
 
@@ -84,11 +83,6 @@ public class LoginAndValidateTokenGrpcTests : IAsyncLifetime
         login.AccessToken.Should().NotBeNullOrEmpty();
         login.UserId.Should().Be(_activeUserId.ToString());
         login.ExpiresAt.Should().NotBeNull();
-
-        var validation = await client.ValidateTokenAsync(new ValidateTokenRequest { AccessToken = login.AccessToken });
-
-        validation.Valid.Should().BeTrue();
-        validation.UserId.Should().Be(_activeUserId.ToString());
     }
 
     [Fact] // BE-33 — usuário inativo nunca autentica, mesmo com a senha correta
@@ -101,46 +95,6 @@ public class LoginAndValidateTokenGrpcTests : IAsyncLifetime
 
         response.Succeeded.Should().BeFalse();
         response.AccessToken.Should().BeEmpty();
-    }
-
-    [Fact] // BE-34 CA-09 — ValidateToken não consulta o store de usuários: token continua válido mesmo com o usuário já excluído do banco
-    [Trait("Category", "Docker")]
-    public async Task ValidateToken_ComUsuarioRemovidoDoBancoDepoisDoLogin_ContinuaValido()
-    {
-        using var client = CreateClient();
-        var login = await client.LoginAsync(new LoginRequest { Email = ActiveUserEmail, Password = DemoPassword });
-        login.Succeeded.Should().BeTrue();
-
-        await using (var context = CreateProbeContext())
-        {
-            var user = await context.Users.SingleAsync(u => u.Id == _activeUserId);
-            context.Users.Remove(user);
-            await context.SaveChangesAsync();
-        }
-
-        var validation = await client.ValidateTokenAsync(new ValidateTokenRequest { AccessToken = login.AccessToken });
-
-        validation.Valid.Should().BeTrue("ValidateToken não consulta o store de usuários (CA-09 de BE-34)");
-    }
-
-    [Fact] // BE-34 CA-10 — usuário desativado depois do login continua valid=true até o token expirar (consequência aceita, não regressão)
-    [Trait("Category", "Docker")]
-    public async Task ValidateToken_UsuarioDesativadoDepoisDoLogin_ContinuaValidoDentroDaValidade()
-    {
-        using var client = CreateClient();
-        var login = await client.LoginAsync(new LoginRequest { Email = ActiveUserEmail, Password = DemoPassword });
-        login.Succeeded.Should().BeTrue();
-
-        await using (var context = CreateProbeContext())
-        {
-            var user = await context.Users.SingleAsync(u => u.Id == _activeUserId);
-            user.Deactivate(TimeProvider.System);
-            await context.SaveChangesAsync();
-        }
-
-        var validation = await client.ValidateTokenAsync(new ValidateTokenRequest { AccessToken = login.AccessToken });
-
-        validation.Valid.Should().BeTrue("BE-34 não checa IsActive — consequência aceita, não regressão (RN-USER-04 continua garantida em BE-28)");
     }
 
     private async Task<Guid> CreateUserAsync(string email, string displayName, bool isActive)

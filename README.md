@@ -148,14 +148,10 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
 
 ### Cadastro real, não seed (Onda E, T2)
 
-Até a fase 3 do T2, sem cadastro de verdade, existia um `UserStore:SeedDemoUsers` que ligava um
-`DemoUserSeeder` populando `identity.users` com dois usuários fixos — necessário na época porque a FK
-cruzada `tasks.tasks.owner_id → identity.users(id)` (nota mais abaixo) exigia que algum usuário
-existisse de verdade no banco, não só no seed em memória. Com o cadastro real
-(`POST /api/auth/register`, ver "gRPC do Identity Service" acima), esse atalho deixou de fazer
-sentido — cadastre a conta que for usar pela tela, por `curl`/Scalar, ou deixe que
-`scripts/demo-t2.ps1` cadastre a sua própria a cada execução — e foi **removido**: não existem mais
-`UserStore:SeedDemoUsers` nem `UserStore:DemoUserPassword`, em nenhum ambiente.
+Não há usuários pré-cadastrados em nenhum ambiente. A FK cruzada `tasks.tasks.owner_id →
+identity.users(id)` (nota mais abaixo) exige que o dono exista de verdade no banco: cadastre a conta
+que for usar pela tela, por `curl`/Scalar (`POST /api/auth/register`, ver "gRPC do Identity Service"
+acima), ou deixe que `scripts/demo-t2.ps1` cadastre a sua própria a cada execução.
 
 **Usuário inativo (RN-AUTH-09).** Não existe rota para desativar uma conta pela API — só o domínio
 tem `User.Deactivate()`, sem endpoint que o exponha (decisão consciente: seria superfície de negócio
@@ -272,17 +268,16 @@ cada projeto — então normalmente nem é preciso configurar nada além de gera
 `.secrets/jwt/`) e passa `Jwt__PrivateKeyPath`/`Jwt__PublicKeyPath` (caminhos absolutos) só para os
 processos de Identity e Gateway que ele sobe. O **Tasks Service não recebe nenhuma variável
 `Jwt__*`** — uma varredura de arquitetura (CA-18 de BE-40) falha o build se `Jwt:`/`Jwt__` aparecer
-em qualquer código ou `appsettings*.json` de `src/Tasks`, `deploy/tasks.env.example` ou no serviço
-`tasks` do `docker-compose.yml`. A mesma varredura cobre o Gateway do lado oposto (CA-17): ele só
+em qualquer código ou `appsettings*.json` de `src/Tasks`, ou nos serviços `tasks` de
+`docker-compose.yml` e `deploy/docker-compose.prod.yml`. A mesma varredura cobre o Gateway do lado oposto (CA-17): ele só
 pode ter `Jwt:Issuer`, `Jwt:Audience` e `Jwt:PublicKeyPath` — nunca `Jwt:PrivateKeyPath` nem
 `Jwt:SigningKey`.
 
 > **Implantação (VM):** a chave não viaja do seu ambiente de desenvolvimento para a VM — ela é
-> gerada direto lá, uma vez, por `deploy/install-on-vm.sh` (`openssl genpkey`/`openssl pkey
-> -pubout`), com `private.pem` `root:0400` entregue só à unit do Identity via `LoadCredential=` do
-> systemd (as três units rodam como o mesmo usuário `todolist`, então isolamento por dono de
-> arquivo não bastaria) e `public.pem` `root:0444`, legível por qualquer processo — inclusive o
-> Gateway. Ver [`deploy/README.md`](deploy/README.md) e
+> gerada direto lá, uma vez, por `deploy/install-docker-on-vm.sh` (`openssl genpkey`/`openssl pkey
+> -pubout`, em `/etc/todolist/jwt/`), com `private.pem` `1654:1654 0400` (uid do usuário `app` da
+> imagem `aspnet`) montada como `secrets:` do compose só no container do Identity, e `public.pem`
+> `0444`, montada só no Gateway. Ver [`deploy/README.md`](deploy/README.md) e
 > [`deploy/ANATOMIA-DOS-SCRIPTS.md`](deploy/ANATOMIA-DOS-SCRIPTS.md).
 
 ### Migrations: `dotnet ef`, uma base por serviço
@@ -471,8 +466,7 @@ reais — os trechos de log são saída literal, não exemplo escrito à mão.
 de um túnel. As seções abaixo são o que os scripts faziam, passo a passo, para quando algo saísse do
 esperado.
 
-Para levar isto às VMs do GCP — empacotamento, systemd, firewall VPC e endurecimento do Postgres —
-veja [`deploy/README.md`](deploy/README.md).
+Para levar isto ao GCP — imagens Docker, Cloud SQL e a VM única da apresentação — veja [`deploy/README.md`](deploy/README.md).
 
 ### 1. Subir, na ordem
 
@@ -515,9 +509,8 @@ dotnet run --project src/Tasks/TodoList.Tasks.Api
 
 Este roteiro histórico (BE-31/T1) usa os mesmos dois ids fixos de `InMemoryUserLookup` (seção de
 store de usuários acima), mas contra `Provider=Persisted` eles precisam existir de verdade em
-`identity.users` — antes da Onda E isso vinha de um seed automático (`DemoUserSeeder`, removido: o
-cadastro é real agora, veja "Cadastro real, não seed" acima). Para reproduzir este roteiro específico,
-insira os dois manualmente (nunca faz login, só `ValidateUser`/FK — a senha não importa aqui):
+`identity.users` (não há seed automático, veja "Cadastro real, não seed" acima). Para reproduzir este
+roteiro específico, insira os dois manualmente (nunca faz login, só `ValidateUser`/FK — a senha não importa aqui):
 
 ```sql
 INSERT INTO identity.users (id, email, display_name, password_hash, is_active, created_at, updated_at) VALUES
@@ -888,12 +881,9 @@ O Gateway escuta em **uma única porta HTTP/1**, `8080` (`http://0.0.0.0:8080` e
 desenvolvimento/containers, `http://localhost:8080` em Development) — D-37, a mesma porta que
 vira `$PORT` no Cloud Run (T3).
 
-> **Exceção: a VM do T2 (BE-42, 21/09/2026).** Na `maquina-1-psd`, o Gateway escuta em
-> `127.0.0.1:8080`, não `0.0.0.0:8080` — só o **nginx**, que roda na mesma máquina e passa a
-> ser a única origem HTTP pública (porta 80), fala com ele. É configuração de ambiente
-> (`gateway.env`/unit systemd), não mudança de código: em containers (compose local, Cloud Run
-> no T3) o Gateway continua em `0.0.0.0:8080`, exposto por quem estiver na frente dele em cada
-> ambiente. Ver [`deploy/README.md`](deploy/README.md) para a topologia completa da VM.
+> **Na VM do T2 (BE-42)** o Gateway não publica porta nenhuma: ele escuta em `0.0.0.0:8080` só
+> dentro da rede do compose, e quem o alcança é o container `frontend` (nginx), a única origem
+> HTTP pública (porta 80). Ver [`deploy/README.md`](deploy/README.md) para a topologia completa.
 
 Chaves de configuração (`appsettings.json`/`appsettings.Development.json`, validadas com `ValidateOnStart`
 — endereço ausente ou que não é URI absoluta derruba a inicialização, nunca a primeira requisição):
@@ -1123,13 +1113,13 @@ de BE-39).
 Contra a VM, o comando equivalente para achar essas linhas é:
 
 ```bash
-sudo journalctl -u todolist-gateway -u todolist-tasks -u todolist-identity --since '2 min ago' \
-  | grep -E 'ValidateToken|CreateTask|ValidateUser'
+sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \
+  logs --since 2m | grep -E 'ValidateToken|CreateTask|ValidateUser'
 ```
 
 ### 5. Caminho de falha controlada: Identity fora do ar → 503, nunca 401
 
-Encerre o Identity (`Ctrl+C` no terminal 1, ou `sudo systemctl stop todolist-identity` na VM) e repita a
+Encerre o Identity (`Ctrl+C` no terminal 1, ou `docker compose ... stop identity` na VM) e repita a
 requisição de criação de tarefa (token válido emitido antes da queda, ou qualquer token):
 
 ```text
@@ -1188,10 +1178,11 @@ atrás do nginx (VM) ou atrás do `ng serve` (dev local).
 
 Com o Gateway já no ar (seção "Rodando o T2" acima) e o `ng serve` rodando, a tela de login
 em `http://localhost:4200` já fala de ponta a ponta com Identity/Tasks. O build de produção
-(`npm run build`, gera `dist/frontend/browser/`) é o que `scripts/publish.ps1` empacota como
-`publish/frontend/` para a VM — ver [`deploy/README.md`](deploy/README.md) e
+(`npm run build`, gera `dist/frontend/browser/`) é compilado dentro da imagem `todolist-frontend`
+(`frontend/Dockerfile`, nginx), publicada por `scripts/publish-images.ps1` — ver
+[`deploy/README.md`](deploy/README.md) e
 [`deploy/ANATOMIA-DOS-SCRIPTS.md`](deploy/ANATOMIA-DOS-SCRIPTS.md) para o runbook de
-implantação e a topologia completa (nginx na porta 80, Gateway recuado para `127.0.0.1:8080`).
+implantação e a topologia completa (nginx na porta 80, demais serviços só na rede do compose).
 
 ## Rodando em containers (BE-38)
 
@@ -1199,15 +1190,16 @@ Preparo do T3 (Artifact Registry + Cloud Run) feito ainda no T2: cada serviço g
 (`src/Identity/TodoList.Identity.Api/Dockerfile`, `src/Tasks/TodoList.Tasks.Api/Dockerfile`,
 `src/Gateway/TodoList.Gateway.Api/Dockerfile`), e a stack inteira sobe com `docker compose` na máquina de
 desenvolvimento. Isso é **adicional** ao fluxo de `dotnet run` da seção "Rodando o T2" acima — não o
-substitui — e fica fora do caminho crítico da demonstração do T2, que continua sendo a VM (BE-37).
+substitui. A mesma stack, com imagens do Artifact Registry e o banco no Cloud SQL
+(`deploy/docker-compose.prod.yml`), é a que a VM do GCP roda na apresentação do T2.
 
 ### Pré-requisito: os SQL de migration
 
 O serviço `migrate` do compose (abaixo) aplica os mesmos scripts SQL idempotentes que a VM usa, gerados por
-`scripts/publish.ps1`:
+`scripts/new-migrations-sql.ps1`:
 
 ```powershell
-./scripts/publish.ps1
+./scripts/new-migrations-sql.ps1
 ```
 
 Isso produz `artifacts/sql/01-identity.sql` e `artifacts/sql/02-tasks.sql` — sem eles, o serviço `migrate`
@@ -1216,9 +1208,7 @@ problema).
 
 ### Segredos: chaves JWT
 
-Onda E (T2): o Identity não tem mais nenhum segredo de texto puro próprio nesta stack — o seed de
-demonstração (`UserStore__SeedDemoUsers`/`UserStore__DemoUserPassword`, que costumava vir de um `.env`
-na raiz) foi removido, junto com esse `.env`/`.env.example`. A connection string inline no
+O Identity não tem nenhum segredo de texto puro próprio nesta stack. A connection string inline no
 `docker-compose.yml` é a credencial de desenvolvimento local de sempre (`postgres`/`postgres`, CA-11 de
 BE-02), não um segredo real. Cadastre contas pela API/tela ou por `scripts/demo-t2.ps1`.
 

@@ -27,7 +27,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
 {
     private readonly IUserLookup _userLookup;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAccessTokenValidator _accessTokenValidator;
     private readonly IOptions<UserStoreOptions> _userStoreOptions;
     private readonly IValidator<ApplicationRegisterUserRequest> _registerValidator;
     private readonly IValidator<ApplicationChangePasswordRequest> _changePasswordValidator;
@@ -40,7 +39,7 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     /// que por sua vez depende do <c>IdentityDbContext</c>: resolvê-lo eager
     /// forçaria o Identity a exigir <c>ConnectionStrings:IdentityDb</c>
     /// mesmo com <c>UserStore:Provider=InMemory</c>, quebrando
-    /// <c>ValidateUser</c>/<c>ValidateToken</c> num ambiente sem banco
+    /// <c>ValidateUser</c> num ambiente sem banco
     /// configurado — exatamente o cenário que <see cref="UserStoreOptions.InMemoryProvider"/>
     /// existe para suportar (BE-33, CA-11). Resolver só dentro de
     /// <see cref="Login"/>, e só quando o provider é <c>Persisted</c>,
@@ -49,7 +48,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public IdentityGrpcService(
         IUserLookup userLookup,
         IServiceProvider serviceProvider,
-        IAccessTokenValidator accessTokenValidator,
         IOptions<UserStoreOptions> userStoreOptions,
         IValidator<ApplicationRegisterUserRequest> registerValidator,
         IValidator<ApplicationChangePasswordRequest> changePasswordValidator,
@@ -57,7 +55,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     {
         _userLookup = userLookup;
         _serviceProvider = serviceProvider;
-        _accessTokenValidator = accessTokenValidator;
         _userStoreOptions = userStoreOptions;
         _registerValidator = registerValidator;
         _changePasswordValidator = changePasswordValidator;
@@ -84,35 +81,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         var user = await _userLookup.FindByIdAsync(userId, context.CancellationToken);
 
         return RespondAndLog(request.UserId, user, stopwatch.Elapsed, traceId);
-    }
-
-    /// <summary>
-    /// Implementado em BE-34: valida assinatura, issuer, audience e expiração
-    /// do <c>access_token</c> via <see cref="IAccessTokenValidator"/> — os
-    /// mesmos <c>TokenValidationParameters</c> configurados em BE-08 (D-31),
-    /// nunca uma segunda configuração de validação. Nunca lança nem devolve
-    /// status gRPC de erro para token malformado, vazio, expirado ou com
-    /// assinatura inválida — sempre <c>OK</c> com <c>valid=false</c> (CA-02,
-    /// CA-03, CA-07). Não consulta <see cref="IUserLookup"/>/repositório de
-    /// usuário (CA-09): checar <c>IsActive</c> aqui exigiria uma leitura de
-    /// banco por requisição autenticada, não só nas que criam tarefa — decisão
-    /// registrada nas notas técnicas de BE-34.
-    /// </summary>
-    public override async Task<ValidateTokenResponse> ValidateToken(ValidateTokenRequest request, ServerCallContext context)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
-
-        var validation = await _accessTokenValidator.ValidateAsync(request.AccessToken, context.CancellationToken);
-
-        var response = validation.IsValid
-            ? new ValidateTokenResponse { Valid = true, UserId = validation.UserId!.Value.ToString() }
-            : new ValidateTokenResponse { Valid = false, UserId = string.Empty };
-
-        // CA-08 de BE-34: o token em si nunca aparece em log, só o resultado.
-        Log.ValidateTokenCalled(_logger, response.Valid, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-        return response;
     }
 
     /// <summary>
@@ -410,11 +378,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
             Level = LogLevel.Information,
             Message = "ValidateUser: userId={UserId}, exists={Exists}, active={Active}, durationMs={DurationMs}, traceId={TraceId}")]
         public static partial void ValidateUserCalled(ILogger logger, string userId, bool exists, bool active, double durationMs, string traceId);
-
-        [LoggerMessage(
-            Level = LogLevel.Information,
-            Message = "ValidateToken: valid={Valid}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ValidateTokenCalled(ILogger logger, bool valid, double durationMs, string traceId);
 
         [LoggerMessage(
             Level = LogLevel.Information,

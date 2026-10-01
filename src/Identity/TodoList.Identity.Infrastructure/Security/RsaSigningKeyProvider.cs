@@ -6,15 +6,14 @@ namespace TodoList.Identity.Infrastructure.Security;
 
 /// <summary>
 /// Carrega a chave RSA de <see cref="JwtOptions.PrivateKeyPath"/> uma única
-/// vez por processo (BE-40, D-38) e expõe as duas metades: a privada, usada
-/// só por <see cref="JwtTokenService"/> para assinar; e a pública — derivada
-/// via <see cref="RSA.ExportParameters(bool)"/> com <c>includePrivateParameters:
-/// false</c>, nunca reaproveitando o objeto privado — usada por
-/// <see cref="JwtValidationParameters"/> para validar. Ambas compartilham o
-/// mesmo <see cref="KeyId"/>, o thumbprint JWK RFC 7638 (SHA-256 sobre a
-/// forma canônica <c>{e, kty, n}</c>) da chave pública, em Base64Url —
-/// calculado uma vez aqui e reaproveitado em todo token emitido (CA-01/CA-02
-/// de BE-40). Registrado como singleton (ver <see cref="ServiceCollectionExtensions"/>):
+/// vez por processo (BE-40, D-38) e expõe a chave privada, usada só por
+/// <see cref="JwtTokenService"/> para assinar, e o <see cref="KeyId"/>: o
+/// thumbprint JWK RFC 7638 (SHA-256 sobre a forma canônica <c>{e, kty, n}</c>)
+/// da chave pública — derivada via <see cref="RSA.ExportParameters(bool)"/>
+/// com <c>includePrivateParameters: false</c> só para esse cálculo —, em
+/// Base64Url, calculado uma vez aqui e reaproveitado em todo token emitido
+/// (CA-01/CA-02 de BE-40). A validação é do Gateway, que tem só a metade
+/// pública (arquivo PEM próprio). Registrado como singleton (ver <see cref="ServiceCollectionExtensions"/>):
 /// sem estado mutável após a construção, e liberar/reabrir o PEM a cada
 /// requisição não teria propósito — a chave não muda em vida do processo
 /// (sem rotação nesta etapa, ver nota técnica de BE-40).
@@ -22,13 +21,9 @@ namespace TodoList.Identity.Infrastructure.Security;
 public sealed class RsaSigningKeyProvider : IDisposable
 {
     private readonly RSA _privateRsa;
-    private readonly RSA _publicRsa;
 
     /// <summary>Metade privada — só para assinar (<see cref="JwtTokenService"/>).</summary>
     public RsaSecurityKey PrivateKey { get; }
-
-    /// <summary>Metade pública — só para validar (<see cref="JwtValidationParameters"/>).</summary>
-    public RsaSecurityKey PublicKey { get; }
 
     /// <summary>Thumbprint JWK RFC 7638 da chave pública, em Base64Url — um único <c>kid</c> por processo.</summary>
     public string KeyId { get; }
@@ -52,18 +47,17 @@ public sealed class RsaSigningKeyProvider : IDisposable
         _privateRsa = rsa;
 
         var publicParameters = _privateRsa.ExportParameters(includePrivateParameters: false);
-        _publicRsa = RSA.Create();
-        _publicRsa.ImportParameters(publicParameters);
-
-        var publicKeyForThumbprint = new RsaSecurityKey(_publicRsa);
-        var jwk = JsonWebKeyConverter.ConvertFromRSASecurityKey(publicKeyForThumbprint);
-        KeyId = Base64UrlEncoder.Encode(jwk.ComputeJwkThumbprint());
+        using (var publicRsa = RSA.Create())
+        {
+            publicRsa.ImportParameters(publicParameters);
+            var jwk = JsonWebKeyConverter.ConvertFromRSASecurityKey(new RsaSecurityKey(publicRsa));
+            KeyId = Base64UrlEncoder.Encode(jwk.ComputeJwkThumbprint());
+        }
 
         PrivateKey = new RsaSecurityKey(_privateRsa) { KeyId = KeyId };
-        PublicKey = new RsaSecurityKey(_publicRsa) { KeyId = KeyId };
 
         // Desliga o cache de SignatureProvider do Microsoft.IdentityModel.Tokens
-        // para as duas chaves (bug documentado da própria biblioteca: o cache
+        // para a chave (bug documentado da própria biblioteca: o cache
         // estático de CryptoProviderFactory.Default indexa por KeyId/algoritmo,
         // não por identidade do objeto RSA — dois RsaSecurityKey DIFERENTES que
         // computam o mesmo KeyId (ex.: dois hosts de teste carregando o mesmo
@@ -74,12 +68,10 @@ public sealed class RsaSigningKeyProvider : IDisposable
         // recriar o SignatureProvider a cada chamada é desprezível perto do
         // risco de uma chave compartilhada ser derrubada por outro dono.
         PrivateKey.CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false };
-        PublicKey.CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false };
     }
 
     public void Dispose()
     {
         _privateRsa.Dispose();
-        _publicRsa.Dispose();
     }
 }

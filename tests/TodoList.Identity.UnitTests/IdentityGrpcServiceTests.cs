@@ -21,8 +21,7 @@ namespace TodoList.Identity.UnitTests;
 
 /// <summary>
 /// <see cref="IdentityGrpcService"/> com <see cref="IUserLookup"/>,
-/// <see cref="IUserRepository"/> e <see cref="IAccessTokenValidator"/>
-/// substituídos — BE-26 (CA-05 a CA-09), BE-33 e BE-34.
+/// <see cref="IUserRepository"/> substituídos — BE-26 (CA-05 a CA-09) e BE-33.
 /// </summary>
 public class IdentityGrpcServiceTests : IDisposable
 {
@@ -35,7 +34,6 @@ public class IdentityGrpcServiceTests : IDisposable
 
     private readonly IUserLookup _userLookup = Substitute.For<IUserLookup>();
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
-    private readonly IAccessTokenValidator _accessTokenValidator = Substitute.For<IAccessTokenValidator>();
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 10 }));
     private readonly FakeTimeProvider _timeProvider = new(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
     private readonly TestRsaKeyFile _jwtKeyFile = TestRsaKeyFile.Create();
@@ -135,66 +133,6 @@ public class IdentityGrpcServiceTests : IDisposable
         descriptorFields.Select(field => field.Name).Should().BeEquivalentTo("exists", "active", "display_name");
     }
 
-    [Fact] // BE-34, CA-01
-    public async Task ValidateToken_ValidadorRetornaValido_RespondeValidTrueComUserId()
-    {
-        _accessTokenValidator
-            .ValidateAsync("um-token-valido", Arg.Any<CancellationToken>())
-            .Returns(AccessTokenValidation.Valid(_activeUserId));
-        var sut = CreateService();
-
-        var response = await sut.ValidateToken(new ValidateTokenRequest { AccessToken = "um-token-valido" }, new FakeServerCallContext());
-
-        response.Valid.Should().BeTrue();
-        response.UserId.Should().Be(_activeUserId.ToString());
-    }
-
-    [Theory] // BE-34, CA-02/CA-03/CA-07 — entrada malformada nunca lança, sempre valid=false
-    [InlineData("")]
-    [InlineData("token-invalido")]
-    public async Task ValidateToken_ValidadorRetornaInvalido_RespondeValidFalseSemLancar(string token)
-    {
-        _accessTokenValidator
-            .ValidateAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(AccessTokenValidation.Invalid);
-        var sut = CreateService();
-
-        var act = async () => await sut.ValidateToken(new ValidateTokenRequest { AccessToken = token }, new FakeServerCallContext());
-
-        var response = await act.Should().NotThrowAsync();
-        response.Subject.Valid.Should().BeFalse();
-        response.Subject.UserId.Should().Be(string.Empty);
-    }
-
-    [Fact] // BE-34, CA-09 — ValidateToken não consulta o store de usuários
-    public async Task ValidateToken_NuncaConsultaIUserLookup()
-    {
-        _accessTokenValidator
-            .ValidateAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(AccessTokenValidation.Valid(_activeUserId));
-        var sut = CreateService();
-
-        await sut.ValidateToken(new ValidateTokenRequest { AccessToken = "qualquer-coisa" }, new FakeServerCallContext());
-
-        await _userLookup.DidNotReceive().FindByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact] // BE-34, CA-08 — o token nunca aparece no log, nem em rejeição
-    public async Task ValidateToken_Log_NuncaContemOToken()
-    {
-        const string token = "token-secreto-nunca-deve-aparecer-no-log";
-        _accessTokenValidator
-            .ValidateAsync(token, Arg.Any<CancellationToken>())
-            .Returns(AccessTokenValidation.Invalid);
-        var logger = new CapturingLogger<IdentityGrpcService>();
-        var sut = CreateService(logger: logger);
-
-        await sut.ValidateToken(new ValidateTokenRequest { AccessToken = token }, new FakeServerCallContext());
-
-        logger.Messages.Should().NotBeEmpty();
-        logger.Messages.Should().OnlyContain(message => !message.Contains(token, StringComparison.Ordinal));
-    }
-
     [Fact] // BE-33, CA-01 — login com credenciais corretas
     public async Task Login_CredenciaisCorretas_RetornaSucceededTrueComAccessToken()
     {
@@ -284,7 +222,6 @@ public class IdentityGrpcServiceTests : IDisposable
         return new IdentityGrpcService(
             _userLookup,
             serviceProvider,
-            _accessTokenValidator,
             userStoreOptions,
             new RegisterUserRequestValidator(),
             new ChangePasswordRequestValidator(),

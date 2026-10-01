@@ -26,7 +26,7 @@ namespace TodoList.Identity.UnitTests;
 /// <c>Register</c>, <c>GetProfile</c>, <c>UpdateProfile</c>,
 /// <c>ChangePassword</c>, <c>DeleteAccount</c>), com <see cref="IUserRepository"/>/
 /// <see cref="IUnitOfWork"/> substituídos. Complementa <c>IdentityGrpcServiceTests</c>
-/// (ValidateUser/ValidateToken/Login).
+/// (ValidateUser/Login).
 /// </summary>
 public class IdentityGrpcServiceAccountManagementTests
 {
@@ -36,7 +36,6 @@ public class IdentityGrpcServiceAccountManagementTests
     private readonly IUserLookup _userLookup = Substitute.For<IUserLookup>();
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IAccessTokenValidator _accessTokenValidator = Substitute.For<IAccessTokenValidator>();
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 10 }));
     private readonly FakeTimeProvider _timeProvider = new(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
     private readonly User _registeredUser;
@@ -293,7 +292,6 @@ public class IdentityGrpcServiceAccountManagementTests
         return new IdentityGrpcService(
             _userLookup,
             serviceProvider,
-            _accessTokenValidator,
             userStoreOptions,
             new RegisterUserRequestValidator(),
             new ChangePasswordRequestValidator(),

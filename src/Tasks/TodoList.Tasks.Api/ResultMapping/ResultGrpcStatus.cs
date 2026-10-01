@@ -92,7 +92,7 @@ public static class ResultGrpcStatus
 
 /// <summary>
 /// Mapeamento <see cref="ErrorType"/> → <see cref="StatusCode"/> gRPC (D-35) —
-/// mesma tabela de <see cref="ErrorTypeHttpMapping"/>, agora para o transporte
+/// tabela de <see cref="ErrorType"/> para o transporte
 /// gRPC do Tasks Service (BE-35).
 /// </summary>
 public static class ErrorTypeGrpcMapping

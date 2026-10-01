@@ -14,10 +14,9 @@
 # dist/frontend — essa pasta contém uma subpasta browser/ e nenhum index.html
 # na raiz. Copiar o caminho errado faz o nginx responder 403/404 em tudo.
 #
-# Este arquivo e deploy/nginx/todolist.conf/frontend/nginx.conf.template são
-# gêmeos (mesmas regras, dois lugares — container e VM via systemd/nginx no
-# host). Ver o comentário no topo de cada um: uma mudança de regra precisa ser
-# replicada no outro.
+# O nginx do container é configurado por frontend/nginx.conf.template: serve o
+# build do Angular como estático (com fallback para index.html nas rotas do
+# SPA) e faz proxy de /api/* para o gateway, mesma origem para front e API.
 
 FROM node:24.21.0-alpine AS build
 WORKDIR /app

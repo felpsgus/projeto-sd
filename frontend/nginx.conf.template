@@ -1,9 +1,6 @@
 # nginx — origem única HTTP do container do frontend (Etapa 13, D-40, D-32).
 #
-# GÊMEO de deploy/nginx/todolist.conf (mesmo conteúdo, dois destinos — este
-# arquivo roda no container `frontend` do docker-compose/Cloud Run; o outro
-# roda direto na VM via systemd/nginx no host, plano B até 22/10). Uma
-# mudança de regra aqui precisa ser replicada lá, e vice-versa.
+# Configuração do nginx do container `frontend` (docker-compose/Cloud Run).
 #
 # Serve o build do Angular como estático e repassa /api/* para o Gateway, que
 # nesta Etapa 13 deixou de publicar porta no host (só existe na rede interna
@@ -150,10 +147,6 @@ server {
     # explícito, /api/tasks chegaria ao Gateway como "/" e toda a API
     # responderia 404. `$request_uri` é a URI original COM query string, que é
     # exatamente o que a forma literal enviava.
-    #
-    # O gêmeo deploy/nginx/todolist.conf NÃO precisa disto e continua com o
-    # proxy_pass literal: lá o upstream é 127.0.0.1 (IP fixo, sem DNS). Esta é
-    # a única divergência de regra deliberada entre os dois arquivos.
     location /api/ {
         set $api_upstream "http://${GATEWAY_UPSTREAM}";
         proxy_pass $api_upstream$request_uri;

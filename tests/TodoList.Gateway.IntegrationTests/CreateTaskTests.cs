@@ -64,10 +64,6 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
         body.Title.Should().Be("Comprar leite");
         body.Priority.Should().Be("Medium");
         body.Status.Should().Be("Pending");
-
-        // CA-20, BE-40: autenticação é local (AddJwtBearer) — nenhuma chamada
-        // gRPC ValidateToken acontece no caminho de uma requisição autenticada.
-        _factory.Identity.ValidateTokenCallCount.Should().Be(0);
     }
 
     [Fact] // CA-05
@@ -193,9 +189,9 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        // BE-40: autenticação é local (AddJwtBearer) — não há mais uma
-        // chamada ValidateToken ao Identity de onde propagar traceparent;
-        // só a chamada ao Tasks é relevante aqui.
+        // BE-40: autenticação é local (AddJwtBearer) — não há chamada ao
+        // Identity de onde propagar traceparent; só a chamada ao Tasks é
+        // relevante aqui.
         _factory.Tasks.LastCreateTaskRequestHeaders!.Get("traceparent").Should().NotBeNull();
     }
 

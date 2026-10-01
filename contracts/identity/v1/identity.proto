@@ -17,12 +17,6 @@ service IdentityService {
   // persistir a tarefa.
   rpc ValidateUser (ValidateUserRequest) returns (ValidateUserResponse);
 
-  // Único caminho para validar um token fora do Identity: a chave de
-  // assinatura não sai daqui (D-31). Implementado em BE-34: valida
-  // assinatura, emissor, audiência e expiração. Usado pelo API Gateway para
-  // não ter que guardar a chave HS256.
-  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
-
   // Login (RN-AUTH-08): troca e-mail + senha por um access token. Recorte
   // de BE-09 para o T2 (D-36) — só o access token, sem refresh/cookie.
   rpc Login (LoginRequest) returns (LoginResponse);
@@ -85,22 +79,6 @@ message ValidateUserResponse {
   // vazia quando o usuário não existe, nunca null (proto3 não distingue
   // os dois).
   string display_name = 3;
-}
-
-message ValidateTokenRequest {
-  // Token de acesso (JWT) emitido pelo Identity, a validar por quem está
-  // fora dele — o API Gateway, único chamador (D-31).
-  string access_token = 1;
-}
-
-message ValidateTokenResponse {
-  // Verdadeiro se o token é válido e não expirou. Implementado em BE-34:
-  // valida assinatura, issuer, audience e expiração (D-31).
-  bool valid = 1;
-
-  // Id do usuário dono do token, quando válido. String vazia quando
-  // `valid = false`.
-  string user_id = 2;
 }
 
 message LoginRequest {

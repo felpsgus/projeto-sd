@@ -18,8 +18,8 @@ namespace TodoList.Identity.Api.ResultMapping;
 /// <para>
 /// Usado pelos RPCs novos da Fase 3 (BE-07/BE-14/BE-15/BE-16: <c>Register</c>,
 /// <c>GetProfile</c>, <c>UpdateProfile</c>, <c>ChangePassword</c>,
-/// <c>DeleteAccount</c>) — <c>Login</c>/<c>ValidateUser</c>/<c>ValidateToken</c>
-/// continuam com o desenho "nunca falha, sempre <c>succeeded</c>/<c>valid</c>/<c>exists</c>"
+/// <c>DeleteAccount</c>) — <c>Login</c>/<c>ValidateUser</c>
+/// continuam com o desenho "nunca falha, sempre <c>succeeded</c>/<c>exists</c>"
 /// de BE-26/BE-33, que não muda.
 /// </para>
 /// </summary>
@@ -127,7 +127,7 @@ public static class ResultGrpcStatus
 
 /// <summary>
 /// Mapeamento <see cref="ErrorType"/> → <see cref="StatusCode"/> gRPC (D-35) —
-/// mesma tabela de <see cref="ErrorTypeHttpMapping"/>, agora para o transporte
+/// tabela de <see cref="ErrorType"/> para o transporte
 /// gRPC dos RPCs da Fase 3.
 /// </summary>
 public static class ErrorTypeGrpcMapping

@@ -16,7 +16,6 @@ namespace TodoList.Identity.IntegrationTests;
 internal sealed class IdentityGrpcTestClient : IDisposable
 {
     private static readonly Method<ValidateUserRequest, ValidateUserResponse> _validateUserMethod = CreateMethod<ValidateUserRequest, ValidateUserResponse>("ValidateUser");
-    private static readonly Method<ValidateTokenRequest, ValidateTokenResponse> _validateTokenMethod = CreateMethod<ValidateTokenRequest, ValidateTokenResponse>("ValidateToken");
     private static readonly Method<LoginRequest, LoginResponse> _loginMethod = CreateMethod<LoginRequest, LoginResponse>("Login");
     private static readonly Method<RegisterRequest, RegisterResponse> _registerMethod = CreateMethod<RegisterRequest, RegisterResponse>("Register");
     private static readonly Method<GetProfileRequest, ProfileResponse> _getProfileMethod = CreateMethod<GetProfileRequest, ProfileResponse>("GetProfile");
@@ -35,9 +34,6 @@ internal sealed class IdentityGrpcTestClient : IDisposable
 
     public AsyncUnaryCall<ValidateUserResponse> ValidateUserAsync(ValidateUserRequest request) =>
         _invoker.AsyncUnaryCall(_validateUserMethod, host: null, new CallOptions(), request);
-
-    public AsyncUnaryCall<ValidateTokenResponse> ValidateTokenAsync(ValidateTokenRequest request) =>
-        _invoker.AsyncUnaryCall(_validateTokenMethod, host: null, new CallOptions(), request);
 
     public AsyncUnaryCall<LoginResponse> LoginAsync(LoginRequest request) =>
         _invoker.AsyncUnaryCall(_loginMethod, host: null, new CallOptions(), request);

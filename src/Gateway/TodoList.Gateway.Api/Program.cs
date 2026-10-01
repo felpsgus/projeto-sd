@@ -61,9 +61,8 @@ builder.Services.AddBackendGrpcClients(builder.Configuration);
 // ── Autenticação (BE-40, D-38) ───────────────────────────────────────────
 // AddJwtBearer valida o token localmente, com a chave pública RSA carregada
 // de Jwt:PublicKeyPath — a chave de assinatura (privada) nunca sai do
-// Identity (D-31/D-38); o Gateway só recebe a metade que verifica. Substitui
-// o esquema "IdentityToken"/IdentityTokenAuthenticationHandler (que perguntava
-// via gRPC ValidateToken a cada requisição), removido por esta task. Fallback
+// Identity (D-31/D-38); o Gateway só recebe a metade que verifica. O Gateway
+// não chama o Identity para autenticar requisições. Fallback
 // policy exige usuário autenticado por padrão; AllowAnonymous é opt-out
 // explícito (/health, POST /api/auth/login, OpenAPI/Scalar).
 builder.Services.AddGatewayJwtAuthentication(builder.Configuration, builder.Environment);

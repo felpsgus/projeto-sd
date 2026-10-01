@@ -6,10 +6,9 @@ namespace TodoList.Gateway.Api.Backends;
 /// Fronteira entre o Gateway e o Identity Service (BE-36) — a única
 /// abstração que <see cref="Endpoints.AuthEndpoints"/>/<see cref="Endpoints.UserEndpoints"/>
 /// conhecem; nenhum código do Gateway vê o cliente gRPC gerado diretamente.
-/// Desde BE-40/D-38, a autenticação de toda requisição de entrada é feita
-/// localmente (<c>AddJwtBearer</c>, ver
-/// <see cref="Authentication.ServiceCollectionExtensions"/>) — <c>ValidateToken</c>
-/// deixou de ter consumidor no Gateway, e por isso não aparece mais aqui.
+/// O Gateway valida o JWT de toda requisição de entrada localmente
+/// (<c>AddJwtBearer</c>, ver <see cref="Authentication.ServiceCollectionExtensions"/>),
+/// sem chamar o Identity a cada requisição.
 ///
 /// <para>
 /// Onda 2 da Fase 3 (BE-07/BE-14/BE-15/BE-16) acrescenta os RPCs de

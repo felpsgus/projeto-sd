@@ -8,8 +8,8 @@
 # inicialização aqui: eles vêm das migrations de cada serviço. No fluxo
 # `dotnet run`, isso é `dotnet ef database update`, Identity primeiro (ver
 # README). No fluxo em container (perfil `full`, BE-38), é o serviço
-# `migrate` abaixo, aplicando os SQL idempotentes que `scripts/publish.ps1`
-# já gera para a VM (mesmos arquivos, mesma ordem — a FK cruzada
+# `migrate` abaixo, aplicando os SQL idempotentes que
+# `scripts/new-migrations-sql.ps1` gera (mesma ordem — a FK cruzada
 # tasks.tasks.owner_id -> identity.users(id) exige Identity primeiro).
 #
 # Credenciais: "postgres/postgres" é uma credencial obviamente de
@@ -20,7 +20,7 @@
 # Perfil "full" (BE-38, atualizado na Etapa 13): `docker compose --profile
 # full up --build` sobe a stack inteira em container — postgres, migrate,
 # identity, tasks, gateway, frontend — para validar os Dockerfiles antes do
-# T3 (Cloud Run). Pré-requisito: `scripts/publish.ps1` já ter gerado
+# T3 (Cloud Run). Pré-requisito: `scripts/new-migrations-sql.ps1` já ter gerado
 # artifacts/sql/{01-identity,02-tasks}.sql (o compose não gera SQL — só
 # aplica). Onda E (T2): o seed de demonstração (DemoUserSeeder,
 # UserStore__SeedDemoUsers/DemoUserPassword) foi removido — não sobra mais
@@ -29,7 +29,7 @@
 # scripts/demo-t2.ps1.
 #
 # Desde a Etapa 13, só o `frontend` publica porta no host: o nginx do seu
-# container (frontend/nginx.conf.template, gêmeo de deploy/nginx/todolist.conf)
+# container (frontend/nginx.conf.template)
 # passa a ser a origem HTTP única, servindo o build do Angular como estático e
 # fazendo proxy de /api/* para o `gateway` — mesma origem para front e API, sem
 # CORS (FD-16/D-40). O `gateway` deixou de publicar porta (antes era a única
@@ -77,7 +77,7 @@ services:
   # --- Perfil "full" (BE-38) -------------------------------------------
 
   # Vida curta: aplica os dois SQL idempotentes gerados por
-  # `scripts/publish.ps1` (mesma origem que a VM usa — deploy/README.md) na
+  # `scripts/new-migrations-sql.ps1` (a VM usa os mesmos arquivos) na
   # ordem exigida pela FK cruzada (identity antes de tasks) e sai. Falha
   # explicitamente, em vez de "passar" sem aplicar nada, se artifacts/sql/
   # ainda não existir.
@@ -95,7 +95,7 @@ services:
     command:
       - >
         test -f /sql/01-identity.sql && test -f /sql/02-tasks.sql || {
-          echo "artifacts/sql não encontrado — rode scripts/publish.ps1 antes de 'docker compose --profile full up'.";
+          echo "artifacts/sql não encontrado — rode scripts/new-migrations-sql.ps1 antes de 'docker compose --profile full up'.";
           exit 1;
         };
         psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d todolist -f /sql/01-identity.sql -f /sql/02-tasks.sql

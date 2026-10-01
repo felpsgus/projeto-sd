@@ -7,12 +7,11 @@ namespace TodoList.Identity.Infrastructure.Security;
 
 /// <summary>
 /// Fiação de segurança do Identity Service: hashing de senha (BE-06) e
-/// emissão/validação de access token JWT RS256 (BE-08, D-38). Registra
-/// <see cref="PasswordHashingOptions"/> e <see cref="JwtOptions"/> validados
-/// no start e os serviços correspondentes como singleton —
-/// <see cref="Pbkdf2PasswordHasher"/>, <see cref="RsaSigningKeyProvider"/>,
-/// <see cref="JwtTokenService"/>, <see cref="JwtValidationParameters"/> e
-/// <see cref="JwtAccessTokenValidator"/> são todos thread-safe e sem estado
+/// emissão de access token JWT RS256 (BE-08, D-38; a validação é do Gateway).
+/// Registra <see cref="PasswordHashingOptions"/> e <see cref="JwtOptions"/>
+/// validados no start e os serviços correspondentes como singleton —
+/// <see cref="Pbkdf2PasswordHasher"/>, <see cref="RsaSigningKeyProvider"/> e
+/// <see cref="JwtTokenService"/> são todos thread-safe e sem estado
 /// mutável após a construção, então uma instância serve o processo inteiro.
 /// Chamado a partir de <c>Program.cs</c>, mesmo padrão de
 /// <c>AddIdentityPersistence</c>.
@@ -61,8 +60,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<RsaSigningKeyProvider>();
         services.AddSingleton<ITokenService, JwtTokenService>();
-        services.AddSingleton<JwtValidationParameters>();
-        services.AddSingleton<IAccessTokenValidator, JwtAccessTokenValidator>();
 
         return services;
     }

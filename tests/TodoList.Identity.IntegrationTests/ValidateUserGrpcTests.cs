@@ -74,17 +74,6 @@ public class ValidateUserGrpcTests : IClassFixture<WebApplicationFactory<Program
         response.DisplayName.Should().Be(string.Empty);
     }
 
-    [Fact] // BE-34, CA-03 — token malformado (não-JWT) responde valid=false mesmo por rede real.
-    public async Task ValidateToken_TokenMalformado_RetornaValidFalse()
-    {
-        using var client = CreateClient();
-
-        var response = await client.ValidateTokenAsync(new ValidateTokenRequest { AccessToken = "qualquer-coisa" });
-
-        response.Valid.Should().BeFalse();
-        response.UserId.Should().Be(string.Empty);
-    }
-
     [Fact] // BE-33, CA-11 — UserStore:Provider=InMemory (padrão desta factory) nega qualquer login.
     public async Task Login_ProviderInMemory_RetornaSucceededFalse()
     {

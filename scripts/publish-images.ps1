@@ -6,11 +6,8 @@
     -f deploy/docker-compose.prod.yml pull && up -d`) dar `pull`.
 
 .DESCRIPTION
-    Este script é o braço "imagem" da Onda D (roteiro de 22/10: uma VM só,
-    tudo em Docker, Postgres no Cloud SQL). Ele NÃO SUBSTITUI
-    `scripts/publish.ps1` — aquele continua servindo o caminho systemd/binário
-    (plano B até 22/10, ver deploy/README.md); este aqui produz o que o
-    caminho Docker (docker-compose.prod.yml) consome.
+    Produz as imagens que o docker-compose.prod.yml consome na VM. Os SQL das
+    migrations, que o compose também exige, vêm de `scripts/new-migrations-sql.ps1`.
 
     Para cada um dos quatro serviços, roda:
 
@@ -114,8 +111,7 @@ function Invoke-Verificado([string]$descricao, [scriptblock]$acao) {
 #
 # O padrão aqui é o SHA curto do commit (`git rev-parse --short HEAD`) — uma
 # tag imutável e rastreável. MAS este repositório, agora, está com dezenas de
-# arquivos não commitados (a Fase 3 inteira e as Ondas A-D do roteiro de
-# 22/10). Uma imagem construída de uma árvore SUJA e tagueada com o SHA do
+# arquivos não commitados. Uma imagem construída de uma árvore SUJA e tagueada com o SHA do
 # último commit MENTE: ela não contém o que aquele commit contém, e duas
 # pessoas (ou você, duas vezes) rodando este script em momentos diferentes,
 # ambos com árvore suja, produziriam imagens DIFERENTES sob a MESMA tag — a
@@ -239,7 +235,7 @@ else {
 $tag = Get-TagDaImagem
 
 # ---------------------------------------------------------------------------
-# PORTÃO DE QUALIDADE — mesma filosofia de scripts/publish.ps1: publicar uma
+# PORTÃO DE QUALIDADE: publicar uma
 # imagem de um código que não compila, ou que passa com teste vermelho, é só
 # adiar a descoberta do problema para a hora em que ele é mais caro de achar
 # (a VM, ou pior, o dia da apresentação). O gate roda ANTES de qualquer

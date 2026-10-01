@@ -10,8 +10,7 @@ namespace TodoList.Gateway.IntegrationTests;
 /// BE-36/BE-40, CA-26 — cada chamada gRPC de saída gera uma linha de log com
 /// backend/rpc/statusCode/duração/traceId, e nenhuma delas carrega token,
 /// senha ou corpo da requisição. Desde BE-40/D-38, <c>CreateTask</c> não gera
-/// mais uma chamada <c>ValidateToken</c> ao Identity (autenticação é local) —
-/// só a chamada ao Tasks é esperada.
+/// chamada ao Identity (autenticação é local) — só a chamada ao Tasks é esperada.
 /// </summary>
 public class LoggingTests : IClassFixture<GatewayApiFactory>
 {
@@ -58,8 +57,8 @@ public class LoggingTests : IClassFixture<GatewayApiFactory>
 
         var entries = _factory.Logs.Entries.ToList();
 
-        // CA-20 (BE-40): autenticação local — nenhuma chamada ValidateToken.
-        entries.Should().NotContain(entry => entry.Contains("rpc=ValidateToken"));
+        // CA-20 (BE-40): autenticação local — nenhuma chamada ao Identity.
+        entries.Should().NotContain(entry => entry.Contains("backend=Identity"));
         entries.Should().Contain(entry => entry.Contains("backend=Tasks") && entry.Contains("rpc=CreateTask"));
         entries.Should().OnlyContain(entry => !entry.Contains(bearerToken), "nenhuma linha de log deve carregar o token de autorização");
         entries.Should().OnlyContain(entry => !entry.Contains(tituloSecreto), "nenhuma linha de log deve carregar o corpo/título da tarefa");

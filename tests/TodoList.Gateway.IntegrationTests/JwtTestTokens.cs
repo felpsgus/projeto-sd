@@ -5,8 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace TodoList.Gateway.IntegrationTests;
 
 /// <summary>
-/// Fábrica de tokens de teste (BE-40) — substitui o antigo padrão de
-/// dublê de <c>ValidateToken</c>: agora que o Gateway valida localmente
+/// Fábrica de tokens de teste (BE-40): como o Gateway valida localmente
 /// (<c>AddJwtBearer</c>), os testes de CA-08 a CA-15 precisam de JWTs de
 /// verdade, forjados aqui com controle total sobre algoritmo, chave e claims.
 /// Nenhum destes tokens é versionado — a chave RSA usada vem de

@@ -1,12 +1,12 @@
-# docker-compose.prod.yml — a stack que roda NA VM de aplicação (Onda B do
-# roteiro de 22/10: uma VM só, tudo em container, Postgres fora dela).
+# docker-compose.prod.yml — a stack que roda NA VM de aplicação (uma VM só,
+# tudo em container, Postgres fora dela).
 #
 # Este arquivo é IRMÃO, não CLONE, do docker-compose.yml da raiz (dev local):
 #
 #   - Sem `postgres`: o banco é o Cloud SQL for PostgreSQL (projeto sd-26-2,
 #     us-central1), por IP privado na mesma VPC da VM — nunca um container.
 #   - Sem NENHUMA seção `build:`. Quem compila e empurra as imagens para o
-#     Artifact Registry é o notebook do usuário (Onda D) — a VM só dá `pull`.
+#     Artifact Registry é o notebook do usuário (scripts/publish-images.ps1) — a VM só dá `pull`.
 #     Por isso `image:` aqui é sempre `${IMAGE_REGISTRY}/todolist-<serviço>:${IMAGE_TAG}`,
 #     nunca um Dockerfile local.
 #   - `restart: unless-stopped` em todos os serviços de vida longa — a VM pode
@@ -15,13 +15,9 @@
 #     exceção deliberada do `migrate`, comentada no próprio serviço abaixo.
 #   - Só o `frontend` publica porta (80:8080) — `identity`, `tasks` e `gateway`
 #     ficam só na rede interna do compose, alcançáveis apenas por quem já está
-#     nela (D-32). Mesma regra da Onda A, agora valendo também para a VM.
+#     nela (D-32). Mesma regra do compose de dev.
 #
 # Onde este arquivo mora na VM: `/opt/todolist/docker/` (ver deploy/todolist.service).
-# Esse caminho é DIFERENTE de `/opt/todolist/{identity,tasks,gateway}`, que é
-# onde o caminho systemd (plano B até 22/10, ver deploy/README.md e as três
-# units *.service ao lado deste arquivo) publica os binários — os dois
-# caminhos de deploy coexistem sem se pisar porque usam pastas distintas.
 #
 # .env desta pasta: copie `deploy/todolist.env.example` para `/opt/todolist/docker/.env`
 # na VM (nome exato `.env`, não `todolist.env`) — é assim que o `docker compose`
@@ -30,18 +26,12 @@
 # abaixo. Ver o cabeçalho de todolist.env.example para o que entra nele e por
 # quê (a divisão topologia-vs-segredo está explicada lá).
 #
-# ATENÇÃO — esta onda (B) só valida que este arquivo faz `docker compose config`
-# corretamente e que o mecanismo de permissão do secret JWT funciona (uid 1654
-# do container vs. dono do arquivo no host). O `migrate` NÃO foi executado
-# contra um Cloud SQL real: isso é a Onda C, que ainda depende do usuário
-# provisionar a instância (este agente não roda `gcloud` para criar nada).
 services:
   # --- migrate: aplica os dois SQL idempotentes no Cloud SQL, na ordem exigida
   # pela FK cruzada (tasks.tasks.owner_id -> identity.users(id): Identity
-  # primeiro) e sai. Mesmos arquivos que a VM já usa hoje no caminho systemd
-  # (scripts/publish.ps1 os gera em artifacts/sql/) e que o compose de dev usa
-  # no perfil "full" — só o alvo (Cloud SQL em vez de um container postgres:17)
-  # muda.
+  # primeiro) e sai. Mesmos arquivos que o compose de dev usa no perfil "full"
+  # (scripts/new-migrations-sql.ps1 os gera em artifacts/sql/) — só o alvo
+  # (Cloud SQL em vez de um container postgres:17) muda.
   #
   # Restart: "no", DIVERGINDO da regra "unless-stopped em todos os serviços"
   # do resto deste arquivo — de propósito. `migrate` é vida curta por design:
@@ -85,7 +75,7 @@ services:
     command:
       - >
         test -f /sql/01-identity.sql && test -f /sql/02-tasks.sql || {
-          echo "artifacts/sql não encontrado — rode scripts/publish.ps1 e copie artifacts/sql/ para o lado deste compose antes de 'docker compose -f docker-compose.prod.yml up'.";
+          echo "artifacts/sql não encontrado — rode scripts/new-migrations-sql.ps1 e copie artifacts/sql/ para o lado deste compose antes de 'docker compose -f docker-compose.prod.yml up'.";
           exit 1;
         };
         psql -v ON_ERROR_STOP=1 -f /sql/01-identity.sql -f /sql/02-tasks.sql
@@ -106,7 +96,7 @@ services:
       UserStore__Provider: Persisted
       # Segredo vindo do .env (ver a explicação no serviço `migrate`): o
       # Identity recebe a SUA connection string, e NÃO a connection string do
-      # Tasks nem as variáveis libpq do `migrate`. Onda E (T2): não existe mais
+      # Tasks nem as variáveis libpq do `migrate`. Não existe mais
       # UserStore__SeedDemoUsers/DemoUserPassword aqui — o seed de
       # demonstração foi removido (cadastro real, POST /api/auth/register).
       ConnectionStrings__IdentityDb: ${ConnectionStrings__IdentityDb:?defina ConnectionStrings__IdentityDb no .env}
@@ -132,13 +122,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # Endereço de TOPOLOGIA container: "identity", o nome do serviço acima,
       # resolvido pelo DNS interno do compose — NUNCA 127.0.0.1 (que era o
-      # endereço correto no mundo systemd, onde os três processos dividiam a
-      # mesma VM, mas aponta para "dentro do próprio container" aqui, o que
-      # faria o Tasks tentar falar consigo mesmo). Esta é a armadilha central
-      # de reaproveitar deploy/tasks.env.example sem pensar: aquele arquivo
-      # continua certo para o caminho systemd (plano B) e teria o valor ERRADO
-      # se fosse copiado para cá — por isso ele não é tocado, e este valor é
-      # fixado diretamente aqui.
+      # endereço certo para processos vizinhos na mesma máquina, mas aponta
+      # para "dentro do próprio container" aqui, o que faria o Tasks tentar
+      # falar consigo mesmo). Por isso o valor é fixado diretamente aqui, e não
+      # lido do .env.
       Identity__GrpcAddress: http://identity:8080
       ConnectionStrings__TasksDb: ${ConnectionStrings__TasksDb:?defina ConnectionStrings__TasksDb no .env}
     # Sem `ports:` (D-32): só o `frontend`/nginx é alcançável do host.
@@ -155,16 +142,21 @@ services:
       - jwt_public
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      # Mesma observação do Tasks acima: endereço de topologia container, não
-      # o 127.0.0.1 do deploy/gateway.env.example (que é para o caminho
-      # systemd, onde os três processos são vizinhos na mesma VM).
+      # Mesma observação do Tasks acima: endereço de topologia container, nunca
+      # 127.0.0.1.
       Backends__IdentityGrpcAddress: http://identity:8080
       Backends__TasksGrpcAddress: http://tasks:8080
+      # O default de 2 s do BackendOptions basta em máquina de desenvolvimento,
+      # mas não numa vCPU compartilhada: só o PBKDF2 de 600.000 iterações leva
+      # ~1,6 s na e2-small (medição de campo em 30/09/2026, não estimativa) e o
+      # Register estourava o deadline. Subimos o deadline, não baixamos as
+      # iterações: enfraquecer o hash por causa de CPU barata é o trade-off errado.
+      Backends__IdentityGrpcTimeoutSeconds: 10
       Jwt__PublicKeyPath: /run/secrets/jwt_public
       # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway.
     # Sem `ports:`: quem publica porta é o `frontend` (nginx), que faz proxy
     # de /api/* para cá pela rede interna — mesma origem para front e API, sem
-    # CORS (FD-16/D-40), igual à Onda A.
+    # CORS (FD-16/D-40), igual ao compose de dev.
 
   frontend:
     image: ${IMAGE_REGISTRY}/todolist-frontend:${IMAGE_TAG}
@@ -185,9 +177,7 @@ services:
 #   /etc/todolist/jwt/private.pem  ->  identity, só ele (Jwt__PrivateKeyPath)
 #   /etc/todolist/jwt/public.pem   ->  gateway,  só ele (Jwt__PublicKeyPath)
 #
-# Mesmo caminho que o caminho systemd já usa hoje (deploy/todolist-identity.service,
-# LoadCredential=) — reaproveitado de propósito, para não duplicar "onde a
-# chave mora" em dois lugares da VM.
+# O par é gerado por deploy/install-docker-on-vm.sh.
 #
 # A ARMADILHA CENTRAL DESTA ONDA está aqui, não no resto do arquivo: sem
 # Docker Swarm, um `secrets:` de compose com `file:` é um bind mount comum —
@@ -218,8 +208,8 @@ services:
 #     mantendo modo 0400 — só esse uid específico consegue ler, ninguém mais.
 #
 # Comando exato a rodar NA VM, antes do primeiro `docker compose ... up`
-# (depois que install-on-vm.sh, ou o processo que vier a substituí-lo,
-# já tiver gerado o par em /etc/todolist/jwt/):
+# (depois que install-docker-on-vm.sh já tiver gerado o par em
+# /etc/todolist/jwt/ — ele também aplica estas permissões):
 #
 #   sudo chown 1654:1654 /etc/todolist/jwt/private.pem
 #   sudo chmod 0400 /etc/todolist/jwt/private.pem

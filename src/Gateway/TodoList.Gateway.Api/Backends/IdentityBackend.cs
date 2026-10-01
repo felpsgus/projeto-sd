@@ -15,9 +15,9 @@ namespace TodoList.Gateway.Api.Backends;
 /// <see cref="RpcException"/> escapar: indisponibilidade vira
 /// <see cref="BackendUnavailableException"/> (D-28, CA-24); qualquer outro
 /// status inesperado vira <see cref="BackendCallException"/>, para que
-/// <see cref="ErrorHandling.GrpcErrorMapping"/> decida o HTTP. Desde
-/// BE-40/D-38, a autenticação de entrada é local (<c>AddJwtBearer</c>) —
-/// <c>ValidateToken</c> não tem consumidor aqui. Onda 2 da Fase 3 acrescenta
+/// <see cref="ErrorHandling.GrpcErrorMapping"/> decida o HTTP. A
+/// autenticação de entrada é local (<c>AddJwtBearer</c>, chave pública RSA),
+/// sem chamada ao Identity por requisição. Onda 2 da Fase 3 acrescenta
 /// <c>Register</c>/<c>GetProfile</c>/<c>UpdateProfile</c>/<c>ChangePassword</c>/
 /// <c>DeleteAccount</c>, todos com o mesmo padrão de deadline/log/tradução de
 /// erro de <see cref="LoginAsync"/>.

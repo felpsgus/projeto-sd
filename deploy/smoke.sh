@@ -196,12 +196,14 @@ if [[ $falhas -eq 0 ]]; then
     echo "Tudo como esperado."
     echo ""
     echo "Evidência do traceId correlacionado (passo 6, os três serviços — o nginx repassa o"
-    echo "traceparent intacto, BE-42, então ele não aparece como um quarto serviço na correlação):"
-    echo "  sudo journalctl -u todolist-gateway -u todolist-tasks -u todolist-identity --since '2 min ago' \\"
-    echo "    | grep -E 'ValidateToken|CreateTask|ValidateUser'"
+    echo "traceparent intacto, BE-42/D-40, então ele não aparece como um quarto serviço na correlação)."
+    echo "  sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \\"
+    echo "    logs --since 2m gateway tasks identity | grep -E 'ValidateToken|CreateTask|ValidateUser'"
     exit 0
 fi
 
-echo "$falhas passo(s) fora do esperado."
-echo "  sudo journalctl -u todolist-gateway -u todolist-tasks -u todolist-identity -n 150 --no-pager"
+echo "$falhas passo(s) fora do esperado. Logs para diagnóstico:"
+echo ""
+echo "  sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \\"
+echo "    logs --tail 150 gateway tasks identity"
 exit 1

@@ -1,20 +1,10 @@
-# todolist.service — sobe a stack em container (Onda B, roteiro de 22/10: uma
-# VM, tudo em Docker, Postgres no Cloud SQL) no boot da VM, e derruba no
-# shutdown. Instalar em /etc/systemd/system/todolist.service:
+# todolist.service — sobe a stack em container (uma VM, tudo em Docker,
+# Postgres no Cloud SQL) no boot da VM, e derruba no shutdown. Instalada por
+# deploy/install-docker-on-vm.sh em /etc/systemd/system/todolist.service:
 #
 #   sudo cp deploy/todolist.service /etc/systemd/system/todolist.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now todolist.service
-#
-# Este arquivo NÃO substitui as três units *.service (todolist-identity,
-# todolist-tasks, todolist-gateway) que já existem ao lado deste — aquelas são
-# o caminho systemd/binário (plano B até 22/10) e continuam instaláveis à
-# parte. As duas unit continuam podendo coexistir na mesma VM só porque usam
-# pastas diferentes (/opt/todolist/{identity,tasks,gateway} vs.
-# /opt/todolist/docker/) — decida qual caminho está ATIVO antes da
-# apresentação; rodar os dois ao mesmo tempo faria duas cópias de cada
-# serviço brigarem pelo mesmo Cloud SQL (inofensivo para o schema, mas
-# confuso para logs/porta 80).
 #
 # Type=oneshot + RemainAfterExit=yes: o `docker compose up -d` sobe os
 # containers em BACKGROUND e o próprio comando termina (exit 0) assim que

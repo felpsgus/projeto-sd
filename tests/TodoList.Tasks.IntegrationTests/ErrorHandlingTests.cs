@@ -9,9 +9,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using TodoList.SharedKernel;
 using TodoList.Tasks.Api.ErrorHandling;
-using TodoList.Tasks.Api.ResultMapping;
 using TodoList.Tasks.Api.Validation;
 using Xunit;
 
@@ -138,8 +136,7 @@ public class ErrorHandlingTests
                                 .WithRequestValidation<ExampleRequest>();
 
                             endpoints.MapGet("/test/not-found", () =>
-                                Result.Failure(new Error("test.not_found", "Recurso de teste não encontrado.", ErrorType.NotFound))
-                                    .ToHttpResult());
+                                Microsoft.AspNetCore.Http.Results.Problem(detail: "Recurso de teste não encontrado.", statusCode: 404));
 
                             Func<Microsoft.AspNetCore.Http.IResult> boom = () =>
                                 throw new InvalidOperationException("detalhe interno que não pode vazar para o cliente");

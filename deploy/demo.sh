@@ -108,16 +108,28 @@ fi
 incluir_falha=0
 [[ "${1:-}" == "--falha" ]] && incluir_falha=1
 
+# Compose da VM (onde install-docker-on-vm.sh o instala) e nome real do
+# serviço no docker-compose.prod.yml. sudo porque quem roda a demo
+# normalmente não está no grupo docker.
+COMPOSE_DIR=/opt/todolist/docker
+dc() {
+    sudo docker compose -f "$COMPOSE_DIR/docker-compose.prod.yml" --env-file "$COMPOSE_DIR/.env" "$@"
+}
+
 # Se o roteiro for interrompido no meio do ato de indisponibilidade, o
 # Identity ficaria parado — e o próximo smoke.sh daria 503 sem motivo
-# aparente. O trap garante que ele volte, aconteça o que acontecer.
+# aparente. O trap garante que ele volte, aconteça o que acontecer. Só age se
+# este script chegou a parar o Identity (flag), para não chamar o Docker à toa.
+identity_parado=0
 restaurar_identity() {
-    if ! systemctl is-active --quiet todolist-identity; then
+    [[ $identity_parado -eq 1 ]] || return 0
+    if ! dc ps --status running --services 2>/dev/null | grep -qx identity; then
         echo ""
         echo "${AMARELO}Religando o Identity...${FIM}"
-        sudo systemctl start todolist-identity
+        dc start identity
         sleep 2
     fi
+    identity_parado=0
 }
 trap 'restaurar_identity; rm -f "$CORPO"' EXIT
 
@@ -182,23 +194,25 @@ echo "${AMARELO}Anote o traceId dos logs (próximo passo) para achar as três li
 
 if [[ $incluir_falha -eq 1 ]]; then
     ato "ATO OPCIONAL — Identity fora do ar: 503 com Retry-After, nunca 401"
-    sudo systemctl stop todolist-identity
+    identity_parado=1
+    dc stop identity
     echo "${CINZA}Identity parado. Mesma requisição do Ato 5:${FIM}"
     echo ""
     criar_tarefa "$token" "Identity fora do ar"
     echo ""
-    sudo systemctl start todolist-identity
+    dc start identity
     sleep 2
+    identity_parado=0
     echo "${VERDE}Identity religado.${FIM}"
 fi
 
 echo ""
 echo "${VERDE}Fim. Nos três painéis de log (Gateway, Tasks, Identity) procure o mesmo traceId do Ato 5:${FIM}"
-echo "${CINZA}  sudo journalctl -u todolist-gateway -u todolist-tasks -u todolist-identity --since '2 min ago' \\${FIM}"
-echo "${CINZA}    | grep -E 'ValidateToken|CreateTask|ValidateUser'${FIM}"
+echo "${CINZA}  sudo docker compose -f $COMPOSE_DIR/docker-compose.prod.yml --env-file $COMPOSE_DIR/.env \\${FIM}"
+echo "${CINZA}    logs --since 2m gateway tasks identity | grep -E 'ValidateToken|CreateTask|ValidateUser'${FIM}"
 echo ""
-echo "${CINZA}O quarto processo em jogo é o nginx (não é uma unit .NET, é um daemon do sistema) —${FIM}"
+echo "${CINZA}O quarto processo em jogo é o nginx, que roda no container frontend —${FIM}"
 echo "${CINZA}ele só encaminha bytes (D-40): o traceparent atravessa intacto, então não é esperado${FIM}"
 echo "${CINZA}vê-lo como uma quarta linha correlacionada. Se fizer sentido narrar o roteamento em si:${FIM}"
-echo "${CINZA}  sudo tail -f /var/log/nginx/access.log${FIM}"
+echo "${CINZA}  sudo docker compose -f $COMPOSE_DIR/docker-compose.prod.yml --env-file $COMPOSE_DIR/.env logs -f frontend${FIM}"
 echo ""

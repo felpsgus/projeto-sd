@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Prepara a VM para o caminho DOCKER (Onda D, roteiro de 22/10: uma VM só,
-# tudo em container, Postgres no Cloud SQL). Instala Docker Engine, monta
+# Prepara a VM para o caminho Docker (uma VM só, tudo em container, Postgres
+# no Cloud SQL). Instala Docker Engine, monta
 # /opt/todolist/docker/ com o compose de produção, garante a chave JWT com a
 # permissão que o container exige, e instala a unit deploy/todolist.service.
 #
 # Rode NA VM, a partir do diretório onde os arquivos abaixo foram copiados
-# (ver deploy/README.md, seção do caminho Docker — `gcloud compute scp`):
+# (ver deploy/README.md, seção 5 — `gcloud compute scp`):
 #
 #     sudo ./install-docker-on-vm.sh
 #
@@ -20,13 +20,6 @@
 # depois de recriá-la) ou de atualizar o compose/unit sem perder o que já foi
 # configurado à mão (.env preenchido, chave JWT gerada).
 #
-# ESTE SCRIPT NÃO SUBSTITUI deploy/install-on-vm.sh — aquele prepara o
-# caminho systemd/binário (plano B até 22/10: os três serviços .NET publicados
-# como processo direto na VM, ver deploy/README.md). Os dois caminhos podem
-# coexistir na mesma VM porque usam pastas e portas de "backend" diferentes
-# (/opt/todolist/{identity,tasks,gateway} vs. /opt/todolist/docker/) — mas só
-# um deve estar ATIVO de fato na porta 80 antes da apresentação (ver
-# deploy/todolist.service, comentário no topo, sobre não rodar os dois juntos).
 set -euo pipefail
 
 ORIGEM="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +35,7 @@ for arquivo in "$ORIGEM/docker-compose.prod.yml" "$ORIGEM/todolist.env.example" 
     "$ORIGEM/sql/01-identity.sql" "$ORIGEM/sql/02-tasks.sql"; do
     if [[ ! -f "$arquivo" ]]; then
         echo "Não encontrei $arquivo — copie deploy/docker-compose.prod.yml, deploy/todolist.env.example," >&2
-        echo "deploy/todolist.service e artifacts/sql/*.sql (scripts/publish.ps1 gera estes últimos)" >&2
+        echo "deploy/todolist.service e artifacts/sql/*.sql (scripts/new-migrations-sql.ps1 gera estes últimos)" >&2
         echo "para este diretório antes de rodar (ver deploy/README.md)." >&2
         exit 1
     fi
@@ -105,12 +98,10 @@ else
     echo "    (IP privado do Cloud SQL, senha, IMAGE_TAG) antes de subir a stack."
 fi
 
-echo "==> Chave JWT RS256 (D-38) — mesmo par que o caminho systemd usa"
-# Reaproveita DELIBERADAMENTE o mesmo caminho /etc/todolist/jwt/ que
-# deploy/install-on-vm.sh já usa: não faz sentido "onde a chave mora" mudar
-# conforme o caminho de deploy ativo, e os dois caminhos nunca deveriam rodar
-# ao mesmo tempo mesmo (ver comentário no topo deste arquivo). Nunca
-# regenerado se já existir — trocar a chave invalida todo token já emitido.
+echo "==> Chave JWT RS256 (D-38)"
+# A chave mora em /etc/todolist/jwt/ no host (é o caminho que o `secrets:` do
+# docker-compose.prod.yml monta nos containers). Nunca regenerada se já
+# existir — trocar a chave invalida todo token já emitido.
 if [[ ! -f "$JWT_DIR/private.pem" ]]; then
     mkdir -p "$JWT_DIR"
     chown root:root "$JWT_DIR"
@@ -139,9 +130,8 @@ fi
 #
 #   docker run --rm mcr.microsoft.com/dotnet/aspnet:10.0 id app
 #
-# private.pem root:root 0400 (o padrão que install-on-vm.sh usa para o
-# caminho systemd, via LoadCredential=) fica ILEGÍVEL para uid 1654 aqui —
-# por isso o dono muda para 1654 no caminho Docker, mantendo 0400 (só esse
+# private.pem root:root 0400 (o padrão para chave privada) fica ILEGÍVEL para
+# uid 1654 aqui — por isso o dono muda para 1654, mantendo 0400 (só esse
 # uid específico consegue ler, ninguém mais — nem root por padrão de leitura
 # direta de outro processo, embora root sempre possa trocar permissão de
 # novo; o ponto é que nenhum OUTRO processo comum da VM consegue). public.pem
@@ -151,7 +141,7 @@ chown 1654:1654 "$JWT_DIR/private.pem"
 chmod 0400 "$JWT_DIR/private.pem"
 chown 1654:1654 "$JWT_DIR/public.pem"
 chmod 0444 "$JWT_DIR/public.pem"
-echo "    permissão do caminho Docker aplicada: private.pem 1654:1654 0400, public.pem 1654:1654 0444"
+echo "    permissão aplicada: private.pem 1654:1654 0400, public.pem 1654:1654 0444"
 echo "    (uid 1654 = usuário 'app' da imagem aspnet:10.0 — reconfira com:"
 echo "     docker run --rm mcr.microsoft.com/dotnet/aspnet:10.0 id app)"
 
@@ -298,4 +288,4 @@ echo "  2. sudo systemctl start todolist.service"
 echo "  3. docker compose -f $DESTINO/docker-compose.prod.yml --env-file $DESTINO/.env ps"
 echo ""
 echo "Não abrimos porta nenhuma de firewall aqui — isso é ação do usuário no"
-echo "Console/gcloud (ver deploy/README.md, seção 1, e a seção do caminho Docker)."
+echo "Console/gcloud (ver deploy/README.md, seção 9)."

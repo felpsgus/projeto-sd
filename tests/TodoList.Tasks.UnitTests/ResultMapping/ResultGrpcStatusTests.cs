@@ -10,7 +10,7 @@ namespace TodoList.Tasks.UnitTests.ResultMapping;
 
 /// <summary>
 /// <see cref="ErrorTypeGrpcMapping"/>/<see cref="ResultGrpcStatus"/> (BE-35,
-/// D-35) — mesma cobertura de <c>ErrorTypeHttpMappingTests</c>, agora para o
+/// D-35) — cobertura do mapeamento para o
 /// transporte gRPC: todo <see cref="ErrorType"/> precisa de
 /// <see cref="StatusCode"/> mapeado, o <c>error-code</c> sempre viaja no
 /// trailer, e uma falha de validação carrega o dicionário por campo no

@@ -22,7 +22,7 @@ public class ArchitectureTests
 
         typeNames.Should().NotContain(
             name => name.Contains("IdentityTokenAuthenticationHandler", StringComparison.Ordinal),
-            "IdentityTokenAuthenticationHandler foi removido por BE-40/D-38 — AddJwtBearer substitui o esquema ValidateToken/gRPC");
+            "IdentityTokenAuthenticationHandler foi removido por BE-40/D-38 — AddJwtBearer substitui a validação via gRPC");
 
         typeNames.Should().NotContain(
             name => name.Contains("IdentityAuthenticationDefaults", StringComparison.Ordinal),

@@ -13,7 +13,7 @@
 
     O par gerado aqui é para desenvolvimento local (`dotnet run`) e para o perfil
     `full` do docker-compose — nunca para a VM. Na VM, o par é gerado direto por
-    `deploy/install-on-vm.sh` com `openssl`, na própria VM (D-38, BE-40): nenhuma
+    `deploy/install-docker-on-vm.sh` com `openssl`, na própria VM (D-38): nenhuma
     chave sai daqui para lá, e nenhuma chave de teste é reaproveitada em produção.
 
     Por padrão grava em `<raiz do repositório>/.secrets/jwt` — pasta ignorada pelo
@@ -83,5 +83,5 @@ Write-Host "  $publicPath   (SubjectPublicKeyInfo, RSA pública — só o Gatewa
 Write-Host ""
 Write-Host "ATENÇÃO: estes arquivos NUNCA devem ser versionados (.gitignore já ignora" -ForegroundColor Yellow
 Write-Host "'.secrets/' e '*.pem'). Não copie este par para a VM nem para nenhum ambiente" -ForegroundColor Yellow
-Write-Host "de implantação — lá a chave é gerada direto na VM (deploy/install-on-vm.sh)." -ForegroundColor Yellow
+Write-Host "de implantação — lá a chave é gerada direto na VM (deploy/install-docker-on-vm.sh)." -ForegroundColor Yellow
 Write-Host ""
