@@ -142,7 +142,7 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
 Não há usuários pré-cadastrados em nenhum ambiente. A FK cruzada `tasks.tasks.owner_id →
 identity.users(id)` (nota mais abaixo) exige que o dono exista de verdade no banco: cadastre a conta
 que for usar pela tela, por `curl`/Scalar (`POST /api/auth/register`, ver "gRPC do Identity Service"
-acima), ou deixe que `scripts/demo-t2.ps1` cadastre a sua própria a cada execução.
+acima), ou deixe que `deploy/smoke.sh` cadastre a sua própria a cada execução.
 
 **Usuário inativo (RN-AUTH-09).** Não existe rota para desativar uma conta pela API — só o domínio
 tem `User.Deactivate()`, sem endpoint que o exponha (decisão consciente: seria superfície de negócio
@@ -153,7 +153,7 @@ de uma senha errada, cadastre uma conta normalmente e desative-a com um `UPDATE`
 UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
 ```
 
-Depois disso, `scripts/demo-t2.ps1 -InactiveEmail inativo@todolist.example` exercita o passo — ver
+Depois disso, `DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh` exercita o passo — ver
 "No dia da apresentação" em `deploy/README.md` para o roteiro completo.
 
 **Login (BE-33) exige `UserStore:Provider=Persisted`.** Com `Provider=InMemory`, não existe
@@ -255,9 +255,8 @@ $env:Jwt__PublicKeyPath = "$PWD/.secrets/jwt/public.pem"
 `../../../.secrets/jwt/{private,public}.pem` — caminho relativo resolvido contra o content root de
 cada projeto — então normalmente nem é preciso configurar nada além de gerar o par uma vez.)
 
-`./scripts/demo-local.ps1` já faz isso sozinho — gera o par uma vez (se ainda não existir em
-`.secrets/jwt/`) e passa `Jwt__PrivateKeyPath`/`Jwt__PublicKeyPath` (caminhos absolutos) só para os
-processos de Identity e Gateway que ele sobe. O **Tasks Service não recebe nenhuma variável
+`./scripts/new-jwt-keys.ps1` gera o par uma vez (pula se já existir em `.secrets/jwt/`); passe
+`Jwt__PrivateKeyPath`/`Jwt__PublicKeyPath` (caminhos absolutos) só aos processos de Identity e Gateway. O **Tasks Service não recebe nenhuma variável
 `Jwt__*`** — uma varredura de arquitetura (CA-18 de BE-40) falha o build se `Jwt:`/`Jwt__` aparecer
 em qualquer código ou `appsettings*.json` de `src/Tasks`, ou nos serviços `tasks` de
 `docker-compose.yml` e `deploy/docker-compose.prod.yml`. A mesma varredura cobre o Gateway do lado oposto (CA-17): ele só
@@ -268,8 +267,7 @@ pode ter `Jwt:Issuer`, `Jwt:Audience` e `Jwt:PublicKeyPath` — nunca `Jwt:Priva
 > gerada direto lá, uma vez, por `deploy/install-docker-on-vm.sh` (`openssl genpkey`/`openssl pkey
 > -pubout`, em `/etc/todolist/jwt/`), com `private.pem` `1654:1654 0400` (uid do usuário `app` da
 > imagem `aspnet`) montada como `secrets:` do compose só no container do Identity, e `public.pem`
-> `0444`, montada só no Gateway. Ver [`deploy/README.md`](deploy/README.md) e
-> [`deploy/ANATOMIA-DOS-SCRIPTS.md`](deploy/ANATOMIA-DOS-SCRIPTS.md).
+> `0444`, montada só no Gateway. Ver [`deploy/README.md`](deploy/README.md).
 
 ### Migrations: `dotnet ef`, uma base por serviço
 
@@ -443,12 +441,11 @@ reais — os trechos de log são saída literal, não exemplo escrito à mão.
 
 > **`scripts/demo-curl.ps1` não existe mais.** Foi removido junto da introdução do API Gateway — o
 > Tasks não tem mais gatilho REST próprio (BE-35), então não há mais o que este script chamasse
-> diretamente. O equivalente do T2, contra o Gateway, é [`scripts/demo-t2.ps1`](#rodando-o-t2)
+> diretamente. O equivalente do T2, contra o Gateway, é [`deploy/smoke.sh`](deploy/smoke.sh)
 > (ver a seção "Rodando o T2" abaixo). Os dois comandos originais ficam registrados aqui só como
 > histórico do que a demonstração do T1 executava:
 
 ```powershell
-./scripts/demo-local.ps1          # Postgres + migrations na ordem + os dois serviços, cada um numa janela
 ./scripts/demo-curl.ps1           # (removido) dispara os 4 desfechos e confere cada um
 ./scripts/demo-curl.ps1 -IncluindoIndisponibilidade   # (removido) o 503, com o Identity desligado
 ```
@@ -939,20 +936,20 @@ Tasks, API Gateway — e ver os quatro desfechos exigidos pelo enunciado do T2 (
 REST → gRPC) acontecendo contra o Gateway, com o mesmo `traceId` correlacionando os logs dos três
 serviços. Os trechos de log abaixo são saída literal de uma execução real, não exemplo escrito à mão.
 
-### 0. O atalho: dois scripts
+### 0. O atalho: a stack em container e um script
 
-```powershell
-./scripts/demo-local.ps1                          # Postgres + migrations na ordem + os três serviços, cada um numa janela
-./scripts/demo-t2.ps1 -Password "<qualquer senha de desenvolvimento, 8+ caracteres, letra e número>"
+```bash
+docker compose --profile full up -d     # Postgres + migrate + os quatro serviços (pré-requisitos: seção "Rodando em containers")
+DEMO_PASSWORD="<qualquer senha de desenvolvimento, 8+ caracteres, letra e número>" ./deploy/smoke.sh http://localhost
 ```
 
-Onda E (T2): não existe mais seed de demonstração — `demo-t2.ps1` cadastra sua própria conta a cada
+Onda E (T2): não existe mais seed de demonstração — `deploy/smoke.sh` cadastra sua própria conta a cada
 execução (`POST /api/auth/register`), então a senha acima não precisa ser a mesma entre execuções.
 
-`demo-t2.ps1` aceita `-BaseUrl` — é o mesmo script que roda no dia da apresentação, apontado para o IP
-externo da VM (BE-39 CA-04, verificação **de fora**, não de `127.0.0.1` dentro da própria VM). Dentro da
-VM, o equivalente é [`deploy/smoke.sh`](deploy/smoke.sh) — ver [`deploy/README.md`](deploy/README.md) para
-o runbook completo de implantação e o roteiro cronometrado de apresentação.
+`deploy/smoke.sh` aceita a URL base como argumento — é o mesmo script que roda no dia da apresentação,
+apontado para o IP externo da VM (BE-39 CA-04, verificação **de fora**, não de `127.0.0.1` dentro da
+própria VM; do notebook, por Git Bash). Ver [`deploy/README.md`](deploy/README.md) para o runbook
+completo de implantação e o roteiro cronometrado de apresentação.
 
 ### 1. Pré-requisitos, chaves JWT e Postgres
 
@@ -998,17 +995,20 @@ dotnet run --project src/Gateway/TodoList.Gateway.Api
 ```
 
 Nenhum usuário pronto para logar — cadastre um pelo Scalar/`curl` (`POST /api/auth/register`) ou deixe
-que o próprio `scripts/demo-t2.ps1` cadastre o dele (próxima seção). Para o passo do usuário inativo
+que o próprio `deploy/smoke.sh` cadastre o dele (próxima seção). Para o passo do usuário inativo
 (RN-AUTH-09), cadastre uma segunda conta e desative-a por SQL — ver "Cadastro real, não seed" acima e
 "No dia da apresentação" em `deploy/README.md`.
 
-### 3. `scripts/demo-t2.ps1`
+### 3. `deploy/smoke.sh`
 
-```powershell
-./scripts/demo-t2.ps1 -Password "<qualquer senha de desenvolvimento>"
+```bash
+DEMO_PASSWORD="<qualquer senha de desenvolvimento>" ./deploy/smoke.sh http://localhost:8080
 # com a conta inativa já desativada por SQL:
-./scripts/demo-t2.ps1 -Password "<...>" -InactiveEmail "inativo@todolist.example"
+DEMO_PASSWORD="<...>" DEMO_INACTIVE_EMAIL="inativo@todolist.example" ./deploy/smoke.sh http://localhost:8080
 ```
+
+(O trecho abaixo é a saída do script PowerShell anterior, que executava os mesmos passos; o
+`smoke.sh` tem formato próprio, `OK`/`ERRO` por passo.)
 
 ```text
 Origem verificada: http://localhost:8080
@@ -1130,9 +1130,8 @@ Verificado com o Identity de fato encerrado (BE-39 CA-07, CA-23 de BE-40): nunca
 conseguir perguntar `ValidateToken` ao Identity ("não consegui validar o token"); desde BE-40, o
 Gateway valida o token sozinho — com o Identity fora do ar, um token válido emitido antes da queda
 ainda passa pela validação local e a chamada chega ao Tasks, que devolve 503 ao tentar `ValidateUser`
-contra um Identity que não responde ("não consegui confirmar o dono"). `./scripts/demo-t2.ps1
--IncluindoIndisponibilidade` automatiza esta verificação localmente, com o Identity já parado antes
-de rodar.
+contra um Identity que não responde ("não consegui confirmar o dono"). Para verificá-la localmente, pare o Identity (`docker compose stop identity`) e repita um `POST /api/tasks`
+com token válido.
 
 ### 6. Requisito do `t2.md` → passo do roteiro → evidência (BE-39 CA-01)
 
@@ -1172,8 +1171,7 @@ Com o Gateway já no ar (seção "Rodando o T2" acima) e o `ng serve` rodando, a
 em `http://localhost:4200` já fala de ponta a ponta com Identity/Tasks. O build de produção
 (`npm run build`, gera `dist/frontend/browser/`) é compilado dentro da imagem `todolist-frontend`
 (`frontend/Dockerfile`, nginx), publicada por `scripts/publish-images.ps1` — ver
-[`deploy/README.md`](deploy/README.md) e
-[`deploy/ANATOMIA-DOS-SCRIPTS.md`](deploy/ANATOMIA-DOS-SCRIPTS.md) para o runbook de
+[`deploy/README.md`](deploy/README.md) para o runbook de
 implantação e a topologia completa (nginx na porta 80, demais serviços só na rede do compose).
 
 ## Rodando em containers (BE-38)
@@ -1202,12 +1200,12 @@ problema).
 
 O Identity não tem nenhum segredo de texto puro próprio nesta stack. A connection string inline no
 `docker-compose.yml` é a credencial de desenvolvimento local de sempre (`postgres`/`postgres`, CA-11 de
-BE-02), não um segredo real. Cadastre contas pela API/tela ou por `scripts/demo-t2.ps1`.
+BE-02), não um segredo real. Cadastre contas pela API/tela ou por `deploy/smoke.sh`.
 
 **Chaves JWT RS256 (BE-40, D-38) — pré-requisito do perfil `full`.** O `docker-compose.yml` as monta via
 `secrets:` de nível superior, a partir de `.secrets/jwt/{private,public}.pem` (mesma pasta usada
 pelo fluxo `dotnet run`, ignorada pelo git). Gere o par antes de subir a stack — se você já rodou
-`scripts/demo-local.ps1` ou `scripts/new-jwt-keys.ps1` antes, ele já existe e este passo é um no-op:
+`scripts/new-jwt-keys.ps1` antes, ele já existe e este passo é um no-op:
 
 ```powershell
 ./scripts/new-jwt-keys.ps1
@@ -1234,8 +1232,8 @@ Sem o perfil `full` (`docker compose up -d postgres` ou apenas `docker compose u
 
 Verifique com o mesmo roteiro de sempre, agora contra os containers:
 
-```powershell
-./scripts/demo-t2.ps1 -BaseUrl http://localhost:8080 -Password "<qualquer senha de desenvolvimento>"
+```bash
+DEMO_PASSWORD="<qualquer senha de desenvolvimento>" ./deploy/smoke.sh http://localhost:8080
 ```
 
 Os passos respondem exatamente como na seção "Rodando o T2" — mesmo

@@ -2,8 +2,8 @@
 # Verificação de fumaça do T2: a rota do SPA + os passos de BE-39, contra o
 # nginx da VM — a única borda HTTP agora (D-32/D-40/BE-42). O Gateway passou
 # a escutar só em 127.0.0.1:8080; quem responde na porta pública é o nginx,
-# que serve o Angular e repassa /api/* ao Gateway. Equivalente, dentro da VM,
-# do scripts/demo-t2.ps1 que roda do notebook Windows.
+# que serve o Angular e repassa /api/* ao Gateway. Roda na VM ou, por Git Bash,
+# do notebook contra o IP externo (verificação "de fora").
 #
 #     DEMO_PASSWORD=... ./smoke.sh                  # contra http://127.0.0.1 (porta 80, via nginx)
 #     DEMO_PASSWORD=... ./smoke.sh http://10.128.0.4

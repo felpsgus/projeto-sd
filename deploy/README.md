@@ -4,12 +4,11 @@ Passo a passo para colocar a stack de pé na `maquina-1-psd` e apresentá-la em 
 tudo em container, Postgres no Cloud SQL `banco-1`. Assume `gcloud` e Docker Desktop instalados
 na máquina de desenvolvimento.
 
-Este arquivo é o **runbook** (o que digitar). Para entender **o que cada script faz por dentro e
-por quê**, veja [ANATOMIA-DOS-SCRIPTS.md](ANATOMIA-DOS-SCRIPTS.md). O runbook específico do
-banco está em [cloudsql/README.md](cloudsql/README.md).
+Este arquivo é o **runbook** (o que digitar). O runbook específico do banco está em
+[cloudsql/README.md](cloudsql/README.md).
 
 > **Estado.** O ensaio de 30/09/2026 percorreu o caminho inteiro e a stack funcionou de ponta a
-> ponta contra o Cloud SQL (`scripts/demo-t2.ps1` e `deploy/smoke.sh` verdes). O ambiente foi
+> ponta contra o Cloud SQL (`smoke.sh` e a antiga verificação do notebook, verdes). O ambiente foi
 > **desligado ao final**: `banco-1` em `STOPPED`/`NEVER` e `maquina-1-psd` `TERMINATED`. As
 > correções de 01/10 (seção 13) ainda não foram exercitadas numa VM real. Trate o próximo
 > ensaio com folga, não como formalidade.
@@ -125,7 +124,7 @@ O `migrate` do compose exige `artifacts/sql/*.sql` na VM:
 ./scripts/new-migrations-sql.ps1
 
 gcloud compute scp deploy/docker-compose.prod.yml deploy/todolist.env.example deploy/todolist.service `
-  deploy/install-docker-on-vm.sh deploy/smoke.sh deploy/demo.sh deploy/tmux-demo-docker.sh `
+  deploy/install-docker-on-vm.sh deploy/smoke.sh deploy/demo.sh `
   maquina-1-psd:~/docker-deploy/ --zone=us-central1-a
 
 gcloud compute scp --recurse artifacts/sql maquina-1-psd:~/docker-deploy/sql --zone=us-central1-a
@@ -148,7 +147,9 @@ sudo ./install-docker-on-vm.sh
 O script instala o Docker Engine + plugin `compose` (repositório oficial, não o pacote da
 distro), monta `/opt/todolist/docker/` com o compose e os SQL, cria (sem sobrescrever) o `.env`
 a partir do `.example`, garante o par RS256 em `/etc/todolist/jwt/` com dono uid `1654`
-(necessário sem Docker Swarm; ver o comentário em `docker-compose.prod.yml`, seção `secrets:`),
+(necessário sem Docker Swarm; ver o comentário em `docker-compose.prod.yml`, seção `secrets:`;
+se uma imagem futura mudar o uid, o sintoma é "permission denied" ao ler o PEM — confira com
+`docker run --rm mcr.microsoft.com/dotnet/aspnet:10.0 id app`),
 e instala/habilita `deploy/todolist.service`. É idempotente: rodar de novo é o jeito normal de
 atualizar compose/unit sem perder `.env` nem chaves. Trocar a chave invalida toda sessão em
 andamento — o script nunca a regera.
@@ -273,15 +274,17 @@ estático anexado conta como "em uso", ligado ou não. Decisão pendente (seçã
 
 ## 10. Verificar: logs e smoke test
 
-Logs durante o ensaio/apresentação: `./tmux-demo-docker.sh` (seção 11), que usa
-`docker compose logs -f` por serviço.
+Logs durante o ensaio/apresentação (os quatro serviços num stream só, com o nome do serviço em
+cada linha — bom para seguir o mesmo `traceId`):
+
+```bash
+cd /opt/todolist/docker
+sudo docker compose -f docker-compose.prod.yml --env-file .env logs -f --since 0s
+```
 
 ```bash
 DEMO_PASSWORD=... ./smoke.sh http://<IP_EXTERNO>      # na VM, padrão http://127.0.0.1
-```
-
-```powershell
-./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password ...    # do notebook, de fora
+DEMO_PASSWORD=... ./deploy/smoke.sh http://<IP_EXTERNO>   # do notebook (Git Bash), de fora
 ```
 
 Saída esperada do `smoke.sh`: a rota profunda `/tasks` devolve o `index.html` do Angular (prova
@@ -298,8 +301,8 @@ sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /
 Roteiro de **até 10 minutos, partindo do frontend** (`t2.md`). O limite é duro: estouro zera a
 nota da apresentação oral. O SSH do navegador só precisa de HTTPS, que nenhuma rede
 institucional bloqueia. O frontend é mostrado num navegador comum em `http://<IP_EXTERNO>/`.
-Três lugares: o navegador, um terminal com `tmux` na VM (apoio + logs) e um PowerShell no
-notebook (`scripts/demo-t2.ps1`, para o 401).
+Três lugares: o navegador, um terminal SSH na VM (logs) e um Git Bash no notebook
+(`deploy/smoke.sh`, para o 401).
 
 ### Preparar
 
@@ -315,39 +318,25 @@ PGSSLMODE=require psql -h 10.30.240.3 -U todolist -d todolist
 UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
 ```
 
-Passe o e-mail ao Ato 5 com `-InactiveEmail inativo@todolist.example`. Sem isso o passo 7 do
+Passe o e-mail ao Ato 5 com `DEMO_INACTIVE_EMAIL=inativo@todolist.example`. Sem isso o passo 7 do
 script é **pulado com aviso** (não falha, mas não demonstra RN-AUTH-09). Nos ensaios, a conta
 `inativo@todolist.example` já existe e está desativada na `banco-1`.
 
 **Terminal 1 — SSH, na VM:**
 
 ```bash
-sudo apt-get install -y tmux     # uma vez
-cd ~/docker-deploy
-./tmux-demo-docker.sh            # monta a tela em 5 painéis e entra nela
+cd /opt/todolist/docker
+sudo docker compose -f docker-compose.prod.yml --env-file .env logs -f --since 0s
 ```
 
-```
-┌───────────────────────┬──────────────────────────┐
-│                       │  log do IDENTITY         │
-│                       ├──────────────────────────┤
-│   roteiro (demo.sh)   │  log do TASKS            │
-│                       ├──────────────────────────┤
-│                       │  log do GATEWAY          │
-│                       ├──────────────────────────┤
-│                       │  log do FRONTEND (nginx) │
-└───────────────────────┴──────────────────────────┘
-```
+`--since 0s` começa sem histórico: tudo que aparecer foi causado durante a apresentação. **Aumente
+a fonte** de terminal e navegador: se o `traceId` for para a segunda linha do log, a correlação
+deixa de ser visível da última fileira.
 
-`Ctrl+B` + seta navega; `Ctrl+B d` sai sem matar a sessão; `tmux attach -t demo-docker` volta.
-Rode `sudo -v` no painel do roteiro antes de começar (o `sudo` guarda a credencial por terminal
-e cada painel é um terminal). **Aumente a fonte** de terminal e navegador: se o `traceId` for
-para a segunda linha do log, a correlação deixa de ser visível da última fileira.
+**Terminal 2 — Git Bash no notebook**, pronto para o Ato 5:
 
-**Terminal 2 — PowerShell no notebook**, pronto para o Ato 5:
-
-```powershell
-$env:DEMO_PASSWORD = "..."
+```bash
+export DEMO_PASSWORD="..."
 # não execute ainda
 ```
 
@@ -362,7 +351,7 @@ $env:DEMO_PASSWORD = "..."
 | 2 | **Título vazio → 400** | Criar tarefa sem título; o formulário mostra o erro **sem** round-trip até o Tasks — o Gateway validando na borda. | 0:40 | 2:20 |
 | 3 | **Tarefa válida (201) + atrasada** | Criar uma tarefa com título e **uma segunda com vencimento no passado** (a conta é nova e não tem tarefa vencida; sem isso o destaque nunca aparece). Surgem na lista sem recarregar. | 1:10 | 3:30 |
 | 4 | **Banco real, por `psql`** | `psql` contra `10.30.240.3` (`PGSSLMODE=require`), `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova de persistência real, não só o `201`. | 1:00 | 4:30 |
-| 5 | **401, pelo `demo-t2.ps1`** | No terminal 2: `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password $env:DEMO_PASSWORD -InactiveEmail inativo@todolist.example`. Três tokens inválidos (sem token, lixo, **adulterado** — exercita a assinatura RS256), todos 401 com o mesmo corpo, e o usuário inativo — mesmo 401, corpo idêntico ao de senha errada (RN-AUTH-09). Mostrar uma vez o interceptor do frontend redirecionando ao login num 401. | 1:30 | 6:00 |
+| 5 | **401, pelo `smoke.sh`** | No terminal 2: `DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh http://<IP_EXTERNO>`. Três tokens inválidos (sem token, lixo, **adulterado** — exercita a assinatura RS256), todos 401 com o mesmo corpo, e o usuário inativo — mesmo 401, corpo idêntico ao de senha errada (RN-AUTH-09). Mostrar uma vez o interceptor do frontend redirecionando ao login num 401. | 1:30 | 6:00 |
 | 6 | **Logs, mesmo `traceId`** | Terminal 1: nos painéis Identity/Tasks/Gateway, localizar o `traceId` da criação do Ato 3 (`grep -E 'ValidateToken\|CreateTask\|ValidateUser'`). O nginx repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 7:00 |
 | 7 | **Código** | `AddJwtBearer` do Gateway (BE-40), `CreateTaskHttpRequestValidator`, o handler JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 9:00 |
 | — | Encerramento | Buffer deliberado, margem contra qualquer travada. | 1:00 | 10:00 |
@@ -378,7 +367,7 @@ Ato 3.
 | Requisito (`t2.md`, 1–7) | Ato | Evidência |
 |---|---|---|
 | 1. Frontend funcional, só fala com o Gateway | 1–3 | DevTools → Network mostra só chamadas a `/api/*`, mesma origem |
-| 2. API Gateway como ponto único de entrada REST | 1–5 | Toda chamada do frontend e do `demo-t2.ps1` vai para `http://<IP_EXTERNO>/api/*` |
+| 2. API Gateway como ponto único de entrada REST | 1–5 | Toda chamada do frontend e do `smoke.sh` vai para `http://<IP_EXTERNO>/api/*` |
 | 3. ≥ 2 microsserviços internos via gRPC | 6, 7 | `traceId` correlacionado Gateway→Tasks→Identity; `.proto` na tela |
 | 4. Banco real, persistência **exibida** | 4 | `SELECT` no `psql` mostrando a linha criada no Ato 3 |
 | 5. Validação de payload (400/201) | 2, 3 | 400 no título vazio; 201 na tarefa válida |
@@ -393,14 +382,14 @@ Ato 3.
 - [ ] Conta do usuário inativo cadastrada e desativada por `SQL` (acima).
 - [ ] `DEMO_PASSWORD=... DEMO_INACTIVE_EMAIL=inativo@todolist.example ./smoke.sh` verde na VM
       (contra `http://127.0.0.1`, via nginx).
-- [ ] `./scripts/demo-t2.ps1 -BaseUrl http://<IP_EXTERNO> -Password ... -InactiveEmail
-      inativo@todolist.example` verde, do notebook, **de fora** da VM.
+- [ ] `DEMO_PASSWORD=... DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh
+      http://<IP_EXTERNO>` verde, do notebook (Git Bash), **de fora** da VM.
 - [ ] Verificação de fora refeita pouco antes: **80** responde; **8080/5080/5081/5100/5101**
       não respondem (seção 9).
 - [ ] Aquecimento: uma requisição descartável (`./demo.sh --warmup` ou um login pela tela) — a
       primeira chamada paga conexão HTTP/2 e a primeira query do EF Core; que seja antes da
       plateia.
-- [ ] `tmux` montado, fonte aumentada, cinco painéis e tela de login visíveis.
+- [ ] Logs rodando (`logs -f`), fonte aumentada e tela de login visível.
 - [ ] Se testou indisponibilidade no ensaio (`docker compose ... stop identity`), o Identity
       foi **religado** (`start identity`). Sem ele, o resultado esperado é `503` com
       `Retry-After: 5`, nunca 401 nem 500.
@@ -443,7 +432,7 @@ API do Artifact Registry habilitada e repositório `todolist` criado; quatro ima
 (`f2f0e82` e `latest`); `install-docker-on-vm.sh` numa VM real (Debian 13, Docker 29.8.2);
 pull autenticado sem mudança de IAM/escopo; stack no ar contra o Cloud SQL (~1,1 GB de RAM
 livre); verificação de fora (80 serve o Angular, 8080/5080/5081/5100/5101 não respondem);
-`demo-t2.ps1` e `smoke.sh` verdes; Identity parado → 503 com `Retry-After: 5`; mesmo `traceId`
+`smoke.sh` verde; Identity parado → 503 com `Retry-After: 5`; mesmo `traceId`
 nos três serviços; persistência exibida por `SELECT` em `tasks.tasks`.
 
 ### Correções de 01/10 ainda não exercitadas numa VM real
@@ -502,6 +491,6 @@ gcloud compute instances describe maquina-1-psd --zone us-central1-a \
 A VM sobe a stack sozinha (`todolist.service` está `enabled`) e o `.env` já está preenchido.
 Não repita nada das seções 2 a 8; só verifique, com o IP do dia:
 
-```powershell
-./scripts/demo-t2.ps1 -BaseUrl http://<IP_NOVO> -Password <senha> -InactiveEmail inativo@todolist.example
+```bash
+DEMO_PASSWORD=<senha> DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh http://<IP_NOVO>
 ```

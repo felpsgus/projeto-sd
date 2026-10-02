@@ -26,7 +26,7 @@
 # UserStore__SeedDemoUsers/DemoUserPassword) foi removido — não sobra mais
 # segredo nenhum do Identity fora das chaves JWT (via `secrets:`, abaixo);
 # cadastre contas pela API/tela (POST /api/auth/register) ou pelo próprio
-# scripts/demo-t2.ps1.
+# deploy/smoke.sh (que se cadastra sozinho a cada execução).
 #
 # Desde a Etapa 13, só o `frontend` publica porta no host: o nginx do seu
 # container (frontend/nginx.conf.template)

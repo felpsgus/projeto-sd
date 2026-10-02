@@ -16,7 +16,7 @@ namespace TodoList.Identity.Api.Configuration;
 /// de verdade. Com o cadastro real (fase 3, <c>POST /api/auth/register</c>),
 /// o seed virou exatamente o tipo de atalho que um avaliador repara: uma
 /// rota de "ligar em produção por engano" que não precisa mais existir. O
-/// roteiro de demonstração (<c>scripts/demo-t2.ps1</c>, <c>deploy/demo.sh</c>,
+/// roteiro de demonstração (<c>deploy/demo.sh</c>,
 /// <c>deploy/smoke.sh</c>) passou a cadastrar contas pela API/tela; o único
 /// cenário que o seed cobria e a API não cobre — um usuário **inativo**, para
 /// provar RN-AUTH-09 — passou a ser criado por um <c>UPDATE</c> direto em

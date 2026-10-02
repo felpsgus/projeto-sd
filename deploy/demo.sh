@@ -147,7 +147,7 @@ clear
 echo "${VERDE}TodoList — API Gateway: REST na borda, gRPC por dentro (T2)${FIM}"
 echo "${CINZA}Lembrete: o roteiro de verdade parte do frontend, no navegador (login, título vazio,${FIM}"
 echo "${CINZA}tarefa válida). Os atos abaixo são o apoio em linha de comando — 401 e indisponibilidade —${FIM}"
-echo "${CINZA}que o script scripts/demo-t2.ps1, rodado num SEGUNDO terminal (Windows), também cobre.${FIM}"
+echo "${CINZA}que o deploy/smoke.sh, rodado num SEGUNDO terminal (notebook, Git Bash), também cobre.${FIM}"
 echo "${CINZA}Conta desta execução: $EMAIL_ATIVO${FIM}"
 echo "${CINZA}Aquecendo antes de começar...${FIM}"
 aquecer
