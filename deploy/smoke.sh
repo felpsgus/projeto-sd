@@ -198,7 +198,7 @@ if [[ $falhas -eq 0 ]]; then
     echo "Evidência do traceId correlacionado (passo 6, os três serviços — o nginx repassa o"
     echo "traceparent intacto, BE-42/D-40, então ele não aparece como um quarto serviço na correlação)."
     echo "  sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \\"
-    echo "    logs --since 2m gateway tasks identity | grep -E 'ValidateToken|CreateTask|ValidateUser'"
+    echo "    logs --since 2m gateway tasks identity | grep -E 'CreateTask|ValidateUser'"
     exit 0
 fi
 

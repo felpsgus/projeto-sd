@@ -138,7 +138,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.MapEndpoints(typeof(HealthEndpoints).Assembly, typeof(Program).Assembly);
+app.MapHealthEndpoints();
 app.MapGrpcService<IdentityGrpcService>();
 
 await app.RunAsync();

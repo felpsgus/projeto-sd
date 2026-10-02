@@ -434,8 +434,11 @@ Na raiz do repositório:
 dotnet test
 ```
 
-Isso executa os quatro projetos de teste. Com Docker de pé são **296 testes**; sem Docker, use
-`dotnet test --filter "Category!=Docker"` e são **271** (ver seção de persistência acima):
+Isso executa os seis projetos de teste. Sem Docker, use
+`dotnet test --filter "Category!=Docker"`, que deixa de fora os que sobem Postgres por
+Testcontainers (ver seção de persistência acima). A contagem não está escrita aqui de
+propósito: todo commit a muda, e número em documentação envelhece sem avisar — quem quer
+saber roda o comando:
 
 - `TodoList.Identity.UnitTests` — testes de arquitetura (dependências entre camadas e entre serviços,
   incluindo que Domain/Application não referenciam o `.proto`/tipos gerados — CA-08 de BE-25; e que

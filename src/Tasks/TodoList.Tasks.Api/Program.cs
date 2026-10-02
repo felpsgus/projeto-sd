@@ -114,7 +114,7 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
-app.MapEndpoints(typeof(HealthEndpoints).Assembly, typeof(Program).Assembly);
+app.MapHealthEndpoints();
 app.MapGrpcService<TasksGrpcService>();
 app.MapGrpcHealthChecksService();
 

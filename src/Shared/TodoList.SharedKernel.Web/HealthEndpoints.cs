@@ -9,9 +9,9 @@ namespace TodoList.SharedKernel.Web;
 /// Health checks (BE-02, CA-03/CA-04), via <c>MapHealthChecks</c> — Minimal
 /// APIs, nunca Controller.
 /// </summary>
-public sealed class HealthEndpoints : IEndpointRouteHandler
+public static class HealthEndpoints
 {
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/health").WithTags("Health");
 
@@ -32,5 +32,7 @@ public sealed class HealthEndpoints : IEndpointRouteHandler
             .WithName("GetHealthReady")
             .WithSummary("Readiness check do serviço (conectividade com o banco)")
             .AllowAnonymous();
+
+        return endpoints;
     }
 }

@@ -209,7 +209,7 @@ fi
 echo ""
 echo "${VERDE}Fim. Nos três painéis de log (Gateway, Tasks, Identity) procure o mesmo traceId do Ato 5:${FIM}"
 echo "${CINZA}  sudo docker compose -f $COMPOSE_DIR/docker-compose.prod.yml --env-file $COMPOSE_DIR/.env \\${FIM}"
-echo "${CINZA}    logs --since 2m gateway tasks identity | grep -E 'ValidateToken|CreateTask|ValidateUser'${FIM}"
+echo "${CINZA}    logs --since 2m gateway tasks identity | grep -E 'CreateTask|ValidateUser'${FIM}"
 echo ""
 echo "${CINZA}O quarto processo em jogo é o nginx, que roda no container frontend —${FIM}"
 echo "${CINZA}ele só encaminha bytes (D-40): o traceparent atravessa intacto, então não é esperado${FIM}"

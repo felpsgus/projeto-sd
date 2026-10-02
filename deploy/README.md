@@ -352,7 +352,7 @@ export DEMO_PASSWORD="..."
 | 3 | **Tarefa válida (201) + atrasada** | Criar uma tarefa com título e **uma segunda com vencimento no passado** (a conta é nova e não tem tarefa vencida; sem isso o destaque nunca aparece). Surgem na lista sem recarregar. | 1:10 | 3:30 |
 | 4 | **Banco real, por `psql`** | `psql` contra `10.30.240.3` (`PGSSLMODE=require`), `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova de persistência real, não só o `201`. | 1:00 | 4:30 |
 | 5 | **401, pelo `smoke.sh`** | No terminal 2: `DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh http://<IP_EXTERNO>`. Três tokens inválidos (sem token, lixo, **adulterado** — exercita a assinatura RS256), todos 401 com o mesmo corpo, e o usuário inativo — mesmo 401, corpo idêntico ao de senha errada (RN-AUTH-09). Mostrar uma vez o interceptor do frontend redirecionando ao login num 401. | 1:30 | 6:00 |
-| 6 | **Logs, mesmo `traceId`** | Terminal 1: nos painéis Identity/Tasks/Gateway, localizar o `traceId` da criação do Ato 3 (`grep -E 'ValidateToken\|CreateTask\|ValidateUser'`). O nginx repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 7:00 |
+| 6 | **Logs, mesmo `traceId`** | Terminal 1: nos painéis Identity/Tasks/Gateway, localizar o `traceId` da criação do Ato 3 (`grep -E 'CreateTask\|ValidateUser'`). O nginx repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 7:00 |
 | 7 | **Código** | `AddJwtBearer` do Gateway (BE-40), `CreateTaskHttpRequestValidator`, o handler JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 9:00 |
 | — | Encerramento | Buffer deliberado, margem contra qualquer travada. | 1:00 | 10:00 |
 
