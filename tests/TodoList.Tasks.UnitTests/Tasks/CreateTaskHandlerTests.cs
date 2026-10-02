@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using TodoList.SharedKernel;
 using TodoList.Tasks.Application.Errors;
 using TodoList.Tasks.Application.Identity;
 using TodoList.Tasks.Application.Persistence;

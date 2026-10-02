@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
-namespace TodoList.Identity.Infrastructure.Persistence.Conventions;
+namespace TodoList.SharedKernel.Persistence;
 
 /// <summary>
 /// Garante que todo <see cref="DateTime"/> persistido está em UTC (BE-02,

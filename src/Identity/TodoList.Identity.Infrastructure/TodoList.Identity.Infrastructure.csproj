@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TodoList.Identity.Application\TodoList.Identity.Application.csproj" />
+    <ProjectReference Include="../../Shared/TodoList.SharedKernel.Persistence/TodoList.SharedKernel.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

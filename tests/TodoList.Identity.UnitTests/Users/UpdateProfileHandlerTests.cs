@@ -5,6 +5,7 @@ using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Domain.Users;
+using TodoList.SharedKernel;
 using Xunit;
 
 namespace TodoList.Identity.UnitTests.Users;

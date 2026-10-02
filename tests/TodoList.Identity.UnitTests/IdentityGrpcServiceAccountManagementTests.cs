@@ -16,6 +16,7 @@ using TodoList.Identity.Application.Security;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
+using TodoList.SharedKernel;
 using Xunit;
 using ProtoChangePasswordRequest = TodoList.Contracts.Identity.V1.ChangePasswordRequest;
 

@@ -3,8 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using TodoList.SharedKernel;
+using TodoList.SharedKernel.Persistence;
 using TodoList.Tasks.Application.Persistence;
-using TodoList.Tasks.Infrastructure.Persistence.Interceptors;
 
 namespace TodoList.Tasks.Infrastructure.Persistence;
 

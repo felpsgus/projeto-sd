@@ -13,7 +13,8 @@ WORKDIR /src
 # --- Camada de restore -------------------------------------------------
 # Só o que o restore do TodoList.Identity.Api.csproj precisa: props/config da
 # raiz, os .proto consumidos (D-29) e os .csproj de toda a cadeia de
-# ProjectReference (Api -> Infrastructure -> Application -> Domain -> SharedKernel).
+# ProjectReference (Api -> Infrastructure -> Application -> Domain -> SharedKernel;
+# Infrastructure -> SharedKernel.Persistence, Api -> SharedKernel.Web).
 # Uma alteração de código sem alteração de dependência reaproveita esta camada.
 COPY global.json Directory.Build.props .editorconfig ./
 
@@ -24,6 +25,8 @@ COPY src/Identity/TodoList.Identity.Infrastructure/TodoList.Identity.Infrastruct
 COPY src/Identity/TodoList.Identity.Application/TodoList.Identity.Application.csproj src/Identity/TodoList.Identity.Application/
 COPY src/Identity/TodoList.Identity.Domain/TodoList.Identity.Domain.csproj src/Identity/TodoList.Identity.Domain/
 COPY src/Shared/TodoList.SharedKernel/TodoList.SharedKernel.csproj src/Shared/TodoList.SharedKernel/
+COPY src/Shared/TodoList.SharedKernel.Persistence/TodoList.SharedKernel.Persistence.csproj src/Shared/TodoList.SharedKernel.Persistence/
+COPY src/Shared/TodoList.SharedKernel.Web/TodoList.SharedKernel.Web.csproj src/Shared/TodoList.SharedKernel.Web/
 
 RUN dotnet restore src/Identity/TodoList.Identity.Api/TodoList.Identity.Api.csproj
 
@@ -33,6 +36,8 @@ COPY src/Identity/TodoList.Identity.Infrastructure/ src/Identity/TodoList.Identi
 COPY src/Identity/TodoList.Identity.Application/ src/Identity/TodoList.Identity.Application/
 COPY src/Identity/TodoList.Identity.Domain/ src/Identity/TodoList.Identity.Domain/
 COPY src/Shared/TodoList.SharedKernel/ src/Shared/TodoList.SharedKernel/
+COPY src/Shared/TodoList.SharedKernel.Persistence/ src/Shared/TodoList.SharedKernel.Persistence/
+COPY src/Shared/TodoList.SharedKernel.Web/ src/Shared/TodoList.SharedKernel.Web/
 
 RUN dotnet publish src/Identity/TodoList.Identity.Api/TodoList.Identity.Api.csproj \
     -c Release --no-restore -o /app

@@ -1,4 +1,4 @@
-namespace TodoList.Identity.Domain.Common;
+namespace TodoList.SharedKernel;
 
 /// <summary>
 /// Entidade com remoção lógica (RN-TASK-13/D-07, BE-02 CA-06):

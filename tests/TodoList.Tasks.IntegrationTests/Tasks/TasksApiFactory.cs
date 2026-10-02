@@ -1,5 +1,4 @@
 extern alias IdentityApi;
-
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Hosting;
@@ -9,8 +8,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using TodoList.Contracts.Identity.V1;
+using TodoList.SharedKernel.Persistence;
 using TodoList.Tasks.Infrastructure.Persistence;
-using TodoList.Tasks.Infrastructure.Persistence.Interceptors;
 using IdentityProgram = IdentityApi::Program;
 
 namespace TodoList.Tasks.IntegrationTests.Tasks;

@@ -35,7 +35,7 @@ public static class TaskGrpcMapping
     /// <c>due_date</c> não está no formato <c>yyyy-MM-dd</c> — mesmo nome de
     /// propriedade de <see cref="ApplicationCreateTaskRequest.DueDate"/>, para
     /// que o Gateway reconstrua o mesmo dicionário que o <c>ValidationProblem</c>
-    /// REST devolvia (<c>Api/Validation/ValidationFilter.cs</c> serializa as
+    /// REST devolvia (<c>Gateway/Validation/ValidationFilter.cs</c> serializa as
     /// chaves de <c>FluentValidation.Results.ValidationResult.ToDictionary()</c>
     /// sem nenhuma política de <i>camelCase</i> aplicada às chaves do
     /// dicionário — só às propriedades de objeto —, então o nome de campo

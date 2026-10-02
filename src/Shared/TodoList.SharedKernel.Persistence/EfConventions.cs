@@ -1,18 +1,17 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using TodoList.Tasks.Domain.Common;
 
-namespace TodoList.Tasks.Infrastructure.Persistence.Conventions;
+namespace TodoList.SharedKernel.Persistence;
 
 /// <summary>
 /// Convenções globais de mapeamento do BE-02 (DateTime em UTC, soft delete via
 /// <c>HasQueryFilter</c>, string sem <c>MaxLength</c> proibido). Extraídas em
 /// métodos estáticos — não só chamadas dentro do <c>OnModelCreating</c> de
-/// <see cref="TasksDbContext"/> — para que
-/// <c>TodoList.Tasks.IntegrationTests</c> monte um <c>DbContext</c> de teste
-/// (SQLite) que reaproveita o mecanismo real, e não uma cópia dele (pedido
-/// explícito de BE-02).
+/// cada <c>DbContext</c> de serviço — para que
+/// <c>TodoList.*.IntegrationTests</c> monte um <c>DbContext</c> de
+/// teste (SQLite) que reaproveita o mecanismo real, e não uma cópia dele
+/// (pedido explícito de BE-02).
 /// </summary>
 public static class EfConventions
 {

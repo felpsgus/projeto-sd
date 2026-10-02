@@ -2,7 +2,8 @@
 
   <!--
     Kernel compartilhado entre Identity e Tasks (decisão D-26).
-    Contém apenas Result<T>/Error/ErrorType (BE-03) — nenhum pacote externo,
+    Contém Result<T>/Error/ErrorType (BE-03) e os contratos sem dependência
+    IAuditable/ISoftDeletable/IUnitOfWork — nenhum pacote externo,
     nenhuma referência a outro projeto.
   -->
 

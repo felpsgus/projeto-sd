@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TodoList.Identity.Api.Configuration;
+namespace TodoList.SharedKernel.Web;
 
 /// <summary>
 /// Configuração tipada mínima do serviço, vinculada com <c>IOptions&lt;T&gt;</c>

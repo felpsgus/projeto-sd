@@ -1,4 +1,6 @@
-namespace TodoList.Tasks.Api.Endpoints;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+namespace TodoList.SharedKernel.Web;
 
 /// <summary>
 /// Contrato implementado por cada grupo de endpoints (feature) da API.

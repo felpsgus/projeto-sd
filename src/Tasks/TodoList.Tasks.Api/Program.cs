@@ -1,6 +1,5 @@
 using FluentValidation;
-using TodoList.Tasks.Api.Configuration;
-using TodoList.Tasks.Api.Endpoints;
+using TodoList.SharedKernel.Web;
 using TodoList.Tasks.Api.ErrorHandling;
 using TodoList.Tasks.Api.Grpc;
 using TodoList.Tasks.Api.Security;
@@ -11,7 +10,15 @@ using TodoList.Tasks.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddApiErrorHandling();
+// Handler global de exceções + ProblemDetails com traceId (BE-03, CA-03/CA-05/CA-06).
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+    };
+});
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 // Abstração de tempo (BE-02, CA-08): nada de DateTime.UtcNow espalhado pelo
@@ -105,9 +112,9 @@ builder.Services.AddGrpc(options =>
 
 var app = builder.Build();
 
-app.UseApiErrorHandling();
+app.UseExceptionHandler();
 
-app.MapEndpoints();
+app.MapEndpoints(typeof(HealthEndpoints).Assembly, typeof(Program).Assembly);
 app.MapGrpcService<TasksGrpcService>();
 app.MapGrpcHealthChecksService();
 

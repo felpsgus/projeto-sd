@@ -5,8 +5,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Application.Users;
-using TodoList.Identity.Infrastructure.Persistence.Interceptors;
 using TodoList.Identity.Infrastructure.Users;
+using TodoList.SharedKernel;
+using TodoList.SharedKernel.Persistence;
 
 namespace TodoList.Identity.Infrastructure.Persistence;
 

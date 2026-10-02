@@ -259,7 +259,7 @@ public class ArchitectureTests
     }
 
     [Fact] // CA-10 de BE-03
-    public void SharedKernel_ExpoeApenasResultErrorEErrorType()
+    public void SharedKernel_ExpoeApenasResultErrorEOsContratosDePersistencia()
     {
         var sharedKernelAssembly = typeof(TodoList.SharedKernel.Result).Assembly;
 
@@ -267,11 +267,11 @@ public class ArchitectureTests
             .Select(type => type.Name)
             .ToList();
 
-        var nomesEsperados = new[] { "Result", "Result`1", "Error", "ErrorType" };
+        var nomesEsperados = new[] { "Result", "Result`1", "Error", "ErrorType", "IAuditable", "ISoftDeletable", "IUnitOfWork" };
 
         nomesDosTiposPublicos.Should().BeEquivalentTo(
             nomesEsperados,
-            "SharedKernel (D-26) não pode conter entidade, DTO de negócio, catálogo de erros ou regra");
+            "SharedKernel (D-26) não pode conter entidade, DTO de negócio, catálogo de erros ou regra — só Result/Error e os três contratos de persistência sem dependência");
     }
 
     [Fact] // CA-12 de BE-02

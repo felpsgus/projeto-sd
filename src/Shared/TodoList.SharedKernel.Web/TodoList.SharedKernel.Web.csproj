@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Peça web compartilhada entre Identity e Tasks (D-26): ServiceOptions, health
+    endpoints e descoberta de IEndpointRouteHandler. Só a Api de cada serviço
+    referencia este projeto.
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

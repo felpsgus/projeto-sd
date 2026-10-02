@@ -2,10 +2,10 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using TodoList.SharedKernel.Persistence;
 using TodoList.Tasks.Application.Tasks;
 using TodoList.Tasks.Domain.Tasks;
 using TodoList.Tasks.Infrastructure.Persistence;
-using TodoList.Tasks.Infrastructure.Persistence.Interceptors;
 using Xunit;
 
 namespace TodoList.Tasks.IntegrationTests.Persistence;

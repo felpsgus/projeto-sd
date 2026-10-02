@@ -1,4 +1,4 @@
-namespace TodoList.Identity.Domain.Common;
+namespace TodoList.SharedKernel;
 
 /// <summary>
 /// Entidade auditável (BE-02, CA-07/CA-08): <see cref="CreatedAt"/> e

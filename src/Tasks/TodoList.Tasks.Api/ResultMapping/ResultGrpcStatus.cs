@@ -66,7 +66,7 @@ public static class ResultGrpcStatus
     /// <c>error-code: validation.failed</c> e o dicionário por campo
     /// (<see cref="ValidationResult.ToDictionary"/>) serializado no trailer
     /// <see cref="ValidationErrorsTrailerKey"/>, o mesmo dicionário que
-    /// <c>Api/Validation/ValidationFilter.cs</c> devolvia no corpo do
+    /// <c>Gateway/Validation/ValidationFilter.cs</c> devolvia no corpo do
     /// <c>ValidationProblem</c> REST.
     /// </summary>
     public static RpcException ToValidationFailedException(this ValidationResult validationResult) =>

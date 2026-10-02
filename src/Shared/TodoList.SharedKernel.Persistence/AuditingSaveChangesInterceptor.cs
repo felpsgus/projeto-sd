@@ -1,8 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using TodoList.Tasks.Domain.Common;
 
-namespace TodoList.Tasks.Infrastructure.Persistence.Interceptors;
+namespace TodoList.SharedKernel.Persistence;
 
 /// <summary>
 /// Interceptor único de auditoria + soft delete (BE-02, CA-06/CA-07/CA-08).

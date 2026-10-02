@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TodoList.Identity.Infrastructure\TodoList.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="../../Shared/TodoList.SharedKernel.Web/TodoList.SharedKernel.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

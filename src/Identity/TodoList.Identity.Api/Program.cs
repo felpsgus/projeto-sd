@@ -2,7 +2,6 @@ using FluentValidation;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TodoList.Identity.Api.Configuration;
-using TodoList.Identity.Api.Endpoints;
 using TodoList.Identity.Api.ErrorHandling;
 using TodoList.Identity.Api.Grpc;
 using TodoList.Identity.Application.Authentication;
@@ -10,12 +9,21 @@ using TodoList.Identity.Application.Users;
 using TodoList.Identity.Infrastructure.Persistence;
 using TodoList.Identity.Infrastructure.Security;
 using TodoList.Identity.Infrastructure.Users;
+using TodoList.SharedKernel.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
-builder.Services.AddApiErrorHandling();
+// Handler global de exceções + ProblemDetails com traceId (BE-03, CA-03/CA-05/CA-06).
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+    };
+});
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 // Abstração de tempo (BE-02, CA-08): nada de DateTime.UtcNow espalhado pelo
@@ -100,7 +108,7 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-app.UseApiErrorHandling();
+app.UseExceptionHandler();
 
 // Força a resolução do IUserLookup na inicialização: com o seed em memória,
 // isso garante o log de aviso do CA-15 (BE-26) mesmo antes da primeira chamada
@@ -130,7 +138,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.MapEndpoints();
+app.MapEndpoints(typeof(HealthEndpoints).Assembly, typeof(Program).Assembly);
 app.MapGrpcService<IdentityGrpcService>();
 
 await app.RunAsync();

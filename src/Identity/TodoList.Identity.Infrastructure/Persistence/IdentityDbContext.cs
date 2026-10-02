@@ -2,7 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Domain.Users;
-using TodoList.Identity.Infrastructure.Persistence.Conventions;
+using TodoList.SharedKernel;
+using TodoList.SharedKernel.Persistence;
 
 namespace TodoList.Identity.Infrastructure.Persistence;
 

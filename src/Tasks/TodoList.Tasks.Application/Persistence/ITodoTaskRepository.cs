@@ -30,7 +30,7 @@ public interface ITodoTaskRepository
 
     /// <summary>
     /// Remove <paramref name="task"/>. Como <see cref="TodoTask"/> implementa
-    /// <see cref="Domain.Common.ISoftDeletable"/>, o interceptor de auditoria
+    /// <see cref="SharedKernel.ISoftDeletable"/>, o interceptor de auditoria
     /// da Infrastructure converte isso automaticamente numa remoção lógica ao
     /// salvar (BE-02) — nenhum <c>DELETE</c> físico sai daqui. Reservado para
     /// o fluxo de remoção "genérico"; o expurgo definitivo (BE-23, fora do

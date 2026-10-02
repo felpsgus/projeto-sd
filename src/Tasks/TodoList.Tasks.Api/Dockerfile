@@ -15,7 +15,8 @@ WORKDIR /src
 # raiz, os .proto consumidos (D-29 — tasks.proto no lado servidor,
 # identity.proto no lado cliente da Infrastructure) e os .csproj de toda a
 # cadeia de ProjectReference (Api -> Infrastructure -> Application -> Domain
-# -> SharedKernel). Uma alteração de código sem alteração de dependência
+# -> SharedKernel; Infrastructure -> SharedKernel.Persistence, Api ->
+# SharedKernel.Web). Uma alteração de código sem alteração de dependência
 # reaproveita esta camada.
 COPY global.json Directory.Build.props .editorconfig ./
 
@@ -27,6 +28,8 @@ COPY src/Tasks/TodoList.Tasks.Infrastructure/TodoList.Tasks.Infrastructure.cspro
 COPY src/Tasks/TodoList.Tasks.Application/TodoList.Tasks.Application.csproj src/Tasks/TodoList.Tasks.Application/
 COPY src/Tasks/TodoList.Tasks.Domain/TodoList.Tasks.Domain.csproj src/Tasks/TodoList.Tasks.Domain/
 COPY src/Shared/TodoList.SharedKernel/TodoList.SharedKernel.csproj src/Shared/TodoList.SharedKernel/
+COPY src/Shared/TodoList.SharedKernel.Persistence/TodoList.SharedKernel.Persistence.csproj src/Shared/TodoList.SharedKernel.Persistence/
+COPY src/Shared/TodoList.SharedKernel.Web/TodoList.SharedKernel.Web.csproj src/Shared/TodoList.SharedKernel.Web/
 
 RUN dotnet restore src/Tasks/TodoList.Tasks.Api/TodoList.Tasks.Api.csproj
 
@@ -36,6 +39,8 @@ COPY src/Tasks/TodoList.Tasks.Infrastructure/ src/Tasks/TodoList.Tasks.Infrastru
 COPY src/Tasks/TodoList.Tasks.Application/ src/Tasks/TodoList.Tasks.Application/
 COPY src/Tasks/TodoList.Tasks.Domain/ src/Tasks/TodoList.Tasks.Domain/
 COPY src/Shared/TodoList.SharedKernel/ src/Shared/TodoList.SharedKernel/
+COPY src/Shared/TodoList.SharedKernel.Persistence/ src/Shared/TodoList.SharedKernel.Persistence/
+COPY src/Shared/TodoList.SharedKernel.Web/ src/Shared/TodoList.SharedKernel.Web/
 
 RUN dotnet publish src/Tasks/TodoList.Tasks.Api/TodoList.Tasks.Api.csproj \
     -c Release --no-restore -o /app

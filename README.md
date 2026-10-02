@@ -65,7 +65,8 @@ nunca hardcoded no código):
 |---|---|---|---|
 | Identity | HTTP/REST | `5080` | HTTP/1.1 |
 | Identity | gRPC (`IdentityService`) | `5081` | HTTP/2 (h2c) |
-| Tasks | HTTP/REST | `5100` | HTTP/1.1 |
+| Tasks | HTTP (só `/health`) | `5100` | HTTP/1.1 |
+| Tasks | gRPC (`CreateTask`) | `5101` | HTTP/2 (h2c) |
 
 > **Antes do primeiro `dotnet run` do Identity:** gere o par de chaves RSA (BE-40, RS256) com
 > `./scripts/new-jwt-keys.ps1` e aponte `Jwt:PrivateKeyPath` para o `private.pem` gerado — sem
@@ -92,9 +93,9 @@ curl http://localhost:5100/health
 
 Ambos devem responder `200 OK` com `{ "status": "healthy" }`.
 
-> Para o roteiro completo — Postgres, migrations na ordem certa, criação de tarefa passando pelo gRPC e os
-> três desfechos possíveis — veja ["Rodando os dois serviços"](#rodando-os-dois-serviços-roteiro-de-verificação-da-comunicação-grpc-be-31)
-> mais abaixo. Os comandos acima sobem os serviços, mas sem banco não dá para criar tarefa.
+> Para o roteiro completo — Postgres, migrations na ordem certa, os três serviços e a criação de tarefa
+> ponta a ponta através do Gateway — veja ["Rodando o T2"](#rodando-o-t2) mais abaixo. Os comandos
+> acima sobem os serviços, mas sem banco não dá para criar tarefa.
 
 Em ambiente de desenvolvimento, cada serviço também expõe a documentação OpenAPI/Scalar:
 
@@ -120,7 +121,7 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
 `ValidateUser` lê de uma de duas implementações de `IUserLookup`, escolhida por
 `UserStore:Provider` em configuração — trocar de store é mudar configuração, não código:
 
-- **`InMemory`** (padrão) — seed fixo em memória (`InMemoryUserLookup`). Roda no processo real — não
+- **`InMemory`** (só em teste; o padrão é `Persisted`, D-39) — seed fixo em memória (`InMemoryUserLookup`). Roda no processo real — não
   é mock de teste — e emite um **log de aviso** na inicialização deixando explícito que o store
   persistido não está em uso. Exatamente dois usuários, com ids fixos:
 
@@ -425,239 +426,6 @@ comportamento observado. A distinção importa: os testes de comportamento grava
 convenção desligada. O round-trip contra Postgres real (CA-05) usa de propósito um `DateTime` com
 `Kind=Local`, que é o caso que a convenção existe para resolver.
 
-## Rodando os dois serviços: roteiro de verificação da comunicação gRPC (BE-31)
-
-> **⚠️ Roteiro histórico do T1.** Os passos abaixo disparam `curl -X POST /api/tasks` direto no Tasks
-> Service — esse gatilho HTTP provisório (BE-29) foi **removido** por [BE-35](tarefas/backend/BE-35-tasks-servidor-grpc.md):
-> o Tasks só é alcançável por gRPC agora. O roteiro equivalente do T2, através do API Gateway, chega com
-> [BE-39](tarefas/backend/BE-39-verificacao-t2.md). Mantido aqui só como registro do que a demonstração do T1 provava.
-
-Esta seção é o roteiro de demonstração da etapa: subir tudo do zero e ver uma tarefa ser criada **depois**
-de o Identity confirmar o dono por gRPC, ver a criação ser recusada quando o Identity nega, e ver o que
-acontece quando o Identity não responde. Os três caminhos abaixo foram executados contra os dois processos
-reais — os trechos de log são saída literal, não exemplo escrito à mão.
-
-### 0. O atalho: dois scripts
-
-> **`scripts/demo-curl.ps1` não existe mais.** Foi removido junto da introdução do API Gateway — o
-> Tasks não tem mais gatilho REST próprio (BE-35), então não há mais o que este script chamasse
-> diretamente. O equivalente do T2, contra o Gateway, é [`deploy/smoke.sh`](deploy/smoke.sh)
-> (ver a seção "Rodando o T2" abaixo). Os dois comandos originais ficam registrados aqui só como
-> histórico do que a demonstração do T1 executava:
-
-```powershell
-./scripts/demo-curl.ps1           # (removido) dispara os 4 desfechos e confere cada um
-./scripts/demo-curl.ps1 -IncluindoIndisponibilidade   # (removido) o 503, com o Identity desligado
-```
-
-`demo-curl.ps1` aceitava `-BaseUrl` — o mesmo script serviria para verificar o ambiente do GCP através
-de um túnel. As seções abaixo são o que os scripts faziam, passo a passo, para quando algo saísse do
-esperado.
-
-Para levar isto ao GCP — imagens Docker, Cloud SQL e a VM única da apresentação — veja [`deploy/README.md`](deploy/README.md).
-
-### 1. Subir, na ordem
-
-A ordem importa e não é arbitrária: a FK cruzada `tasks.tasks.owner_id → identity.users(id)` faz a
-migration do Tasks depender da tabela criada pela do Identity.
-
-```powershell
-# a) Postgres de desenvolvimento
-docker compose up -d
-
-# b) connection strings (esta janela; em dev, user-secrets também serve para rodar os serviços)
-$env:ConnectionStrings__IdentityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
-$env:ConnectionStrings__TasksDb    = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
-
-# c) migrations — Identity SEMPRE primeiro
-dotnet ef database update --project src/Identity/TodoList.Identity.Infrastructure --startup-project src/Identity/TodoList.Identity.Api
-dotnet ef database update --project src/Tasks/TodoList.Tasks.Infrastructure --startup-project src/Tasks/TodoList.Tasks.Api
-```
-
-Depois, **um terminal para cada serviço** — Identity primeiro, Tasks depois:
-
-```powershell
-# terminal 1 — Identity
-$env:ConnectionStrings__IdentityDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
-$env:UserStore__Provider = "Persisted"
-dotnet run --project src/Identity/TodoList.Identity.Api
-```
-
-```powershell
-# terminal 2 — Tasks: modo provisório de identidade por header (BE-29), sem autenticação ainda
-$env:ConnectionStrings__TasksDb = "Host=localhost;Port=5432;Database=todolist;Username=postgres;Password=postgres"
-$env:Tasks__AllowAnonymousCreate = "true"
-dotnet run --project src/Tasks/TodoList.Tasks.Api
-```
-
-> **`UserStore__Provider=Persisted` não é detalhe de conforto.** Com o padrão `InMemory`, o `ValidateUser`
-> responde a partir do seed em memória, mas a gravação da tarefa continua batendo na FK cruzada contra
-> `identity.users` — o Identity aprovaria um dono que o banco não conhece, e a criação falharia no
-> `INSERT`, não na validação. Para o roteiro, os dois lados precisam olhar para o mesmo banco.
-
-Este roteiro histórico (BE-31/T1) usa os mesmos dois ids fixos de `InMemoryUserLookup` (seção de
-store de usuários acima), mas contra `Provider=Persisted` eles precisam existir de verdade em
-`identity.users` (não há seed automático, veja "Cadastro real, não seed" acima). Para reproduzir este
-roteiro específico, insira os dois manualmente (nunca faz login, só `ValidateUser`/FK — a senha não importa aqui):
-
-```sql
-INSERT INTO identity.users (id, email, display_name, password_hash, is_active, created_at, updated_at) VALUES
-  ('10000000-0000-0000-0000-000000000001', 'dono-valido@todolist.example', 'Dono válido', 'not-a-real-hash-legacy-be31-walkthrough', true, now(), now()),
-  ('10000000-0000-0000-0000-000000000002', 'dono-inativo@todolist.example', 'Dono inativo', 'not-a-real-hash-legacy-be31-walkthrough', false, now(), now());
-```
-
-| Papel no roteiro | Id | `active` |
-|---|---|---|
-| Dono válido | `10000000-0000-0000-0000-000000000001` | `true` |
-| Dono inativo | `10000000-0000-0000-0000-000000000002` | `false` |
-
-### 2. Caminho de sucesso — 201
-
-```powershell
-curl -X POST http://localhost:5100/api/tasks `
-  -H "Content-Type: application/json" `
-  -H "X-User-Id: 10000000-0000-0000-0000-000000000001" `
-  -d '{"title":"Preparar a demonstracao do T1","priority":"High"}'
-```
-
-```json
-{"id":"8e3e0bc4-dd97-4b1d-b8d4-eb89e216352e","title":"Preparar a demonstracao do T1","description":null,
- "status":"Pending","priority":"High","dueDate":null,"completedAt":null,"isOverdue":false,
- "createdAt":"2026-09-05T14:50:47.632211Z","updatedAt":"2026-09-05T14:50:47.632211Z"}
-```
-
-**Evidência nos dois lados — o mesmo `traceId`:**
-
-```text
-# terminal 2 (Tasks)
-info: TodoList.Tasks.Infrastructure.Identity.GrpcIdentityGateway[1561142135]
-      ValidateUser (Identity gRPC): userId=10000000-0000-0000-0000-000000000001, statusCode=OK,
-      durationMs=23.0773, traceId=00-23666181a22c87f7bb74504949ed8d91-fdb5656773b1f372-00
-
-# terminal 1 (Identity)
-info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1561142135]
-      ValidateUser: userId=10000000-0000-0000-0000-000000000001, exists=True, active=True,
-      durationMs=13.3075, traceId=00-23666181a22c87f7bb74504949ed8d91-fdb5656773b1f372-00
-```
-
-Esse par de linhas **é** o entregável desta etapa. A serialização gRPC é binária: sem os dois logs
-correlacionados, não há nada observável entre "requisição entrou no Tasks" e "resposta saiu do Identity" —
-e um Tasks que decidisse sozinho produziria exatamente o mesmo `201`. O `traceId` é o traceparent do W3C,
-propagado pelo Tasks na metadata gRPC e registrado pelo Identity como recebido.
-
-### 3. Caminho de rejeição — 404, decidido pelo Identity
-
-A **mesma** requisição, mudando **apenas** o `X-User-Id`:
-
-```powershell
-curl -X POST http://localhost:5100/api/tasks `
-  -H "Content-Type: application/json" `
-  -H "X-User-Id: 99999999-9999-9999-9999-999999999999" `
-  -d '{"title":"Tarefa de um dono que nao existe"}'
-```
-
-```json
-{"type":"https://httpstatuses.io/404","title":"Not Found","status":404,
- "detail":"O usuário informado não foi encontrado.","errorCode":"task.owner_not_found",
- "traceId":"0HNOBBK8JELVK:00000001"}
-```
-
-```text
-# terminal 1 (Identity) — quem disse "não" foi ele
-info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1561142135]
-      ValidateUser: userId=99999999-9999-9999-9999-999999999999, exists=False, active=False,
-      durationMs=2.0527, traceId=00-aee49582c3208ec84dbbab63f6e7763c-0d50a6b0f24d998f-00
-
-# terminal 2 (Tasks) — a chamada foi OK; o "não" é conteúdo da resposta, não erro de transporte
-info: TodoList.Tasks.Infrastructure.Identity.GrpcIdentityGateway[1561142135]
-      ValidateUser (Identity gRPC): userId=99999999-9999-9999-9999-999999999999, statusCode=OK,
-      durationMs=3.8989, traceId=00-aee49582c3208ec84dbbab63f6e7763c-0d50a6b0f24d998f-00
-warn: TodoList.Tasks.Application.Tasks.CreateTaskHandler[2057755150]
-      Criação de tarefa rejeitada: dono 99999999-9999-9999-9999-999999999999 inválido (not_found).
-```
-
-O par sucesso/rejeição, com a requisição mudando só no header, é o que demonstra que **quem decide é o
-Identity**: um Tasks que aceitasse tudo passaria no caminho anterior e falharia aqui.
-
-O dono **inativo** é o terceiro desfecho da mesma chamada — o Identity responde `exists=True, active=False`
-e o Tasks devolve `409`, não `404` (a identidade existe; o que impede é o estado dela):
-
-```powershell
-curl -X POST http://localhost:5100/api/tasks `
-  -H "Content-Type: application/json" `
-  -H "X-User-Id: 10000000-0000-0000-0000-000000000002" `
-  -d '{"title":"Tarefa de um dono inativo"}'
-```
-
-```json
-{"type":"https://httpstatuses.io/409","title":"Conflict","status":409,
- "detail":"O usuário informado está inativo e não pode criar tarefas.","errorCode":"task.owner_inactive",
- "traceId":"0HNOBBK8JELVL:00000001"}
-```
-
-### 4. Caminho de indisponibilidade — 503, nada gravado
-
-Encerre o Identity (`Ctrl+C` no terminal 1) e repita a requisição do caminho de sucesso:
-
-```text
-HTTP/1.1 503 Service Unavailable
-Retry-After: 5
-```
-
-```json
-{"type":"https://httpstatuses.io/503","title":"Service Unavailable","status":503,
- "detail":"Não foi possível validar o usuário no momento. Tente novamente em instantes.",
- "errorCode":"identity.unavailable","traceId":"0HNOBBK8JELVN:00000001"}
-```
-
-```text
-# terminal 2 (Tasks)
-warn: TodoList.Tasks.Infrastructure.Identity.GrpcIdentityGateway[1388007139]
-      ValidateUser (Identity gRPC) falhou: userId=10000000-0000-0000-0000-000000000001,
-      statusCode=DeadlineExceeded, durationMs=2033.7856,
-      traceId=00-e527fe72f84ca167730bc902e56e5c72-1599d28edf384c74-00
-fail: TodoList.Tasks.Application.Tasks.CreateTaskHandler[883122609]
-      Criação de tarefa abortada: Identity indisponível ao validar o dono 10000000-0000-0000-0000-000000000001.
-```
-
-Este é o **fail-closed** da decisão D-28: a tarefa **não** é gravada. A FK garante que o dono existe, mas
-só o Identity sabe se ele está **ativo** — na dúvida, o Tasks recusa. O `statusCode` desta linha varia
-entre `Unavailable` (conexão recusada de imediato) e `DeadlineExceeded` (o prazo de
-`Identity:GrpcTimeoutSeconds` estourou antes); os dois são o mesmo desfecho para quem chamou. Nenhum
-detalhe de transporte — endereço, `RpcException`, status gRPC — aparece no corpo da resposta; ele fica só
-no log do servidor.
-
-### HTTP/2 sem TLS (h2c): por que o endpoint é declarado `Http2`
-
-Com o Identity em `http://`, o endpoint gRPC do Kestrel **precisa** ser declarado `Protocols: Http2`
-(é o que está em `appsettings.json`, ver a seção "Configuração"). Sem TLS não há ALPN para negociar o
-protocolo, e o padrão `Http1AndHttp2` resolve para HTTP/1.1 — o canal gRPC então falha com um erro de
-protocolo que não diz o que está errado.
-
-O switch `AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true)`, do
-lado **cliente**, também faz a chamada funcionar, e **não é** a solução adotada aqui. Fica registrado
-apenas como último recurso, porque ele resolve no consumidor um problema que é do servidor: cada novo
-cliente do Identity precisaria repetir o remendo, e um deles vai esquecer. Declarar o endpoint como
-`Http2` conserta para todos, de uma vez.
-
-### Sintomas e causas
-
-| Sintoma | Causa provável | O que fazer |
-|---|---|---|
-| `curl` devolve "connection refused" em `5100` | o Tasks não subiu, ou está em outra porta | ver o terminal 2; conferir `Kestrel:Endpoints:Http:Url` |
-| **503** `identity.unavailable` em toda requisição | o Identity não está no ar, ou `Identity:GrpcAddress` aponta para o lugar errado | subir o Identity primeiro; conferir a chave (seção "Configuração") |
-| Erro de **protocolo** no canal gRPC (`HTTP/1.1` onde se esperava HTTP/2) | o endpoint gRPC não está declarado `Protocols: Http2` | ver a nota sobre h2c acima — corrigir no servidor, não no cliente |
-| **404** `task.owner_not_found` com um id que você acredita existir | o id não existe **no Identity** — ou o Identity está lendo de outro store | conferir `UserStore:Provider` e se o usuário foi de fato cadastrado/inserido nesse store |
-| **400** apontando `X-User-Id` | header ausente, vazio ou não é um `Guid` | é o comportamento esperado do modo provisório (BE-29): sem dono não há o que validar |
-| **500** no `INSERT`, depois de o Identity aprovar | FK cruzada: o dono existe no store do Identity mas não em `identity.users` | `UserStore__Provider=Persisted`, com o usuário já cadastrado/inserido em `identity.users`, e migration do Identity aplicada |
-
-> **Dois identificadores diferentes, de propósito — e é uma armadilha.** O `traceId` do **corpo de erro**
-> (`0HNOBBK8JELVK:00000001`) é o `HttpContext.TraceIdentifier`, escolhido em BE-03 para correlacionar a
-> resposta com o log de erro do próprio serviço. O `traceId` das linhas de **gRPC** é o traceparent do
-> W3C, que é o que cruza a fronteira entre os serviços. Eles **não** são o mesmo valor: partindo de um
-> `404` que o usuário reportou, localize a requisição pelo horário e pelo `userId`, não pelo `traceId` do
-> corpo. Unificar os dois é trabalho de observabilidade (BE-24), não desta etapa.
-
 ## Como testar
 
 Na raiz do repositório:
@@ -755,6 +523,22 @@ falharia com um erro de protocolo pouco óbvio. A partir de BE-35, o Tasks não 
 REST de negócio — `POST /api/tasks` (BE-29) foi removido, e `/api/tasks` deixou de existir. `CreateTask` só
 é alcançável pela porta gRPC (`5101` em dev/VM, `8080` no container — D-37).
 
+O switch `AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true)`, do
+lado **cliente**, também faria a chamada funcionar, e **não é** a solução adotada: ele resolve no
+consumidor um problema que é do servidor — cada novo cliente do Identity/Tasks precisaria repetir o
+remendo, e um deles vai esquecer. Declarar o endpoint como `Http2` conserta para todos, de uma vez.
+
+**Sintomas de transporte comuns:** **503** `identity.unavailable` em toda requisição (o Identity não
+está no ar, ou `Identity:GrpcAddress` aponta para o lugar errado — suba o Identity primeiro e confira a
+chave); erro de **protocolo** no canal gRPC (`HTTP/1.1` onde se esperava HTTP/2 — o endpoint gRPC não
+está declarado `Protocols: Http2`, corrija no servidor, não no cliente); **500** no `INSERT` depois de o
+Identity aprovar o dono (FK cruzada: o dono existe no store do Identity mas não em `identity.users` —
+use `UserStore__Provider=Persisted` com o usuário realmente cadastrado e a migration do Identity
+aplicada). O `statusCode` do log do Tasks varia entre `Unavailable` (conexão recusada de imediato) e
+`DeadlineExceeded` (o prazo de `Identity:GrpcTimeoutSeconds` estourou antes); para quem chamou é o mesmo
+desfecho, e nenhum detalhe de transporte (endereço, `RpcException`) aparece no corpo da resposta, só no
+log do servidor.
+
 **Outras chaves de endereço/porta/ambiente já existentes na base:**
 
 | Chave | Serviço | Padrão em dev | Obrigatória | Variável de ambiente equivalente |
@@ -782,53 +566,35 @@ fica degradado e qualquer operação de banco falha ao ser tentada (seção de p
 ### Sobrescrita por variável de ambiente: o que está automatizado e o que é roteiro manual (BE-30)
 
 `Identity__GrpcAddress` e `Identity__GrpcTimeoutSeconds` como variável de ambiente sobrescrevendo o
-`appsettings`, com efeito observável (a chamada muda de destino; o deadline muda de verdade) e
-`POST /api/tasks` completando a criação com o Identity num endereço não padrão, têm teste automatizado —
+`appsettings`, com efeito observável (a chamada muda de destino; o deadline muda de verdade) e a criação
+de tarefa completando com o Identity num endereço não padrão, têm teste automatizado —
 `GrpcIdentityGatewayIntegrationTests` e `CreateTaskCustomAddressEndToEndTests`, em
-`tests/TodoList.Tasks.IntegrationTests`. O que fica como **roteiro manual** (dois processos `dotnet run`
+`tests/TodoList.Tasks.IntegrationTests`. O que fica como **roteiro manual** (processos `dotnet run`
 reais, em portas TCP diferentes — os testes automatizados usam `WebApplicationFactory`/`TestServer`, que
-não abre porta real):
+não abre porta real) é o mesmo da seção "Rodando o T2", só que deslocando as portas por variável de
+ambiente, sem editar nenhum `appsettings*.json` (Postgres, migrations e chaves JWT como lá):
 
 ```powershell
-# terminal 1 — Identity em portas não padrão, só por variável de ambiente
+# terminal 1 — Identity em portas não padrão
 $env:Kestrel__Endpoints__Http__Url = "http://0.0.0.0:6080"
 $env:Kestrel__Endpoints__Grpc__Url = "http://0.0.0.0:6081"
 dotnet run --project src/Identity/TodoList.Identity.Api
 
-# terminal 2 — Tasks em porta não padrão, apontando para o Identity acima
+# terminal 2 — Tasks em portas não padrão, apontando para o Identity acima
 $env:Kestrel__Endpoints__Http__Url = "http://0.0.0.0:6100"
+$env:Kestrel__Endpoints__Grpc__Url = "http://0.0.0.0:6101"
 $env:Identity__GrpcAddress = "http://localhost:6081"
 dotnet run --project src/Tasks/TodoList.Tasks.Api
 
-# terminal 3 — usuário ativo do seed em memória (README, seção de store de usuários)
-curl -X POST http://localhost:6100/api/tasks `
-  -H "Content-Type: application/json" `
-  -H "X-User-Id: 10000000-0000-0000-0000-000000000001" `
-  -d '{"title":"teste manual de CA-06"}'
-# esperado: 201 Created — nenhum appsettings*.json foi editado, só variável de ambiente.
+# terminal 3 — Gateway apontando para os dois
+$env:Backends__IdentityGrpcAddress = "http://localhost:6081"
+$env:Backends__TasksGrpcAddress = "http://localhost:6101"
+dotnet run --project src/Gateway/TodoList.Gateway.Api
 ```
 
-## O que ainda não existe nesta etapa
-
-BE-02 entregou a base de persistência (EF Core, Postgres, migrations, soft delete, auditoria, health
-checks, Testcontainers); BE-04 entregou a primeira entidade de negócio do Identity — `User`/`Email`,
-`IUserRepository`/`UserRepository`, a migration `AddUsersTable` (`identity.users`, índice único em
-`email`) e `PersistedUserLookup` (BE-26 CA-13). A FK cruzada `tasks.tasks.owner_id → identity.users(id)`
-com `ON DELETE CASCADE` (CA-02c/CA-15/CA-16 de BE-02) **existe** — ver a seção "FK cruzada" acima.
-
-O cliente gRPC do Tasks e a validação de dono na criação de tarefa (BE-27/BE-28) **já existem** —
-`GrpcIdentityGateway`/`IIdentityGateway` e a rejeição de dono inexistente/inativo em `POST /api/tasks` —,
-assim como a configuração por ambiente dos endereços/portas dos dois serviços e do cliente gRPC (BE-30,
-seção "Configuração" acima) e o roteiro de verificação de ponta a ponta dos três caminhos (BE-31, seção
-"Rodando os dois serviços"). Segue fora do escopo desta etapa: validação real de JWT
-(fica para o API Gateway, D-31), autenticação/hash de senha real (BE-06/BE-08/BE-09 — o seed em memória
-desta etapa usava um `PasswordHash` placeholder documentado, não um hash válido), endpoints de usuário (BE-07/BE-14), o
-handler `DELETE /api/me` de exclusão de conta (BE-16 — a FK que sustenta a cascata das tarefas já existe,
-mas o endpoint em si ainda não), qualquer regra de negócio de tarefa e o pipeline de CI (BE-24) — inclusive
-a varredura por `JOIN`/nome de schema entre serviços (CA-14 de BE-02), que entra junto das varreduras de
-BE-24. A varredura por endereço/porta literal fora de `appsettings*.json` (CA-01 de BE-30) já existe como
-teste (`ArchitectureTests.CodigoDoTasks_NaoContemEnderecoOuPortaLiteral_ForaDosAppsettings`, do lado do
-Tasks, rodado a cada `dotnet test`) — o que falta, e fica para BE-24, é integrá-la ao pipeline de CI.
+Depois, `DEMO_PASSWORD=... ./deploy/smoke.sh http://localhost:8080`: os passos 3 a 6 (cadastro, login,
+400, 201) só passam se o Gateway alcançou o Identity e o Tasks nos endereços novos, e o 201 só se o
+Tasks alcançou o Identity em `6081`.
 
 ## API Gateway (BE-36)
 
@@ -887,6 +653,9 @@ Chaves de configuração (`appsettings.json`/`appsettings.Development.json`, val
 
 ### Como subir localmente (Identity + Tasks + Gateway)
 
+Pré-requisitos (Postgres, migrations, chaves JWT e as variáveis de ambiente de cada processo) estão em
+["Rodando o T2"](#rodando-o-t2) — sem eles o Identity e o Gateway não sobem. Com isso feito:
+
 ```powershell
 # terminal 1 — Identity (gRPC em 5081)
 dotnet run --project src/Identity/TodoList.Identity.Api
@@ -898,13 +667,19 @@ dotnet run --project src/Tasks/TodoList.Tasks.Api
 dotnet run --project src/Gateway/TodoList.Gateway.Api
 ```
 
-Login e criação de tarefa via `curl`:
+Não há usuário pré-cadastrado: cadastre, faça login e crie uma tarefa via `curl`:
 
 ```bash
+# cadastro — não existe seed (ver "Cadastro real, não seed")
+curl -s -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"voce@todolist.example","password":"<senha, 8+ caracteres, letra e número>","displayName":"Voce"}'
+# => 201
+
 # login — troca e-mail/senha pelo access token
 curl -s -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"ativo@example.com","password":"senha-do-seed"}'
+  -d '{"email":"voce@todolist.example","password":"<a mesma senha>"}'
 # => 200 { "accessToken": "...", "expiresAt": "..." }
 
 # criação de tarefa — usa o accessToken da resposta acima
@@ -919,15 +694,17 @@ Equivalente em PowerShell:
 
 ```powershell
 $login = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/auth/login `
-    -ContentType "application/json" -Body '{"email":"ativo@example.com","password":"senha-do-seed"}'
+    -ContentType "application/json" -Body '{"email":"voce@todolist.example","password":"<a mesma senha>"}'
 
 Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/tasks `
     -ContentType "application/json" -Headers @{ Authorization = "Bearer $($login.accessToken)" } `
     -Body '{"title":"Comprar leite","priority":"Medium","dueDate":"2026-12-31"}'
 ```
 
-O roteiro completo de demonstração (cenários de sucesso e falha — 400/401/503) é o de BE-39; este README
-cobre só como subir e um exemplo mínimo de fumaça.
+O roteiro completo de demonstração (cenários de sucesso e falha — 400/401/503) é o de BE-39, em
+"Rodando o T2"; esta seção cobre só como subir e um exemplo mínimo de fumaça. Ainda não existe pipeline
+de CI (BE-24), nem a varredura por `JOIN`/nome de schema entre serviços (CA-14 de BE-02) que entra com
+ele.
 
 ## Rodando o T2
 
@@ -953,9 +730,9 @@ completo de implantação e o roteiro cronometrado de apresentação.
 
 ### 1. Pré-requisitos, chaves JWT e Postgres
 
-Os mesmos da seção anterior: Postgres de desenvolvimento por `docker compose`, migrations do Identity
-**antes** das do Tasks (a FK cruzada `tasks.tasks.owner_id → identity.users(id)` exige isso) — e, desde
-BE-40, o par de chaves RS256 (seção "Chaves JWT RS256" acima):
+Postgres de desenvolvimento por `docker compose`, migrations do Identity **antes** das do Tasks (a FK
+cruzada `tasks.tasks.owner_id → identity.users(id)` exige isso) e, desde BE-40, o par de chaves RS256
+(seção "Chaves JWT RS256" acima):
 
 ```powershell
 ./scripts/new-jwt-keys.ps1    # gera .secrets/jwt/{private,public}.pem — pula se já existir
@@ -971,7 +748,7 @@ dotnet ef database update --project src/Tasks/TodoList.Tasks.Infrastructure --st
 
 ### 2. Subir os três processos, na ordem
 
-Identity primeiro (emite e valida token, valida dono), Tasks depois (só alcançável por gRPC — BE-35
+Identity primeiro (emite o token e valida o dono), Tasks depois (só alcançável por gRPC — BE-35
 removeu o gatilho REST provisório), Gateway por último (é quem chama os outros dois).
 
 ```powershell
@@ -1002,50 +779,18 @@ que o próprio `deploy/smoke.sh` cadastre o dele (próxima seção). Para o pass
 ### 3. `deploy/smoke.sh`
 
 ```bash
+# Gateway sozinho, sem nginx: o passo 0 (rota do SPA) é esperado falhar — quem serve o Angular é o nginx
 DEMO_PASSWORD="<qualquer senha de desenvolvimento>" ./deploy/smoke.sh http://localhost:8080
 # com a conta inativa já desativada por SQL:
 DEMO_PASSWORD="<...>" DEMO_INACTIVE_EMAIL="inativo@todolist.example" ./deploy/smoke.sh http://localhost:8080
 ```
 
-(O trecho abaixo é a saída do script PowerShell anterior, que executava os mesmos passos; o
-`smoke.sh` tem formato próprio, `OK`/`ERRO` por passo.)
-
-```text
-Origem verificada: http://localhost:8080
-Conta desta execução: demo-t2-20260925101530214@todolist.example
-
---- 1. POST /api/tasks sem token
-    OK   HTTP 401 / auth.unauthorized
-
---- 2. POST /api/tasks com token lixo
-    OK   HTTP 401 / auth.unauthorized
-
---- 3. POST /api/auth/register (conta nova)
-    OK   HTTP 201
-
---- 4. POST /api/auth/login (conta recém-cadastrada)
-    OK   HTTP 200
-
---- 2b. POST /api/tasks com token adulterado
-    OK   HTTP 401 / auth.unauthorized
-
---- 5. POST /api/tasks com título vazio
-    OK   HTTP 400
-
---- 6. POST /api/tasks válido
-    OK   HTTP 201
-    OK   6b. Location: /api/tasks/c5cdd314-5cec-4ca7-9a39-e18793f63524
-
---- 7. POST /api/auth/login (usuário inativo)
-    PULADO — nenhum -InactiveEmail informado. Sem ele, este passo não exercita RN-AUTH-09.
-
-Todos os passos responderam como esperado.
-Agora procure, nos três painéis de log (Gateway, Tasks, Identity), o mesmo traceId do passo 6.
-```
-
-Saída literal (adaptada para omitir o passo 7, que depende de uma conta desativada por SQL) de uma
-execução real contra os três serviços locais — exit code `0`. Qualquer status divergente faz o script
-sair com `1` (BE-39 CA-02); o passo 7 pulado nunca conta como falha.
+O script imprime uma linha `OK`/`ERRO` por passo e, no fim, o comando de log para achar o `traceId` do
+passo 6. Os passos: 0 rota profunda do SPA; 1 e 2 sem token e com token lixo (401); 3 e 4 cadastro e login
+da conta nova; 2b token adulterado (401); 5 título vazio (400); 6 criação válida (201 + `Location`); 7 login
+do usuário inativo (401 idêntico ao de senha errada, só se `DEMO_INACTIVE_EMAIL` estiver definida — senão
+`PULADO`, com aviso). Qualquer passo fora do esperado faz o script sair com `1` (BE-39 CA-02); o passo 7
+pulado nunca conta como falha.
 
 ### 4. Evidência de log: o mesmo `traceId` nos serviços envolvidos (passo 6)
 
@@ -1143,9 +888,9 @@ com token válido.
 | **4. Tradução e delegação de protocolo** — JSON → gRPC binário para o backend | Passo 6, evidência de log | Seção 4 acima — `traceId` correlacionado em Gateway (`CreateTask`), Tasks (`CreateTask`/`ValidateUser (Identity gRPC)`) e Identity (`ValidateUser`); a validação do JWT deixou de ser uma chamada gRPC do Gateway ao Identity desde BE-40 |
 
 O passo 7 (usuário inativo → 401 idêntico ao de senha errada, RN-AUTH-09 — pulado com aviso se
-`-InactiveEmail` não for informado) e o caminho de indisponibilidade
-(seção 5) não mapeiam para um requisito numerado do enunciado, mas são obrigatórios no script (BE-39
-CA-06/CA-07) — a diferença entre "credencial errada" e "não consigo checar" é o tipo de bug que só aparece
+`DEMO_INACTIVE_EMAIL` não for informada) e o caminho de indisponibilidade
+(seção 5) não mapeiam para um requisito numerado do enunciado, mas são exigidos pelo BE-39 (CA-06/CA-07; o
+indisponível se reproduz à mão, o `smoke.sh` não o derruba) — a diferença entre "credencial errada" e "não consigo checar" é o tipo de bug que só aparece
 na primeira demonstração real, não em revisão de código.
 
 ## Frontend (Angular) em desenvolvimento local (BE-42)
@@ -1223,17 +968,18 @@ rodam como usuário não-root (`$APP_UID`, ver `Dockerfile` de cada um).
 docker compose --profile full up --build -d
 ```
 
-Isso constrói as três imagens e sobe, na ordem exigida pelas dependências, `postgres` → `migrate`
-(aplica os dois SQL e sai) → `identity`/`tasks` → `gateway`. Só o `gateway` publica porta no host
-(`8080:8080`, D-32) — `identity` e `tasks` só existem na rede interna do compose, sem `ports:`.
+Isso constrói as imagens e sobe, na ordem exigida pelas dependências, `postgres` → `migrate`
+(aplica os dois SQL e sai) → `identity`/`tasks` → `gateway` → `frontend`. Só o `frontend` (nginx)
+publica porta no host (`80:8080`, a origem única — D-32/D-40): `gateway`, `identity` e `tasks` só
+existem na rede interna do compose, sem `ports:`, e o nginx repassa `/api/*` ao Gateway.
 
 Sem o perfil `full` (`docker compose up -d postgres` ou apenas `docker compose up -d`), o comportamento
 **não muda em nada** em relação a antes desta task — sobe só o Postgres, sem exigir o perfil (CA-06).
 
-Verifique com o mesmo roteiro de sempre, agora contra os containers:
+Verifique com o mesmo roteiro de sempre, agora contra os containers (pela porta 80, a única exposta):
 
 ```bash
-DEMO_PASSWORD="<qualquer senha de desenvolvimento>" ./deploy/smoke.sh http://localhost:8080
+DEMO_PASSWORD="<qualquer senha de desenvolvimento>" ./deploy/smoke.sh http://localhost
 ```
 
 Os passos respondem exatamente como na seção "Rodando o T2" — mesmo

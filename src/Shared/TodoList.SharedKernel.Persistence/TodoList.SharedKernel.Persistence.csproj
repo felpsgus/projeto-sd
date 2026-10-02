@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Peça de persistência compartilhada entre Identity e Tasks (D-26): convenções
+    de modelo, conversor UTC e interceptor de auditoria/soft delete. Fica fora do
+    SharedKernel porque o SharedKernel (e, por tabela, o Domain) não pode ter
+    nenhum pacote — só a Infrastructure de cada serviço referencia este projeto.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\TodoList.SharedKernel\TodoList.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>
