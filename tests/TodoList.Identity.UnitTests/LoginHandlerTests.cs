@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -35,12 +34,15 @@ public class LoginHandlerTests : IDisposable
     private readonly TestRsaKeyFile _jwtKeyFile = TestRsaKeyFile.Create();
     private readonly InMemoryRefreshTokenRepository _refreshRepository = new();
     private readonly InMemoryLoginAttemptStore _attempts = new();
+    private readonly List<(string Plain, string Hash)> _verifyCalls = [];
+    private readonly DummyPasswordHash _dummyPasswordHash;
     private LockoutOptions _lockout = new();
     private readonly User _activeUser;
     private readonly User _inactiveUser;
 
     public LoginHandlerTests()
     {
+        _dummyPasswordHash = new DummyPasswordHash(_passwordHasher);
         _activeUser = User.Create(
             Email.Create(RegisteredEmail).Value, "Ada Lovelace", _passwordHasher.Hash(CorrectPassword), _timeProvider).Value;
 
@@ -164,25 +166,22 @@ public class LoginHandlerTests : IDisposable
         erros.Should().AllBeEquivalentTo(AuthErrors.InvalidCredentials);
     }
 
-    [Fact] // CA-05 — tempo de "e-mail inexistente" e "senha errada" na mesma ordem de grandeza (hash dummy pago)
-    public async Task HandleAsync_TempoDeEmailInexistenteESenhaErrada_MesmaOrdemDeGrandeza()
+    [Fact] // CA-05 — e-mail inexistente paga o mesmo Verify (hash dummy) que senha errada: sem canal de tempo
+    public async Task HandleAsync_EmailInexistenteESenhaErrada_PagamOMesmoCustoDeVerify()
     {
-        const int rounds = 8;
-        _lockout = new LockoutOptions { Enabled = false }; // 18 tentativas no mesmo e-mail — o bloqueio mascararia o tempo medido
+        // Determinístico: em vez de comparar tempos de parede (frágil sob carga), afirma que o
+        // verificador de hash FOI chamado em ambos os caminhos, exatamente uma vez cada.
         var sut = CreateHandler(_activeUser);
 
-        // Aquecimento — primeira chamada de cada tipo tende a ser mais lenta
-        // (JIT/alocações), o que poluiria a média.
         await sut.HandleAsync(RegisteredEmail, "senha-errada", CancellationToken.None);
+        var chamadasSenhaErrada = _verifyCalls.ToArray();
+        _verifyCalls.Clear();
         await sut.HandleAsync("ninguem@exemplo.com", CorrectPassword, CancellationToken.None);
+        var chamadasEmailInexistente = _verifyCalls.ToArray();
 
-        var duracaoSenhaErrada = await MedirDuracaoMediaAsync(rounds, () => sut.HandleAsync(RegisteredEmail, "senha-errada", CancellationToken.None));
-        var duracaoEmailInexistente = await MedirDuracaoMediaAsync(rounds, () => sut.HandleAsync("ninguem@exemplo.com", CorrectPassword, CancellationToken.None));
-
-        var maior = Math.Max(duracaoSenhaErrada, duracaoEmailInexistente);
-        var menor = Math.Max(Math.Min(duracaoSenhaErrada, duracaoEmailInexistente), 0.0001);
-
-        (maior / menor).Should().BeLessThan(5, "e-mail inexistente também paga o custo do hash dummy (CA-05 de BE-33)");
+        chamadasSenhaErrada.Should().ContainSingle().Which.Hash.Should().Be(_activeUser.PasswordHash);
+        chamadasEmailInexistente.Should().ContainSingle()
+            .Which.Hash.Should().Be(_dummyPasswordHash.Value, "e-mail inexistente verifica contra o hash dummy (CA-05 de BE-33)");
     }
 
     // ---- BE-12: bloqueio temporário por tentativas (relógio fake, nunca dorme) ----
@@ -337,18 +336,6 @@ public class LoginHandlerTests : IDisposable
         result.Error.Code.Should().Be(AuthErrors.TooManyAttemptsCode);
     }
 
-    private static async Task<double> MedirDuracaoMediaAsync(int rounds, Func<Task> action)
-    {
-        var stopwatch = Stopwatch.StartNew();
-
-        for (var i = 0; i < rounds; i++)
-        {
-            await action();
-        }
-
-        return stopwatch.Elapsed.TotalMilliseconds / rounds;
-    }
-
     public void Dispose()
     {
         _jwtKeyFile.Dispose();
@@ -371,10 +358,21 @@ public class LoginHandlerTests : IDisposable
         var jwtOptions = Options.Create(new JwtOptions { Issuer = "todolist-identity", Audience = "todolist", PrivateKeyPath = _jwtKeyFile.Path });
         var signingKeyProvider = new RsaSigningKeyProvider(jwtOptions);
         var tokenService = new JwtTokenService(jwtOptions, _timeProvider, signingKeyProvider);
-        var dummyPasswordHash = new DummyPasswordHash(_passwordHasher);
 
         var refreshTokens = new RefreshTokenService(_refreshRepository, Substitute.For<IUnitOfWork>(), _timeProvider, TimeSpan.FromDays(7));
 
-        return new LoginHandler(repository, _passwordHasher, tokenService, dummyPasswordHash, refreshTokens, _attempts, _lockout, _timeProvider);
+        return new LoginHandler(repository, new RecordingHasher(_passwordHasher, _verifyCalls), tokenService, _dummyPasswordHash, refreshTokens, _attempts, _lockout, _timeProvider);
+    }
+
+    private sealed class RecordingHasher(IPasswordHasher inner, List<(string Plain, string Hash)> calls) : IPasswordHasher
+    {
+        public string Hash(string plainPassword) => inner.Hash(plainPassword);
+
+        public bool Verify(string plainPassword, string hash)
+        {
+            calls.Add((plainPassword, hash));
+
+            return inner.Verify(plainPassword, hash);
+        }
     }
 }

@@ -1,5 +1,4 @@
 extern alias IdentityApi;
-
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
@@ -12,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Serilog.Core;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Infrastructure.Users;
 using TodoList.Tasks.Application.Identity;
@@ -176,9 +176,9 @@ public class GrpcIdentityGatewayIntegrationTests
     [Fact] // CA-13 — o traceId da requisição chega ao log do Identity pela metadata gRPC.
     public async Task ValidateUserAsync_ComActivityAtual_TraceIdChegaAoLogDoIdentity()
     {
-        var capturingProvider = new CapturingLoggerProvider();
+        var capturingProvider = new CapturingLogSink();
         using var identityFactory = new WebApplicationFactory<IdentityProgram>()
-            .WithWebHostBuilder(builder => builder.ConfigureLogging(logging => logging.AddProvider(capturingProvider)));
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services => services.AddSingleton<ILogEventSink>(capturingProvider)));
         using var host = BuildInProcessTasksHost(identityFactory, TimeSpan.FromSeconds(2));
         var gateway = host.Services.GetRequiredService<IIdentityGateway>();
 
@@ -193,7 +193,9 @@ public class GrpcIdentityGatewayIntegrationTests
             activity.Stop();
         }
 
-        capturingProvider.Messages.Should().Contain(message => message.Contains(activity.Id!, StringComparison.Ordinal));
+        capturingProvider.Events.Should().Contain(entry =>
+            entry.RenderMessage().Contains("ValidateUser: userId=", StringComparison.Ordinal)
+            && entry.Properties["traceId"].ToString() == $"\"{activity.TraceId}\"");
     }
 
     private static IHost BuildInProcessTasksHost(WebApplicationFactory<IdentityProgram> identityFactory, TimeSpan timeout) =>
@@ -278,34 +280,6 @@ public class GrpcIdentityGatewayIntegrationTests
         {
             await Task.Delay(_delay, cancellationToken);
             return new UserLookupResult(Active: true, DisplayName: "Nunca deveria chegar aqui");
-        }
-    }
-
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        private readonly ConcurrentQueue<string> _messages = new();
-
-        public IReadOnlyCollection<string> Messages => _messages;
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(_messages);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger : ILogger
-        {
-            private readonly ConcurrentQueue<string> _messages;
-
-            public CapturingLogger(ConcurrentQueue<string> messages) => _messages = messages;
-
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                _messages.Enqueue(formatter(state, exception));
         }
     }
 }

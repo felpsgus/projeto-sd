@@ -66,6 +66,8 @@ message CreateTaskRequest {
   optional string due_date = 4;
 }
 
+// Prioridade de uma tarefa (RN-TASK-04). Valor 0 é o padrão do proto3 e significa
+// "não informado" (o servidor aplica Média); nunca aparece numa resposta.
 enum TaskPriority {
   TASK_PRIORITY_UNSPECIFIED = 0;
   TASK_PRIORITY_LOW = 1;
@@ -73,12 +75,15 @@ enum TaskPriority {
   TASK_PRIORITY_HIGH = 3;
 }
 
+// Estado de uma tarefa (RN-TASK-06): nasce PENDING e alterna só por
+// CompleteTask/ReopenTask. O valor 0 é só o padrão do proto3.
 enum TaskStatus {
   TASK_STATUS_UNSPECIFIED = 0;
   TASK_STATUS_PENDING = 1;
   TASK_STATUS_COMPLETED = 2;
 }
 
+// Representação de uma tarefa, devolvida por todos os RPCs que a retornam.
 message TaskReply {
   // Id gerado pelo Tasks Service.
   string id = 1;
@@ -96,6 +101,7 @@ message TaskReply {
   // Tasks Service a partir de x-client-date (D-18/D-34).
   bool is_overdue = 7;
   // Data/hora de conclusão (RN-TASK-08), presente só se status=COMPLETED.
+  // (Ausente quando PENDING.)
   google.protobuf.Timestamp completed_at = 8;
   // Data/hora de criação.
   google.protobuf.Timestamp created_at = 9;
@@ -170,9 +176,13 @@ enum TaskStatusFilter {
 // removidas), não o total da página (BE-41, CA-08) — o cliente calcula
 // totalPages a partir dele, se precisar.
 message ListTasksReply {
+  // Tarefas da página, já na ordem de RN-LIST-06.
   repeated TaskReply items = 1;
+  // Página devolvida (1-based) — a efetiva, depois de aplicado o padrão.
   int32 page = 2;
+  // Tamanho de página efetivo, depois de aplicado o padrão e o limite máximo.
   int32 page_size = 3;
+  // Total de tarefas do dono que casam com os filtros, somando todas as páginas.
   int32 total_count = 4;
 }
 
@@ -181,6 +191,7 @@ message ListTasksReply {
 // validação; não é papel deste RPC decidir 400 vs. 404 de rota, isso é do
 // Gateway (BE-41, nota técnica).
 message GetTaskRequest {
+  // Id da tarefa (Guid em texto).
   string id = 1;
 }
 
@@ -197,25 +208,33 @@ message GetTaskRequest {
 // de CreateTaskRequest. "title" é sempre obrigatório: um valor vazio não é
 // "ausente", é erro de validação (mesma regra de CreateTaskRequest).
 message UpdateTaskRequest {
+  // Id da tarefa a editar (Guid em texto).
   string id = 1;
+  // Novo título (RN-TASK-02): 1–200 caracteres, não só espaços. Obrigatório.
   string title = 2;
+  // Nova descrição (RN-TASK-03, até 2000 caracteres); ausente limpa o campo.
   optional string description = 3;
+  // Nova prioridade (RN-TASK-04); UNSPECIFIED volta ao padrão Média.
   TaskPriority priority = 4;
+  // Novo vencimento, yyyy-MM-dd (RN-TASK-05); ausente limpa o campo.
   optional string due_date = 5;
 }
 
 // Request de CompleteTask (BE-20) — só o id; RN-TASK-08 não recebe nenhum
 // outro parâmetro do chamador (completed_at vem do relógio do servidor).
 message CompleteTaskRequest {
+  // Id da tarefa (Guid em texto).
   string id = 1;
 }
 
 // Request de ReopenTask (BE-20) — só o id; RN-TASK-09 idem.
 message ReopenTaskRequest {
+  // Id da tarefa (Guid em texto).
   string id = 1;
 }
 
 // Request de DeleteTask (BE-21) — só o id; RN-TASK-12/13 (soft delete).
 message DeleteTaskRequest {
+  // Id da tarefa (Guid em texto).
   string id = 1;
 }

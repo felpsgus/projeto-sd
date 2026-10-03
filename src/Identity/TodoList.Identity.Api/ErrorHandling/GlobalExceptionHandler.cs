@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TodoList.SharedKernel.Web;
 
 namespace TodoList.Identity.Api.ErrorHandling;
 
@@ -31,7 +32,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        Log.UnhandledException(_logger, httpContext.TraceIdentifier, exception);
+        Log.UnhandledException(_logger, exception);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
@@ -53,10 +54,8 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private static partial class Log
     {
-        // traceId explícito no template (e não só via scope de hosting) para que
-        // CA-06 (traceId da resposta == traceId do log) seja verificável sem
-        // depender do formato interno do scope padrão do ASP.NET Core.
-        [LoggerMessage(Level = LogLevel.Error, Message = "Exceção não tratada. traceId={TraceId}")]
-        public static partial void UnhandledException(ILogger logger, string traceId, Exception exception);
+        // O traceId entra na entrada pelo enricher de StructuredLogging (CA-06: igual ao do ProblemDetails).
+        [LoggerMessage(Level = LogLevel.Error, Message = "Exceção não tratada")]
+        public static partial void UnhandledException(ILogger logger, Exception exception);
     }
 }

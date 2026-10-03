@@ -37,8 +37,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "320kB",
+                  "maximumError": "400kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -47,6 +47,14 @@
                 }
               ],
               "outputHashing": "all",
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -80,13 +88,28 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "setupFiles": ["src/testing/setup.ts"]
+            "setupFiles": ["src/testing/setup.ts"],
+            "runnerConfig": "vitest.config.ts",
+            "coverageInclude": ["src/app/**/*.ts"],
+            "coverageExclude": [
+              "**/*.spec.ts",
+              "**/models/**",
+              "src/app/app.config.ts",
+              "src/app/app.routes.ts"
+            ],
+            "coverageReporters": ["text", "json-summary", "html"]
           }
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
           "options": {
-            "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
+            "lintFilePatterns": [
+              "src/**/*.ts",
+              "src/**/*.html",
+              "e2e/**/*.ts",
+              "playwright.config.ts",
+              "vitest.config.ts"
+            ]
           }
         }
       }

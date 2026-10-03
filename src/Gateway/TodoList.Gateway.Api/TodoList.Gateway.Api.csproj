@@ -14,6 +14,12 @@
     <Protobuf Include="..\..\..\contracts\tasks\v1\tasks.proto" GrpcServices="Client" />
   </ItemGroup>
 
+  <!-- BE-24: logging estruturado compartilhado. Compilado aqui como arquivo (sem ProjectReference)
+       porque o Gateway não referencia o SharedKernel (D-33). -->
+  <ItemGroup>
+    <Compile Include="..\..\Shared\TodoList.SharedKernel.Web\StructuredLogging.cs" Link="Logging\StructuredLogging.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.31.1" />
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.83.0" />
@@ -30,6 +36,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.17.2" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using TodoList.Gateway.Api.Backends;
+using TodoList.SharedKernel.Web;
 
 namespace TodoList.Gateway.Api.ErrorHandling;
 
@@ -50,7 +51,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
                 return await HandleUnavailableAsync(httpContext, unavailableException);
 
             case BackendCallException callException:
-                Log.BackendCallFailed(_logger, httpContext.TraceIdentifier, callException.StatusCode, callException);
+                Log.BackendCallFailed(_logger, callException.StatusCode, callException);
                 await callException.ToHttpResult().ExecuteAsync(httpContext);
                 return true;
 
@@ -61,7 +62,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private async ValueTask<bool> HandleUnhandledAsync(HttpContext httpContext, Exception exception)
     {
-        Log.UnhandledException(_logger, httpContext.TraceIdentifier, exception);
+        Log.UnhandledException(_logger, exception);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
@@ -84,7 +85,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private async ValueTask<bool> HandleBadHttpRequestAsync(HttpContext httpContext, BadHttpRequestException exception)
     {
-        Log.BadHttpRequest(_logger, httpContext.TraceIdentifier, exception.StatusCode, exception);
+        Log.BadHttpRequest(_logger, exception.StatusCode, exception);
 
         httpContext.Response.StatusCode = exception.StatusCode;
 
@@ -104,7 +105,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private async ValueTask<bool> HandleUnavailableAsync(HttpContext httpContext, BackendUnavailableException exception)
     {
-        Log.BackendUnavailable(_logger, httpContext.TraceIdentifier, exception.BackendName, exception);
+        Log.BackendUnavailable(_logger, exception.BackendName, exception);
 
         httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
         httpContext.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -127,16 +128,16 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private static partial class Log
     {
-        [LoggerMessage(Level = LogLevel.Error, Message = "Exceção não tratada. traceId={TraceId}")]
-        public static partial void UnhandledException(ILogger logger, string traceId, Exception exception);
+        [LoggerMessage(Level = LogLevel.Error, Message = "Exceção não tratada")]
+        public static partial void UnhandledException(ILogger logger, Exception exception);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Requisição malformada. traceId={TraceId}, statusCode={StatusCode}")]
-        public static partial void BadHttpRequest(ILogger logger, string traceId, int statusCode, Exception exception);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Requisição malformada. statusCode={StatusCode}")]
+        public static partial void BadHttpRequest(ILogger logger, int statusCode, Exception exception);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Backend indisponível. traceId={TraceId}, backend={Backend}")]
-        public static partial void BackendUnavailable(ILogger logger, string traceId, string backend, Exception exception);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Backend indisponível. backend={Backend}")]
+        public static partial void BackendUnavailable(ILogger logger, string backend, Exception exception);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Chamada ao backend falhou. traceId={TraceId}, statusCode={StatusCode}")]
-        public static partial void BackendCallFailed(ILogger logger, string traceId, Grpc.Core.StatusCode statusCode, Exception exception);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Chamada ao backend falhou. statusCode={StatusCode}")]
+        public static partial void BackendCallFailed(ILogger logger, Grpc.Core.StatusCode statusCode, Exception exception);
     }
 }

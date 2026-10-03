@@ -70,7 +70,7 @@ Não constam do documento de regras e precisam de resposta do time. Cada uma tem
 
 | # | Questão | Padrão provisório | Task afetada |
 |---|---|---|---|
-| **D-12** | Período de retenção de tarefa soft-deleted antes do expurgo definitivo (RN-TASK-13 diz "período definido", sem valor) | **30 dias**, em `Tasks:SoftDeleteRetentionDays` | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
+| **D-12** ⏳ | Período de retenção de tarefa soft-deleted antes do expurgo definitivo (RN-TASK-13 diz "período definido", sem valor) | **30 dias**, em `Tasks:SoftDeleteRetentionDays` | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
 | **D-13** | O expurgo roda como job in-process (`BackgroundService`) ou tarefa externa agendada? | `BackgroundService` com intervalo configurável | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
 | **D-14** ✅ | O bloqueio por tentativas (D-03) conta por e-mail, por IP ou por ambos? (fechada: por e-mail, ver D-43) | Por e-mail (como está escrito na RN-AUTH-13) | [BE-12](BE-12-bloqueio-tentativas-login.md) |
 | **D-15** | Um refresh token pode existir por dispositivo (várias sessões simultâneas) ou é sessão única? | Múltiplas sessões: cada login cria uma cadeia própria | [BE-10](BE-10-refresh-token-rotacao.md) |
@@ -382,3 +382,7 @@ navegador ──HTTP/JSON──▶ nginx :80 ──┬─ estático (Angular)
 **Sinalização na arquitetura gRPC:** `LoginResponse` ganhou `locked_out` e `retry_after_seconds` (extensão aditiva); o Gateway responde **429** + `Retry-After` + `errorCode` `auth.too_many_attempts`.
 
 **Afeta:** [BE-12](BE-12-bloqueio-tentativas-login.md), [BE-09](BE-09-login.md).
+
+### D-12 / D-13 — Expurgo de dados removidos: padrão provisório aplicado (03/10/2026)
+
+**Aplicadas em [BE-23](BE-23-expurgo-tarefas-removidas.md), com o padrão provisório.** **D-13:** `BackgroundService` in-process, um por serviço (`Retention:IntervalHours=24`, `Retention:BatchSize=500`, `Retention:Enabled=true`). **D-12:** tarefa removida é apagada de vez após `Tasks:SoftDeleteRetentionDays=30`; **continua pendente de confirmação de produto** (a RN-TASK-13 não define o valor) — trocar o número é só configuração. Retenção de refresh token vencido/revogado: `Auth:TokenRetentionDays=30`. Registro em [ADR-0003](../../docs/adr/0003-soft-delete-e-retencao.md).

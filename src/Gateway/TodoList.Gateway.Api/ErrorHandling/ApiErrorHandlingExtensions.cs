@@ -1,3 +1,5 @@
+using TodoList.SharedKernel.Web;
+
 namespace TodoList.Gateway.Api.ErrorHandling;
 
 /// <summary>
@@ -15,7 +17,7 @@ public static class ApiErrorHandlingExtensions
         {
             options.CustomizeProblemDetails = context =>
             {
-                context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+                context.ProblemDetails.Extensions["traceId"] = context.HttpContext.GetTraceId();
             };
         });
 

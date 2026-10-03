@@ -7,7 +7,7 @@ const prettierConfig = require('eslint-config-prettier');
 
 module.exports = defineConfig([
   {
-    ignores: ['coverage/**', 'dist/**'],
+    ignores: ['coverage/**', 'dist/**', 'playwright-report/**', 'test-results/**'],
   },
   {
     files: ['**/*.ts'],
@@ -59,8 +59,8 @@ module.exports = defineConfig([
     },
   },
   {
-    // Os testes de segurança de FE-05 precisamente inspecionam storage e cookie.
-    files: ['**/*.spec.ts'],
+    // Os testes de segurança de FE-05 e o E2E antivazamento (FE-23) inspecionam storage e cookie.
+    files: ['**/*.spec.ts', 'e2e/**/*.ts'],
     rules: { 'no-restricted-globals': 'off', 'no-restricted-syntax': 'off' },
   },
   {

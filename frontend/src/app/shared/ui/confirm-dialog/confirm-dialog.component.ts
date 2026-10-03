@@ -3,8 +3,11 @@ import {
   Component,
   ContentChild,
   ElementRef,
+  Injector,
   ViewChild,
+  afterNextRender,
   effect,
+  inject,
   input,
   output,
   signal,
@@ -110,6 +113,7 @@ export class ConfirmDialogComponent {
    * foco inicial em vez do botão cancelar (FE-13, CA-05). */
   @ContentChild('autofocusTarget') private readonly autofocusTarget?: ElementRef<HTMLElement>;
 
+  private readonly injector = inject(Injector);
   private previouslyFocused: HTMLElement | null = null;
   private wasBusy = false;
 
@@ -133,10 +137,15 @@ export class ConfirmDialogComponent {
     }
     this.previouslyFocused = document.activeElement as HTMLElement | null;
     this.isOpen.set(true);
-    queueMicrotask(() => {
-      const target = this.autofocusTarget?.nativeElement ?? this.cancelBtnRef?.nativeElement;
-      target?.focus();
-    });
+    // Depois da renderização: o conteúdo do `@if (isOpen())` ainda não existe num microtask
+    // (zoneless), e sem foco dentro do diálogo nem o `Esc` chega ao `keydown` dele.
+    afterNextRender(
+      () => {
+        const target = this.autofocusTarget?.nativeElement ?? this.cancelBtnRef?.nativeElement;
+        target?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   /** Fecha o diálogo. Público para quem usa `preventAutoClose` decidir o momento (FE-13). */

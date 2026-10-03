@@ -1,3 +1,4 @@
+using TodoList.SharedKernel.Web;
 using TodoList.Tasks.Api.Grpc;
 using TodoList.Tasks.Application.Security;
 
@@ -48,7 +49,7 @@ namespace TodoList.Tasks.Api.Security;
 public sealed class CallerIdentityCurrentUser : ICurrentUser
 {
     /// <summary>Nome da metadata gRPC / header HTTP/2 que carrega o dono da tarefa (D-34).</summary>
-    public const string HeaderName = "x-user-id";
+    public const string HeaderName = StructuredLogging.CallerUserIdHeader;
 
     private readonly IHttpContextAccessor _httpContextAccessor;
 

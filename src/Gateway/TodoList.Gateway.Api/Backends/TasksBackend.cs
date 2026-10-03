@@ -36,7 +36,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task<TaskHttpResponse> CreateTaskAsync(CreateTaskHttpRequest request, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -45,13 +44,13 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "CreateTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "CreateTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return TaskTranslation.ToHttpResponse(reply);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "CreateTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "CreateTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -63,7 +62,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task<ListTasksHttpResponse> ListTasksAsync(ListTasksHttpRequest request, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -72,13 +70,13 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "ListTasks", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "ListTasks", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return TaskTranslation.ToHttpResponse(reply);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "ListTasks", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "ListTasks", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -90,7 +88,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task<TaskHttpResponse> GetTaskAsync(string id, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -99,13 +96,13 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "GetTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "GetTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return TaskTranslation.ToHttpResponse(reply);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "GetTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "GetTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -117,7 +114,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task<TaskHttpResponse> UpdateTaskAsync(string id, UpdateTaskHttpRequest request, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -126,13 +122,13 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "UpdateTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "UpdateTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return TaskTranslation.ToHttpResponse(reply);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "UpdateTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "UpdateTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -144,7 +140,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task<TaskHttpResponse> CompleteTaskAsync(string id, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -153,13 +148,13 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "CompleteTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "CompleteTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return TaskTranslation.ToHttpResponse(reply);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "CompleteTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "CompleteTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -171,7 +166,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task<TaskHttpResponse> ReopenTaskAsync(string id, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -180,13 +174,13 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "ReopenTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "ReopenTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return TaskTranslation.ToHttpResponse(reply);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "ReopenTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "ReopenTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -202,7 +196,6 @@ public sealed partial class TasksBackend : ITasksBackend
     public async Task DeleteTaskAsync(string id, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         try
         {
@@ -211,11 +204,11 @@ public sealed partial class TasksBackend : ITasksBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.TasksGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "DeleteTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, "DeleteTask", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "DeleteTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, "DeleteTask", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded
                 ? new BackendUnavailableException(BackendName, ex)
@@ -229,12 +222,12 @@ public sealed partial class TasksBackend : ITasksBackend
         // título/descrição da tarefa (dado de negócio do usuário).
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "Chamada gRPC de saída: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void CallSucceeded(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs, string traceId);
+            Message = "Chamada gRPC de saída: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void CallSucceeded(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Warning,
-            Message = "Chamada gRPC de saída falhou: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void CallFailed(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs, string traceId);
+            Message = "Chamada gRPC de saída falhou: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void CallFailed(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs);
     }
 }

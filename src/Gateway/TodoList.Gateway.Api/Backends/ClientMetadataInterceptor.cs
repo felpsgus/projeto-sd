@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using TodoList.Gateway.Api.Authentication;
+using TodoList.SharedKernel.Web;
 
 namespace TodoList.Gateway.Api.Backends;
 
@@ -39,7 +40,7 @@ namespace TodoList.Gateway.Api.Backends;
 public sealed class ClientMetadataInterceptor : Interceptor
 {
     /// <summary>Metadata gRPC com o dono autenticado da requisição (D-34).</summary>
-    public const string UserIdHeaderName = "x-user-id";
+    public const string UserIdHeaderName = StructuredLogging.CallerUserIdHeader;
 
     /// <summary>Metadata gRPC com a data local do usuário (D-18).</summary>
     public const string ClientDateHeaderName = "x-client-date";
@@ -97,6 +98,7 @@ public sealed class ClientMetadataInterceptor : Interceptor
             metadata.Add(ClientDateHeaderName, clientDate);
         }
 
+        // Fica: handler de teste (TestServer) não passa pelo DiagnosticsHandler; em produção o nativo não duplica o header já existente.
         var traceId = Activity.Current?.Id;
 
         if (!string.IsNullOrEmpty(traceId))

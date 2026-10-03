@@ -63,3 +63,7 @@ logs/
 ## Grafo de conhecimento gerado pela skill graphify — derivado do repositório,
 ## reconstruível, e grande. Sem barra inicial: pega graphify-out/ em qualquer nível.
 graphify-out/
+
+# Cobertura e relatórios (BE-24)
+coverage-results/
+coverage-report/

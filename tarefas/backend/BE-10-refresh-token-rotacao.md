@@ -26,7 +26,7 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
   | `SessionId` | agrupa a cadeia de rotações de uma mesma sessão (D-15) |
   | `ExpiresAt` | `CreatedAt + Jwt:RefreshTokenDays` (RN-AUTH-15) |
   | `ConsumedAt` | quando foi usado para renovar (`null` = ainda utilizável) |
-  | `RevokedAt` + `RevokedReason` | revogação explícita (`Logout`, `PasswordChanged`, `ReuseDetected`, `AccountDeleted`) |
+  | `RevokedAt` + `RevokedReason` | revogação explícita (`Logout`, `PasswordChanged`, `ReuseDetected`; a exclusão de conta não revoga: apaga os tokens por `ON DELETE CASCADE`, RN-AUTH-19) |
   | `ReplacedByTokenId` | encadeia a rotação, para auditoria |
   | `CreatedAt` | auditoria |
 

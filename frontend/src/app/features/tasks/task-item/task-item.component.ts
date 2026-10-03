@@ -28,6 +28,9 @@ import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog/confir
  */
 @Component({
   selector: 'app-task-item',
+  // O host é o item da lista (<ul role="list"> > app-task-item): sem <li> solto dentro de um
+  // elemento customizado (axe `listitem`, FE-21 CA-01).
+  host: { role: 'listitem', class: 'task-item-host' },
   imports: [DatePipe, RouterLink, ConfirmDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-item.component.html',

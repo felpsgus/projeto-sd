@@ -1,5 +1,4 @@
 extern alias IdentityApi;
-
 using FluentAssertions;
 using Grpc.Core;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -8,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using Serilog.Core;
 using TodoList.Identity.Infrastructure.Users;
 using Xunit;
 using IdentityProgram = IdentityApi::Program;
@@ -107,11 +107,11 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
     public async Task CreateTask_RejeicaoDeDono_GeraLogWarningComUserIdEMotivo()
     {
         await using var identityFactory = new WebApplicationFactory<IdentityProgram>();
-        var capturingProvider = new CapturingLoggerProvider();
+        var capturingProvider = new CapturingLogSink();
 
         await using var factory = await CreateFactoryAsync(
             identityFactory,
-            configureServices: services => services.AddLogging(logging => logging.AddProvider(capturingProvider)));
+            configureServices: services => services.AddSingleton<ILogEventSink>(capturingProvider));
         using var client = CreateClient(factory);
 
         var usuarioInativo = InMemoryUserLookup.InactiveUserId;
@@ -210,33 +210,6 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
         }
     }
 
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
-
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries => _entries;
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(_entries);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger : ILogger
-        {
-            private readonly List<(LogLevel Level, string Message)> _entries;
-
-            public CapturingLogger(List<(LogLevel Level, string Message)> entries) => _entries = entries;
-
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                _entries.Add((logLevel, formatter(state, exception)));
-        }
-    }
 }
 
 internal static class ObjectExtensions

@@ -14,5 +14,12 @@ public sealed class HealthEndpoints : IEndpointRouteHandler
             .WithSummary("Liveness check do API Gateway")
             .WithTags("Health")
             .AllowAnonymous();
+
+        // /health/live: alias de /health (BE-24), o mesmo nome que Identity e Tasks expõem.
+        endpoints.MapGet("/health/live", () => Results.Ok())
+            .WithName("GetHealthLiveAlias")
+            .WithSummary("Liveness check do API Gateway (alias de /health)")
+            .WithTags("Health")
+            .AllowAnonymous();
     }
 }

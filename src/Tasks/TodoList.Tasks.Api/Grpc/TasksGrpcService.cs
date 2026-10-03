@@ -88,7 +88,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         // CA-16: o traceId propagado do Gateway (W3C traceparent) já virou o
         // pai da Activity corrente pelo host — nenhum código adicional propaga
         // isso, ver a nota técnica de BE-35.
-        var traceId = Activity.Current?.Id ?? string.Empty;
 
         // CA-08/CA-09 já garantido pelo RequireCallerIdentityInterceptor —
         // ICurrentUser.Id não lança aqui.
@@ -99,7 +98,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (!mapping.IsValid)
         {
             var invalidDueDate = ResultGrpcStatus.ToValidationFailedException(mapping.Errors!);
-            Log.CreateTaskCalled(_logger, ownerId, invalidDueDate.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CreateTaskCalled(_logger, ownerId, invalidDueDate.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidDueDate;
         }
@@ -109,7 +108,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (!validationResult.IsValid)
         {
             var validationFailed = validationResult.ToValidationFailedException();
-            Log.CreateTaskCalled(_logger, ownerId, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CreateTaskCalled(_logger, ownerId, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw validationFailed;
         }
@@ -119,12 +118,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.CreateTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CreateTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.CreateTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.CreateTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
@@ -144,7 +143,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     public override async Task<ListTasksReply> ListTasks(ProtoListTasksRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
         var mapping = TaskGrpcMapping.ToApplicationRequest(request);
@@ -152,7 +150,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (!mapping.IsValid)
         {
             var invalidFilter = ResultGrpcStatus.ToValidationFailedException(mapping.Errors!);
-            Log.ListTasksCalled(_logger, ownerId, invalidFilter.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ListTasksCalled(_logger, ownerId, invalidFilter.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidFilter;
         }
@@ -162,12 +160,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.ListTasksCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ListTasksCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.ListTasksCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.ListTasksCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return TaskGrpcMapping.ToListTasksReply(result.Value);
     }
@@ -185,7 +183,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     public override async Task<TaskReply> GetTask(ProtoGetTaskRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
         if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
@@ -195,7 +192,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
                 [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
             };
             var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
-            Log.GetTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.GetTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidId;
         }
@@ -205,12 +202,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.GetTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.GetTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.GetTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.GetTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
@@ -228,7 +225,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     public override async Task<TaskReply> UpdateTask(ProtoUpdateTaskRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
         if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
@@ -238,7 +234,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
                 [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
             };
             var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
-            Log.UpdateTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.UpdateTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidId;
         }
@@ -248,7 +244,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (!mapping.IsValid)
         {
             var invalidDueDate = ResultGrpcStatus.ToValidationFailedException(mapping.Errors!);
-            Log.UpdateTaskCalled(_logger, ownerId, invalidDueDate.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.UpdateTaskCalled(_logger, ownerId, invalidDueDate.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidDueDate;
         }
@@ -263,7 +259,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (!validationResult.IsValid)
         {
             var validationFailed = validationResult.ToValidationFailedException();
-            Log.UpdateTaskCalled(_logger, ownerId, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.UpdateTaskCalled(_logger, ownerId, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw validationFailed;
         }
@@ -273,12 +269,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.UpdateTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.UpdateTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.UpdateTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.UpdateTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
@@ -293,7 +289,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     public override async Task<TaskReply> CompleteTask(ProtoCompleteTaskRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
         if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
@@ -303,7 +298,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
                 [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
             };
             var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
-            Log.CompleteTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CompleteTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidId;
         }
@@ -313,12 +308,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.CompleteTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CompleteTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.CompleteTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.CompleteTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
@@ -330,7 +325,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     public override async Task<TaskReply> ReopenTask(ProtoReopenTaskRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
         if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
@@ -340,7 +334,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
                 [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
             };
             var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
-            Log.ReopenTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ReopenTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidId;
         }
@@ -350,12 +344,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.ReopenTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ReopenTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.ReopenTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.ReopenTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return TaskGrpcMapping.ToTaskReply(result.Value);
     }
@@ -370,7 +364,6 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     public override async Task<Empty> DeleteTask(ProtoDeleteTaskRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
         var ownerId = _currentUser.Id;
 
         if (!TaskGrpcMapping.TryParseTaskId(request, out var taskId))
@@ -380,7 +373,7 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
                 [TaskGrpcMapping.TaskIdFieldName] = ["O id da tarefa deve ser um Guid válido."],
             };
             var invalidId = ResultGrpcStatus.ToValidationFailedException(errors);
-            Log.DeleteTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.DeleteTaskCalled(_logger, ownerId, invalidId.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalidId;
         }
@@ -390,12 +383,12 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.DeleteTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.DeleteTaskCalled(_logger, ownerId, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.DeleteTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.DeleteTaskCalled(_logger, ownerId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return new Empty();
     }
@@ -403,41 +396,41 @@ public sealed partial class TasksGrpcService : TasksService.TasksServiceBase
     private static partial class Log
     {
         // Mesmo padrão de GrpcIdentityGateway.Log: ownerId, statusCode,
-        // durationMs e traceId — nunca título/descrição da tarefa (dado de
+        // durationMs — nunca título/descrição da tarefa (dado de
         // negócio do usuário, não identificador técnico).
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "CreateTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void CreateTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "CreateTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void CreateTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "ListTasks: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ListTasksCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "ListTasks: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void ListTasksCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "GetTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void GetTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "GetTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void GetTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "UpdateTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void UpdateTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "UpdateTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void UpdateTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "CompleteTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void CompleteTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "CompleteTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void CompleteTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "ReopenTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ReopenTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "ReopenTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void ReopenTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "DeleteTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void DeleteTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "DeleteTask: ownerId={OwnerId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void DeleteTaskCalled(ILogger logger, Guid ownerId, StatusCode statusCode, double durationMs);
     }
 }

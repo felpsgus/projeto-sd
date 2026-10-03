@@ -9,8 +9,12 @@ using TodoList.Gateway.Api.Configuration;
 using TodoList.Gateway.Api.Endpoints;
 using TodoList.Gateway.Api.ErrorHandling;
 using TodoList.Gateway.Api.Http;
+using TodoList.SharedKernel.Web;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Log estruturado JSON (BE-24): service=gateway, traceId/spanId, níveis em Serilog:MinimumLevel.
+builder.AddStructuredLogging("gateway");
 
 // ── ForwardedHeaders (BE-42) ─────────────────────────────────────────────
 // Na VM, o Gateway escuta só em 127.0.0.1:8080 e recebe tráfego exclusivamente
@@ -93,6 +97,10 @@ app.UseForwardedHeaders();
 // endpoint, antes de qualquer chamada gRPC. Requisição sem token e com
 // payload inválido devolve 401, nunca 400 — autenticação vence validação
 // (CA-09/CA-11).
+// Log de requisição logo abaixo do ForwardedHeaders e acima do tratamento de erros: vê o status
+// final (inclusive o 500 do handler global). userId só do claim sub validado — nunca de header do cliente.
+app.UseStructuredRequestLogging(http => http.User.FindFirst(JwtClaimTypes.Subject)?.Value);
+
 app.UseApiErrorHandling();
 
 app.UseAuthentication();

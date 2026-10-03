@@ -221,3 +221,26 @@ select {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Alvos de foco programático (<main>, <h1> após mudança de rota — FE-21 CA-10) não são
+   controles: sem anel, mas o foco continua mover o leitor de tela. */
+[tabindex='-1']:focus {
+  outline: none;
+}
+
+/* Alvos de toque >= 44 px em tela pequena ou toque (FE-21 CA-19). Checkbox/radio: o alvo é o
+   <label> que os envolve. */
+@media (max-width: 40rem), (pointer: coarse) {
+  button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    min-height: 2.75rem;
+  }
+}

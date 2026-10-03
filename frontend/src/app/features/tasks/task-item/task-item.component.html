@@ -1,4 +1,4 @@
-<li class="task-item" [class.task-item--completed]="task().status === 'Completed'">
+<div class="task-item" [class.task-item--completed]="task().status === 'Completed'">
   <span
     class="task-item__rule"
     [class.task-item__rule--low]="task().priority === 'Low'"
@@ -9,7 +9,7 @@
 
   <div class="task-item__body">
     <div class="task-item__heading">
-      <h3 class="task-item__title">{{ task().title }}</h3>
+      <h2 class="task-item__title">{{ task().title }}</h2>
 
       <div class="task-item__due-group" [class.task-item__due-group--overdue]="task().isOverdue">
         <p class="task-item__due tabular-nums">
@@ -99,4 +99,4 @@
     [busy]="pending()"
     (confirmed)="onRemoveConfirmed()"
   />
-</li>
+</div>

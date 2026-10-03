@@ -24,6 +24,8 @@ COPY src/Gateway/TodoList.Gateway.Api/TodoList.Gateway.Api.csproj src/Gateway/To
 RUN dotnet restore src/Gateway/TodoList.Gateway.Api/TodoList.Gateway.Api.csproj
 
 # --- Camada de publish ---------------------------------------------------
+# O csproj compila este único arquivo do SharedKernel.Web como link (BE-24), sem ProjectReference.
+COPY src/Shared/TodoList.SharedKernel.Web/StructuredLogging.cs src/Shared/TodoList.SharedKernel.Web/StructuredLogging.cs
 COPY src/Gateway/TodoList.Gateway.Api/ src/Gateway/TodoList.Gateway.Api/
 
 RUN dotnet publish src/Gateway/TodoList.Gateway.Api/TodoList.Gateway.Api.csproj \

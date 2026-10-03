@@ -180,13 +180,13 @@ public sealed partial class IdentityBackend : IIdentityBackend
 
             var response = await call(callOptions);
 
-            Log.CallSucceeded(_logger, BackendName, rpc, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, rpc, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
             return response;
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, rpc, ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, rpc, ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw ToBackendException(ex);
         }
@@ -226,17 +226,17 @@ public sealed partial class IdentityBackend : IIdentityBackend
 
     private static partial class Log
     {
-        // BE-36, CA-26: backend, rpc, statusCode, durationMs e traceId na
+        // BE-36, CA-26: backend, rpc, statusCode e durationMs na
         // própria mensagem — nunca o token/senha (nem os parâmetros de
         // entrada aparecem no template).
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "Chamada gRPC de saída: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void CallSucceeded(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs, string traceId);
+            Message = "Chamada gRPC de saída: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void CallSucceeded(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Warning,
-            Message = "Chamada gRPC de saída falhou: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void CallFailed(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs, string traceId);
+            Message = "Chamada gRPC de saída falhou: backend={Backend}, rpc={Rpc}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void CallFailed(ILogger logger, string backend, string rpc, StatusCode statusCode, double durationMs);
     }
 }

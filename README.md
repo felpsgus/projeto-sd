@@ -367,13 +367,63 @@ Cada serviço expõe dois checks, via `MapHealthChecks` (Minimal APIs):
 
 | Endpoint | O que verifica | Comportamento com banco fora do ar |
 |---|---|---|
-| `GET /health` | Só que o processo está de pé — nenhuma dependência externa | Sempre `200 healthy` |
+| `GET /health` e `GET /health/live` | Só que o processo está de pé — nenhuma dependência externa (`/health/live` é o alias de `/health`; os dois ficam) | Sempre `200 healthy` |
 | `GET /health/ready` | Conectividade com o Postgres (`AddDbContextCheck`) | `503` (degradado) — **o processo não cai** |
 
 ```powershell
 curl http://localhost:5080/health/ready   # Identity
 curl http://localhost:5100/health/ready   # Tasks
 ```
+
+O `/health/ready` do **Tasks** também verifica o alcance do Identity por gRPC (`ValidateUser` com um id que não
+existe): Identity fora do ar é **`Degraded`** (`200` com corpo `Degraded`), não `503` — o Tasks está de pé, só não
+cria tarefas (fail-closed, ADR-0006). Esse check **não** entra no probe gRPC `grpc.health.v1` usado pelo Cloud Run
+(D-37), que continua olhando só o banco. O Gateway só tem liveness (`/health` e `/health/live`): ele não tem banco.
+
+### Observabilidade: logs, `traceId` e expurgo (BE-24)
+
+**Formato.** Os três serviços escrevem **JSON, uma linha por evento, no console** (Serilog, formato compacto com a
+mensagem renderizada) — nos containers é só `docker compose logs`. Campos em toda linha:
+
+| Campo | Conteúdo |
+|---|---|
+| `@t`, `@l`, `@m`, `@x` | instante, nível (ausente = `Information`), mensagem renderizada, exceção com stack trace |
+| `service` | `gateway`, `identity` ou `tasks` |
+| `environment`, `version` | ambiente do host e versão do assembly |
+| `traceId`, `spanId` | do `Activity` corrente (W3C), mesmo valor de `@tr`/`@sp` |
+| `userId` | **só** em requisição autenticada: no Gateway, o `sub` do token; no Tasks, a metadata `x-user-id`. Anônimo não tem o campo |
+
+Cada requisição gera uma entrada (`SourceContext` `Serilog.AspNetCore.RequestLoggingMiddleware`) com
+`RequestMethod`, `RequestPath`, `StatusCode` e `Elapsed` — **nunca corpo nem headers**. Chamadas gRPC entre serviços
+aparecem como requisições `POST /tasks.v1.TasksService/CreateTask` etc. no servidor e como `Chamada gRPC de saída`
+(RPC, `StatusCode`, duração) no chamador; o Identity registra `ValidateUser` com `exists`/`active`.
+Senha, hash, access token, refresh token e `Authorization` nunca vão para o log, em nenhum nível — o teste
+`LogLeakageTests` sobe Gateway e Identity reais com o log em `Verbose` e prova isso (EF Core nunca com
+`EnableSensitiveDataLogging`).
+
+**Níveis** vêm da seção `Serilog:MinimumLevel` do `appsettings.json` e se sobrescrevem por variável de ambiente
+(`:` vira `__`): `Serilog__MinimumLevel__Default=Debug`, `Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore=Information`.
+`Warning` marca bloqueio de login, refresh recusado (inclusive reuso) e logout com token de outro usuário; `Error`
+leva a exceção com o stack trace **no log** — o cliente recebe só o `500` genérico com `traceId`.
+
+**Correlação.** O `traceId` do `ProblemDetails` de um erro é o mesmo `traceId` das linhas de log daquela requisição
+em **todos** os serviços (o `traceparent` W3C viaja na chamada gRPC). Para investigar um erro, pegue o `traceId` do
+corpo da resposta e filtre:
+
+```powershell
+docker compose logs gateway identity tasks | Select-String '"traceId":"<traceId>"'
+```
+
+**Expurgo de retenção (BE-23, ADR-0003).** Cada serviço, ao subir e a cada `Retention:IntervalHours`, apaga o que
+passou do prazo. Ligado por padrão; os prazos e o lote são configuração:
+
+| Chave | Padrão | Serviço | Efeito |
+|---|---|---|---|
+| `Retention:Enabled` | `true` | Identity, Tasks | `false` desliga o worker (os testes de integração rodam assim) |
+| `Retention:IntervalHours` | `24` | Identity, Tasks | intervalo entre ciclos |
+| `Retention:BatchSize` | `500` | Identity, Tasks | linhas por `DELETE` |
+| `Tasks:SoftDeleteRetentionDays` | `30` | Tasks | tarefas removidas (soft delete) somem depois deste prazo |
+| `Auth:TokenRetentionDays` | `30` | Identity | refresh tokens expirados/revogados e tentativas de login antigas |
 
 ### Testes de integração com Postgres real (Testcontainers)
 
@@ -1071,3 +1121,40 @@ igual aos três comandos acima. No Cloud Run, `$PORT` é sempre `8080` — o mes
 `Kestrel__Endpoints__*__Url` desta task — e os dois backends gRPC (Identity, Tasks) precisam da flag
 `--use-http2` na implantação; ambos ficam privados (`--no-allow-unauthenticated`), só o Gateway é público
 (D-32).
+
+## CI e gates
+
+`.github/workflows/ci.yml` roda em todo PR e em push na `main` (cancela execuções antigas do mesmo ref). Jobs:
+
+| Job | O que roda |
+|---|---|
+| `backend` | restore, build (warnings = erro), `dotnet format --verify-no-changes`, testes com cobertura + gate, `check-vulnerable.ps1` |
+| `frontend` | `npm ci`, lint, `format:check`, `test:coverage` (pisos no `vitest.config.ts`), build de produção, sem `*.map` em `dist/`, `npm audit --audit-level=high` |
+| `e2e` | `playwright install chromium`, `npm run e2e:stack`; em falha publica report/trace/vídeo e `docker compose logs` |
+| `secrets` | gitleaks (imagem oficial) sobre o histórico inteiro; config em `.gitleaks.toml` |
+
+Firefox e WebKit não rodam no CI (hoje falham: 1 teste no Firefox, 12 no WebKit, não investigados); seguem disponíveis localmente por `npm run e2e:all`.
+
+O resumo de cobertura aparece no *Job summary* do PR e o relatório completo vai como artefato.
+
+Cada gate roda localmente:
+
+```powershell
+./scripts/coverage.ps1                 # backend: testes + cobertura -> coverage-report/index.html -> gate
+./scripts/coverage.ps1 -Filter "Category!=Docker"   # sem Docker
+./scripts/check-vulnerable.ps1         # NuGet High/Critical (direto e transitivo)
+cd frontend; npm run test:coverage     # cobertura do frontend (falha abaixo dos pisos)
+cd frontend; npm audit --audit-level=high
+cd frontend; npm run e2e:stack         # sobe o compose (perfil full) e roda o Playwright
+docker run --rm -v "${PWD}:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --no-banner --redact
+```
+
+**Pisos de cobertura.** Backend: linhas globais >= 75% e `*.Domain` + `*.Application` agregados >= 85%
+(parâmetros `-MinLine`/`-MinDomainApplication` de `scripts/check-coverage.ps1`). Frontend: linhas >= 75% global e
+>= 80% em `core/`, stores, guards e interceptors. **Exclusões do backend** (`coverlet.runsettings`): `Program.cs`,
+`Migrations/`, `obj/**`, namespaces `TodoList.Contracts.*` (gerado pelo Grpc.Tools), código marcado com
+`GeneratedCode`/`CompilerGenerated`/`ExcludeFromCodeCoverage` e os assemblies de teste. Não amplie a lista para
+passar no gate: escreva o teste. O relatório separa os assemblies (Identity.*, Tasks.*, Gateway, SharedKernel.*).
+
+Pendente: sinalizar queda de cobertura em relação à `main` (exige guardar o resumo da `main` como artefato).
+Requer `dotnet tool restore` (ReportGenerator e `dotnet-ef` ficam em `.config/dotnet-tools.json`).

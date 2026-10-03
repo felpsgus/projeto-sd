@@ -61,7 +61,7 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
     public FakeTasksService Tasks { get; } = new();
 
     /// <summary>Mensagens de log capturadas do host (CA-26: prova de que nenhuma carrega token/senha/corpo).</summary>
-    public CapturingLoggerProvider Logs { get; } = new();
+    public CapturingLogSink Logs { get; } = new();
 
     /// <summary>
     /// Configuração extra aplicada por cima da padrão, definida antes do primeiro
@@ -91,7 +91,7 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
         // igual em produção.
         builder.UseEnvironment("Development");
 
-        builder.ConfigureLogging(logging => logging.AddProvider(Logs));
+        builder.ConfigureServices(services => services.AddSingleton<Serilog.Core.ILogEventSink>(Logs));
 
         builder.ConfigureAppConfiguration((_, configuration) =>
         {

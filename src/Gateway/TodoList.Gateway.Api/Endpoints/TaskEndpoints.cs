@@ -43,37 +43,58 @@ public sealed class TaskEndpoints : IEndpointRouteHandler
         endpoints.MapPost("/api/tasks", HandleCreateTaskAsync)
             .WithRequestValidation<CreateTaskHttpRequest>()
             .WithName("CreateTask")
+            .WithDescription("Título obrigatório; prioridade, descrição e vencimento opcionais. Responde 201 com Location. 404/409 quando o dono é inexistente/inativo ou o limite de tarefas ativas foi atingido; 503 se o Identity estiver fora do ar (a tarefa não é criada).")
+            .Produces<TaskHttpResponse>(StatusCodes.Status201Created)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status409Conflict, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Cria uma tarefa em nome do usuário autenticado.")
             .WithTags("Tasks");
 
         endpoints.MapGet("/api/tasks", HandleListTasksAsync)
             .WithName("ListTasks")
+            .WithDescription("Paginada (page, pageSize), com filtros opcionais status, priority (repetível), overdue e search. Só as tarefas do usuário autenticado, mais recentes primeiro.")
+            .Produces<ListTasksHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Lista as tarefas do usuário autenticado, paginadas (mais recentes primeiro).")
             .WithTags("Tasks");
 
         endpoints.MapGet("/api/tasks/{id}", HandleGetTaskAsync)
             .WithName("GetTask")
+            .WithDescription("Tarefa inexistente, removida ou de outro usuário é sempre o mesmo 404 (RN-AUTZ-03). Id que não é Guid é 400.")
+            .Produces<TaskHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Consulta uma tarefa específica do usuário autenticado.")
             .WithTags("Tasks");
 
         endpoints.MapPut("/api/tasks/{id}", HandleUpdateTaskAsync)
             .WithRequestValidation<UpdateTaskHttpRequest>()
             .WithName("UpdateTask")
+            .WithDescription("PUT com semântica de SUBSTITUIÇÃO (ADR 0008): campos omitidos viram null (description, dueDate) e a prioridade volta a Medium - para manter um valor, reenvie-o. Enviar status, id ou ownerId no corpo é ignorado; tarefa concluída pode ser editada e continua concluída.")
+            .Produces<TaskHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Substitui título, descrição, prioridade e vencimento de uma tarefa própria.")
             .WithTags("Tasks");
 
         endpoints.MapPost("/api/tasks/{id}/complete", HandleCompleteTaskAsync)
             .WithName("CompleteTask")
+            .WithDescription("Conclui uma tarefa pendente. Tarefa já concluída é 409 (task.already_completed), distinguível do 404 de tarefa alheia.")
+            .Produces<TaskHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status409Conflict, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Conclui uma tarefa própria pendente.")
             .WithTags("Tasks");
 
         endpoints.MapPost("/api/tasks/{id}/reopen", HandleReopenTaskAsync)
             .WithName("ReopenTask")
+            .WithDescription("Reabre uma tarefa concluída. Tarefa pendente é 409 (task.not_completed); também é 409 se reabrir estourar o limite de tarefas ativas.")
+            .Produces<TaskHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status409Conflict, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Reabre uma tarefa própria concluída.")
             .WithTags("Tasks");
 
         endpoints.MapDelete("/api/tasks/{id}", HandleDeleteTaskAsync)
             .WithName("DeleteTask")
+            .WithDescription("Soft delete: a tarefa some das listagens e é expurgada depois do período de retenção (ADR 0003). 204 sem corpo.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Remove (soft delete) uma tarefa própria.")
             .WithTags("Tasks");
     }

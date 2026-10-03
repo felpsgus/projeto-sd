@@ -54,4 +54,44 @@ describe('App', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Entrar');
   });
+
+  it('muda o foco para o <h1> da nova página ao trocar de rota, mas não na carga inicial (FE-21, CA-10)', async () => {
+    TestBed.inject(SessionStore).finishBootstrap();
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/login');
+    await fixture.whenStable();
+    expect(document.activeElement?.tagName).not.toBe('H1');
+
+    await router.navigateByUrl('/register');
+    await fixture.whenStable();
+    expect(document.activeElement?.tagName).toBe('H1');
+    expect(document.activeElement?.textContent).toContain('Criar conta');
+
+    // Só a query string mudou: o foco (ex.: campo de busca) não é roubado.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    await router.navigateByUrl('/register?x=1');
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(input);
+    input.remove();
+  });
+
+  it('o skip link move o foco para o conteúdo principal sem navegar (FE-21, CA-09)', async () => {
+    TestBed.inject(SessionStore).finishBootstrap();
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await TestBed.inject(Router).navigateByUrl('/login');
+    await fixture.whenStable();
+
+    const link: HTMLAnchorElement = fixture.nativeElement.querySelector('a.skip-link');
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement?.id).toBe('main-content');
+  });
 });

@@ -44,6 +44,9 @@ public sealed class AuthEndpoints : IEndpointRouteHandler
             .WithRequestValidation<LoginHttpRequest>()
             .WithNoStore()
             .WithName("Login")
+            .WithDescription("Valida e-mail e senha no Identity. Sucesso: access token no corpo e refresh token no cookie HttpOnly refreshToken (nunca no corpo). Falha de credencial é sempre o mesmo 401; excesso de tentativas é 429 com Retry-After.")
+            .Produces<LoginHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status429TooManyRequests, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Autentica um usuário: access token no corpo, refresh token em cookie HttpOnly (D-20).")
             .WithTags("Auth")
             .AllowAnonymous();
@@ -51,6 +54,9 @@ public sealed class AuthEndpoints : IEndpointRouteHandler
         endpoints.MapPost("/api/auth/refresh", HandleRefreshAsync)
             .WithNoStore()
             .WithName("Refresh")
+            .WithDescription("Troca o refresh token do cookie por um novo par (rotação). Qualquer falha - cookie ausente, expirado, revogado ou reutilizado - é o mesmo 401 e apaga o cookie.")
+            .Produces<LoginHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status401Unauthorized, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Renova a sessão com o refresh token do cookie (corpo vazio); rotaciona o cookie.")
             .WithTags("Auth")
             .AllowAnonymous();
@@ -58,18 +64,27 @@ public sealed class AuthEndpoints : IEndpointRouteHandler
         endpoints.MapPost("/api/auth/logout", HandleLogoutAsync)
             .WithNoStore()
             .WithName("Logout")
+            .WithDescription("Revoga a sessão do refresh token do cookie (se for do usuário autenticado) e apaga o cookie. Sempre 204.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblems(StatusCodes.Status401Unauthorized, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Encerra a sessão do cookie e apaga o cookie. Idempotente (204).")
             .WithTags("Auth");
 
         endpoints.MapPost("/api/auth/logout-all", HandleLogoutAllAsync)
             .WithNoStore()
             .WithName("LogoutAll")
+            .WithDescription("Revoga todas as sessões (refresh tokens) do usuário autenticado e apaga o cookie. O access token já emitido segue válido até expirar (ADR 0001).")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblems(StatusCodes.Status401Unauthorized, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Encerra todas as sessões do usuário e apaga o cookie (204).")
             .WithTags("Auth");
 
         endpoints.MapPost("/api/auth/register", HandleRegisterAsync)
             .WithRequestValidation<RegisterHttpRequest>()
             .WithName("Register")
+            .WithDescription("Cria a conta. E-mail já cadastrado é 409; senha fora da política (mínimo 8 caracteres, com letra e número) é 400. Não autentica: o cliente faz login em seguida.")
+            .Produces<ProfileHttpResponse>(StatusCodes.Status201Created)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status409Conflict, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Cria uma nova conta de usuário (BE-07); não autentica automaticamente.")
             .WithTags("Auth")
             .AllowAnonymous();

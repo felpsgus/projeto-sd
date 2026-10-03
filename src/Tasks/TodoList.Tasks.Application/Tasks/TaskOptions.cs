@@ -33,4 +33,11 @@ public sealed class TaskOptions
     // PostConfigure, sem precisar de uma segunda representação textual
     // ambígua de "sem valor" numa fonte de configuração in-memory.
     public int? MaxActivePerUser { get; set; } = 500;
+
+    /// <summary>
+    /// Dias que uma tarefa removida (soft delete) fica no banco antes do expurgo (BE-23, D-12).
+    /// Única propriedade validada por DataAnnotations (ver <c>Program.cs</c>).
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Range(1, 3650, ErrorMessage = "Tasks:SoftDeleteRetentionDays deve estar entre 1 e 3650.")]
+    public int SoftDeleteRetentionDays { get; init; } = 30;
 }

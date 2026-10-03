@@ -9,6 +9,7 @@ using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Infrastructure.Authentication;
+using TodoList.Identity.Infrastructure.Retention;
 using TodoList.Identity.Infrastructure.Sessions;
 using TodoList.Identity.Infrastructure.Users;
 using TodoList.SharedKernel;
@@ -81,6 +82,13 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<LockoutOptions>>().Value);
+
+        // BE-23: retenção de refresh tokens (seção Auth).
+        services
+            .AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }

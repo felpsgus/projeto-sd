@@ -23,6 +23,12 @@ public static class HealthEndpoints
             .WithSummary("Liveness check do serviço")
             .AllowAnonymous();
 
+        // /health/live: alias de /health (BE-24) — mesmo liveness, no nome que orquestradores esperam.
+        group.MapHealthChecks("/live", new HealthCheckOptions { Predicate = _ => false })
+            .WithName("GetHealthLiveAlias")
+            .WithSummary("Liveness check do serviço (alias de /health)")
+            .AllowAnonymous();
+
         // Readiness: roda só os checks marcados com a tag "ready" — hoje, a
         // conectividade com o Postgres (AddXxxDatabaseHealthCheck).
         // Banco fora do ar não derruba o processo (CA-03): este endpoint

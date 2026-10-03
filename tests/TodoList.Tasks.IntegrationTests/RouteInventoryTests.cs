@@ -23,6 +23,7 @@ public class RouteInventoryTests : IClassFixture<WebApplicationFactory<Program>>
         "/health",
         "/health/",
         "/health/ready",
+        "/health/live",
         "/tasks.v1.TasksService/CreateTask",
         "/tasks.v1.TasksService/ListTasks",
         "/tasks.v1.TasksService/GetTask",

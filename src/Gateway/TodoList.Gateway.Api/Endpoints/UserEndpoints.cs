@@ -33,24 +33,36 @@ public sealed class UserEndpoints : IEndpointRouteHandler
     {
         endpoints.MapGet("/api/me", HandleGetMeAsync)
             .WithName("GetMe")
+            .WithDescription("Devolve id, e-mail, nome de exibição e data de criação do usuário do token. Nunca expõe o perfil de outro usuário.")
+            .Produces<ProfileHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Consulta o perfil do usuário autenticado.")
             .WithTags("Users");
 
         endpoints.MapPatch("/api/me", HandlePatchMeAsync)
             .WithRequestValidation<UpdateProfileHttpRequest>()
             .WithName("UpdateMe")
+            .WithDescription("Altera apenas o nome de exibição; o e-mail não muda.")
+            .Produces<ProfileHttpResponse>(StatusCodes.Status200OK)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Altera o nome de exibição do usuário autenticado (não altera o e-mail).")
             .WithTags("Users");
 
         endpoints.MapPost("/api/me/change-password", HandleChangePasswordAsync)
             .WithRequestValidation<ChangePasswordHttpRequest>()
             .WithName("ChangePassword")
+            .WithDescription("Exige a senha atual (incorreta = 400 com errorCode auth.invalid_current_password). Revoga todas as sessões de refresh do usuário.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Troca a senha do usuário autenticado, exigindo a senha atual.")
             .WithTags("Users");
 
         endpoints.MapDelete("/api/me", HandleDeleteMeAsync)
             .WithRequestValidation<DeleteAccountHttpRequest>()
             .WithName("DeleteMe")
+            .WithDescription("Irreversível: exige a senha como confirmação (incorreta = 400) e remove também as tarefas do usuário.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Exclui a própria conta (operação irreversível), exigindo confirmação de senha.")
             .WithTags("Users");
     }

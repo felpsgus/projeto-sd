@@ -7,11 +7,15 @@ using TodoList.Identity.Api.Grpc;
 using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Infrastructure.Persistence;
+using TodoList.Identity.Infrastructure.Retention;
 using TodoList.Identity.Infrastructure.Security;
 using TodoList.Identity.Infrastructure.Users;
 using TodoList.SharedKernel.Web;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Log estruturado JSON (BE-24): service=identity, traceId/spanId, níveis em Serilog:MinimumLevel.
+builder.AddStructuredLogging("identity");
 
 builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
@@ -21,7 +25,7 @@ builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>
     {
-        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.GetTraceId();
     };
 });
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
@@ -48,6 +52,9 @@ builder.Services
 // (CA-11). Nunca EnsureCreated()/Migrate() automático aqui: migrations são
 // aplicadas por comando explícito (ver README).
 builder.Services.AddIdentityPersistence(builder.Configuration);
+
+// BE-23: expurgo de refresh tokens vencidos e tentativas de login antigas (D-13).
+builder.Services.AddDataRetention<IdentityRetentionPurger>(builder.Configuration);
 
 // Hashing de senha (BE-06): PasswordHashingOptions validado no start +
 // IPasswordHasher singleton (Pbkdf2PasswordHasher). JWT RS256 (BE-08, D-38):
@@ -112,6 +119,9 @@ builder.Services.AddHealthChecks()
     .AddIdentityDatabaseHealthCheck();
 
 var app = builder.Build();
+
+// Log de requisição (inclui as chamadas gRPC recebidas); userId vem da metadata x-user-id, quando houver.
+app.UseStructuredRequestLogging(StructuredLogging.CallerUserId);
 
 app.UseExceptionHandler();
 

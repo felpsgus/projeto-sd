@@ -39,6 +39,11 @@ internal static class TestIdentityJwtSigningKeySetup
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", privateKeyPath);
         Environment.SetEnvironmentVariable("UserStore__Provider", "InMemory");
 
+        // BE-23/BE-24: o expurgo em segundo plano nunca roda dentro dos hosts de teste - nenhum teste
+        // pode depender de (nem ser perturbado por) um ciclo de DataRetentionWorker. Os testes do
+        // purger chamam IRetentionPurger direto.
+        Environment.SetEnvironmentVariable("Retention__Enabled", "false");
+
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDelete(privateKeyPath);
     }
 

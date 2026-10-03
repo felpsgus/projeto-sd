@@ -1,7 +1,5 @@
 extern alias IdentityApi;
-
 using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
 using FluentAssertions;
 using Grpc.Core;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -10,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using Serilog.Core;
 using TodoList.Identity.Infrastructure.Users;
 using Xunit;
 using IdentityProgram = IdentityApi::Program;
@@ -27,9 +26,6 @@ namespace TodoList.Tasks.IntegrationTests.Tasks;
 /// </summary>
 public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
 {
-    // Casa com "traceId=00-8f3d...-01" no fim das duas mensagens de log.
-    private static readonly Regex _traceIdNaMensagem = new(@"traceId=([^\s,]+)", RegexOptions.Compiled);
-
     private SqliteConnection _connection = null!;
     private FakeTimeProvider _timeProvider = null!;
 
@@ -82,19 +78,19 @@ public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
     /// </summary>
     private async Task<(StatusCode StatusCode, string? TraceIdDoTasks, string? TraceIdDoIdentity)> CallAsync(Guid userId)
     {
-        var logDoIdentity = new CapturingLoggerProvider();
-        var logDoTasks = new CapturingLoggerProvider();
+        var logDoIdentity = new CapturingLogSink();
+        var logDoTasks = new CapturingLogSink();
 
         await using var identityFactory = new WebApplicationFactory<IdentityProgram>()
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-                services.AddLogging(logging => logging.AddProvider(logDoIdentity))));
+                services.AddSingleton<ILogEventSink>(logDoIdentity)));
 
         await using var factory = new TasksApiFactory(
             _connection,
             _timeProvider,
             identityFactory,
             identityFactory.Server.BaseAddress,
-            configureServices: services => services.AddLogging(logging => logging.AddProvider(logDoTasks)));
+            configureServices: services => services.AddSingleton<ILogEventSink>(logDoTasks));
 
         await factory.EnsureDatabaseCreatedAsync();
         using var client = new TasksGrpcTestClient(factory.Server.CreateHandler(), factory.Server.BaseAddress);
@@ -120,45 +116,12 @@ public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
             ExtrairTraceId(logDoIdentity, "ValidateUser: userId="));
     }
 
-    private static string? ExtrairTraceId(CapturingLoggerProvider provider, string trechoDaMensagem)
+    private static string? ExtrairTraceId(CapturingLogSink sink, string trechoDaMensagem)
     {
-        var mensagem = provider.Messages.FirstOrDefault(m => m.Contains(trechoDaMensagem, StringComparison.Ordinal));
+        var entrada = sink.Events.FirstOrDefault(e => e.RenderMessage().Contains(trechoDaMensagem, StringComparison.Ordinal));
 
-        if (mensagem is null)
-        {
-            return null;
-        }
-
-        var match = _traceIdNaMensagem.Match(mensagem);
-
-        return match.Success ? match.Groups[1].Value : null;
-    }
-
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        private readonly ConcurrentQueue<string> _messages = new();
-
-        public IReadOnlyCollection<string> Messages => _messages;
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(_messages);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger : ILogger
-        {
-            private readonly ConcurrentQueue<string> _messages;
-
-            public CapturingLogger(ConcurrentQueue<string> messages) => _messages = messages;
-
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                _messages.Enqueue(formatter(state, exception));
-        }
+        return entrada is not null && entrada.Properties.TryGetValue("traceId", out var traceId)
+            ? traceId.ToString().Trim('"')
+            : null;
     }
 }

@@ -58,26 +58,37 @@ Os fluxos que, se quebrarem, inutilizam o produto estão cobertos por testes que
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Os 12 fluxos da tabela estão implementados e passando.
-- [ ] **CA-02** — Um comando único sobe todo o ambiente (frontend, backend, banco) e executa a suíte.
-- [ ] **CA-03** — Cada teste cria o próprio usuário e os próprios dados; nenhum depende de dados pré-existentes.
+- [x] **CA-01** — Os 12 fluxos da tabela estão implementados e passando.
+- [x] **CA-02** — Um comando único sobe todo o ambiente (frontend, backend, banco) e executa a suíte.
+- [x] **CA-03** — Cada teste cria o próprio usuário e os próprios dados; nenhum depende de dados pré-existentes.
 - [ ] **CA-04** — Rodar a suíte em **ordem aleatória** produz o mesmo resultado.
-- [ ] **CA-05** — Rodar a suíte **duas vezes seguidas** produz o mesmo resultado, sem limpeza manual entre execuções.
-- [ ] **CA-06** — Rodar a suíte **em paralelo** não gera interferência entre testes.
-- [ ] **CA-07** — Nenhum teste usa `waitForTimeout` ou espera fixa.
-- [ ] **CA-08** — Todos os seletores usam papel, label ou texto acessível — nenhum seletor de classe CSS ou `nth-child`.
-- [ ] **CA-09** — O fluxo 9 valida a renovação transparente com token curto configurado, **sem** esperar tempo real de expiração.
-- [ ] **CA-10** — No fluxo 9, o usuário conclui a operação **sem ver a tela de login** em nenhum instante.
-- [ ] **CA-11** — O fluxo 11 confirma que a tela de "não encontrada" para tarefa de outro usuário é **igual** à de id inexistente (RN-AUTZ-03).
-- [ ] **CA-12** — O fluxo 10 valida que o botão "voltar" após o logout **não** exibe a tela autenticada anterior.
-- [ ] **CA-13** — Os testes rodam contra o build de **produção** do frontend, não o de desenvolvimento.
+- [x] **CA-05** — Rodar a suíte **duas vezes seguidas** produz o mesmo resultado, sem limpeza manual entre execuções.
+- [x] **CA-06** — Rodar a suíte **em paralelo** não gera interferência entre testes.
+- [x] **CA-07** — Nenhum teste usa `waitForTimeout` ou espera fixa.
+- [x] **CA-08** — Todos os seletores usam papel, label ou texto acessível — nenhum seletor de classe CSS ou `nth-child`.
+- [x] **CA-09** — O fluxo 9 valida a renovação transparente com token curto configurado, **sem** esperar tempo real de expiração.
+- [x] **CA-10** — No fluxo 9, o usuário conclui a operação **sem ver a tela de login** em nenhum instante.
+- [x] **CA-11** — O fluxo 11 confirma que a tela de "não encontrada" para tarefa de outro usuário é **igual** à de id inexistente (RN-AUTZ-03).
+- [x] **CA-12** — O fluxo 10 valida que o botão "voltar" após o logout **não** exibe a tela autenticada anterior.
+- [x] **CA-13** — Os testes rodam contra o build de **produção** do frontend, não o de desenvolvimento.
 - [ ] **CA-14** — A suíte roda no CI a cada PR (Chromium) e completa em tempo aceitável, documentado no PR.
 - [ ] **CA-15** — Falhas publicam screenshot, vídeo e trace como artefato, permitindo diagnosticar sem reproduzir localmente.
-- [ ] **CA-16** — `axe-core` roda nas telas principais dentro do E2E e falha em violação crítica ou séria.
-- [ ] **CA-17** — Ao menos um fluxo é executado em viewport de 360 px.
-- [ ] **CA-18** — Não há teste em quarentena ou com retry ao fechar a task; se houver, está documentado com prazo.
-- [ ] **CA-19** — Nenhum segredo ou credencial real está no código dos testes.
+- [x] **CA-16** — `axe-core` roda nas telas principais dentro do E2E e falha em violação crítica ou séria.
+- [x] **CA-17** — Ao menos um fluxo é executado em viewport de 360 px.
+- [x] **CA-18** — Não há teste em quarentena ou com retry ao fechar a task; se houver, está documentado com prazo.
+- [x] **CA-19** — Nenhum segredo ou credencial real está no código dos testes.
 
 ## Testes obrigatórios
 
 - Esta task **é** o teste. A verificação é a suíte passar de forma estável — CA-04, CA-05 e CA-06 são o que separam uma suíte útil de uma fonte de ruído.
+
+## Nota de 03/10/2026 — implementação (sem o workflow de CI)
+
+- Suíte em `frontend/e2e/` (`flows.spec.ts` com os 12 fluxos, `a11y.spec.ts`, `leak.spec.ts`), config em `frontend/playwright.config.ts`. Comando único: `npm run e2e:stack` (gera chaves/SQL se faltarem, sobe o compose `--profile full`, espera o gateway responder e roda chromium + mobile-360). Chromium: 6 workers por padrão; 3 execuções seguidas sem limpeza, 43 testes cada, todas verdes (~29–34 s).
+- Fluxo 9 usa `page.clock.setSystemTime` (sem token curto nem espera real): a suíte afirma o `POST /api/auth/refresh` 200, a operação concluída e nenhuma navegação para `/login`. O `Jwt:AccessTokenMinutes` mínimo é 1 (validação `Range(1,60)`), então o override de compose não era viável.
+- **Pendente / não verificado:** CA-04 (ordem aleatória: não rodado — o Playwright não embaralha testes entre arquivos e não houve execução com `--shuffle` equivalente); CA-14 e CA-15 dependem do workflow de CI (outra etapa); Firefox e WebKit estão definidos (`npm run e2e:all`) mas **não foram executados**. Com `--workers=12` (máquina de 12 CPUs), 1 de 43 testes falhou uma vez (fluxo 7: `ChangePassword` cancelado por deadline do gateway, 503, sob contenção de CPU no hashing) — comportamento de capacidade do backend, não interferência entre testes; não ocorreu nas 3 execuções com o padrão de 6 workers.
+- Bugs de app achados e corrigidos pelo E2E (detalhes em `docs/acessibilidade.md`): CSS global não aplicado em produção por causa da CSP, skip link quebrado pelo `<base href>`, diálogo sem foco inicial, sem foco no `<h1>` na troca de rota, `<li>` fora de `<ul>`, alvos de toque pequenos.
+
+## Nota de execução — 03/10/2026 (CI)
+
+workflow escrito e cada passo executado localmente; falta a primeira execução real no GitHub e a prova de falha em PR descartável. CA-14 e CA-15 seguem abertos: o job `e2e` roda `npm run e2e:stack` (43 testes passaram localmente contra a stack reconstruída em ~1m20s) e publica report, traces, vídeos e logs do compose em falha, mas isso só se prova num runner. Firefox/WebKit não rodam no CI (só localmente, `npm run e2e:all`): falharam 1 teste no Firefox e 12 no WebKit.

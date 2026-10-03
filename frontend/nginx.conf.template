@@ -48,6 +48,7 @@ server {
     # que já têm o próprio Cache-Control. A location /api/ e a location / não
     # declaram add_header próprio, então continuam herdando normalmente daqui.
     add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # CSP compatível com um Angular buildado em produção (AOT, sem eval):
@@ -82,11 +83,12 @@ server {
     # roteador do Angular (rota profunda, ex. /tasks) — nginx reaplica a busca
     # de location sobre a URI de destino do try_files.
     location = /index.html {
-        # Repete os 3 headers de segurança do bloco server (ver comentário lá em
+        # Repete os 4 headers de segurança do bloco server (ver comentário lá em
         # cima): como este location já declara o seu próprio add_header
         # (Cache-Control), o nginx para de herdar os do nível pai. Se o texto de
         # algum dos três mudar, mudar aqui também.
         add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
         add_header Cache-Control "no-cache" always;
@@ -98,9 +100,10 @@ server {
     location ~* \.(?:js|css|svg|png|jpg|jpeg|gif|ico|webp|woff2?|ttf|eot)$ {
         # Mesmo motivo do location = /index.html acima: este location também
         # declara o seu próprio add_header (Cache-Control), então precisa
-        # repetir os 3 headers de segurança do bloco server, senão eles somem
+        # repetir os 4 headers de segurança do bloco server, senão eles somem
         # justamente das respostas que carregam o CSS/JS da aplicação.
         add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
         add_header Cache-Control "public, max-age=31536000, immutable" always;

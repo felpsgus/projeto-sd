@@ -2,6 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Gateway\TodoList.Gateway.Api\TodoList.Gateway.Api.csproj" />
+    <!-- BE-24, CA-04/CA-07c: o Identity REAL sobe em processo ao lado do Gateway real (LogLeakageTests).
+         Alias: Identity.Api gera o lado servidor dos mesmos .proto que Gateway.Api gera como cliente
+         (mesma técnica do alias Fakes abaixo) e ambos têm uma classe Program. -->
+    <ProjectReference Include="..\..\src\Identity\TodoList.Identity.Api\TodoList.Identity.Api.csproj">
+      <Aliases>IdentityApi</Aliases>
+    </ProjectReference>
     <!-- Aliased (ver GatewayApiFactory.cs): gera o lado servidor dos mesmos
          .proto que TodoList.Gateway.Api gera do lado cliente — sem o alias,
          os tipos de mensagem colidiriam por nome nesta compilação. -->
@@ -19,6 +25,8 @@
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <!-- Postgres real para o Identity do LogLeakageTests (mesma versão dos outros projetos de teste). -->
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">

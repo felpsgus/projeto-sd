@@ -71,8 +71,8 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 - [ ] **CA-01** — Um PR com erro de compilação **falha** o pipeline.
 - [ ] **CA-02** — Um PR com violação de lint ou formatação **falha**.
 - [ ] **CA-03** — Um PR com teste quebrado **falha**.
-- [ ] **CA-04** — O pipeline usa `npm ci`; nenhuma etapa usa `npm install`.
-- [ ] **CA-05** — A versão do Node no CI casa com o `.nvmrc`.
+- [x] **CA-04** — O pipeline usa `npm ci`; nenhuma etapa usa `npm install`.
+- [x] **CA-05** — A versão do Node no CI casa com o `.nvmrc`.
 - [ ] **CA-06** — O pipeline completo executa em tempo aceitável (alvo: < 10 min), documentado no PR.
 
 ### Cobertura
@@ -85,27 +85,42 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 
 ### Build
 
-- [ ] **CA-12** — O build de produção conclui sem warnings e gera artefato publicável.
-- [ ] **CA-13** — Estourar o `budget` de bundle **falha** o build — comprovado uma vez.
-- [ ] **CA-14** — O relatório de build confirma que as features estão em chunks separados do bundle inicial.
+- [x] **CA-12** — O build de produção conclui sem warnings e gera artefato publicável.
+- [x] **CA-13** — Estourar o `budget` de bundle **falha** o build — comprovado uma vez.
+- [x] **CA-14** — O relatório de build confirma que as features estão em chunks separados do bundle inicial.
 
 ### Segurança
 
-- [ ] **CA-15** — **Teste antivazamento**: nenhuma senha ou token aparece em `localStorage`, `sessionStorage`, URL, `console` ou DOM em nenhum dos fluxos exercitados (RN-AUTH-05, RN-AUTH-20). **Este teste é o entregável central da task.**
+- [x] **CA-15** — **Teste antivazamento**: nenhuma senha ou token aparece em `localStorage`, `sessionStorage`, URL, `console` ou DOM em nenhum dos fluxos exercitados (RN-AUTH-05, RN-AUTH-20). **Este teste é o entregável central da task.**
 - [ ] **CA-16** — Uma dependência com vulnerabilidade de severidade alta **falha** o build — comprovado adicionando um pacote vulnerável temporariamente.
 - [ ] **CA-17** — Um segredo commitado no diff **falha** o build — comprovado com um segredo falso.
-- [ ] **CA-18** — Nenhum segredo existe em `environments/` (verificado por varredura).
-- [ ] **CA-19** — Os sourcemaps de produção **não** são publicados junto com o bundle.
-- [ ] **CA-20** — Os cabeçalhos de segurança recomendados estão especificados em `docs/seguranca-frontend.md`, com a CSP proposta.
+- [x] **CA-18** — Nenhum segredo existe em `environments/` (verificado por varredura).
+- [x] **CA-19** — Os sourcemaps de produção **não** são publicados junto com o bundle.
+- [x] **CA-20** — Os cabeçalhos de segurança recomendados estão especificados em `docs/seguranca-frontend.md`, com a CSP proposta.
 - [ ] **CA-21** — O build de produção não emite `console.log` de payload de request ou de estado.
 
 ### Documentação
 
-- [ ] **CA-22** — `.browserslistrc` declara a matriz de navegadores suportados, coerente com a de [FE-22](FE-22-testes-e2e.md).
-- [ ] **CA-23** — O `README.md` do frontend permite a uma pessoa nova instalar, rodar, testar e gerar o build de produção seguindo apenas o que está escrito.
-- [ ] **CA-24** — Nenhum teste está `skip` sem justificativa escrita, e não há teste flaky conhecido em aberto ao fechar a task.
+- [x] **CA-22** — `.browserslistrc` declara a matriz de navegadores suportados, coerente com a de [FE-22](FE-22-testes-e2e.md).
+- [x] **CA-23** — O `README.md` do frontend permite a uma pessoa nova instalar, rodar, testar e gerar o build de produção seguindo apenas o que está escrito.
+- [x] **CA-24** — Nenhum teste está `skip` sem justificativa escrita, e não há teste flaky conhecido em aberto ao fechar a task.
 
 ## Testes obrigatórios
 
 - CA-15 é teste automatizado real, não revisão manual.
 - Os gates (CA-01 a CA-03, CA-08, CA-09, CA-13, CA-16, CA-17) são validados **provocando a falha** uma vez, em PR descartável — um gate nunca exercitado é um gate que não funciona.
+
+## Nota de 03/10/2026 — entregas locais (sem o workflow de CI)
+
+- **Cobertura:** gates em `frontend/vitest.config.ts` (via `runnerConfig`) + `coverageInclude/Exclude` no `angular.json`; `npm run test:coverage` falha abaixo do piso (provado localmente subindo os pisos). Atual: linhas 90,8% global; `core/**` 98,1%. Os CAs de CI (CA-01..11) ficam abertos: o relatório como artefato/resumo no PR, o gate comprovado em PR descartável e a comparação com baseline dependem do workflow.
+- **Build:** bundle inicial 294,8 kB; orçamento aviso 320 kB / erro 400 kB (estouro comprovado baixando o teto temporariamente, revertido); nenhum `.map` em `dist/`; `.browserslistrc` (últimas 2 versões de Chrome/Edge/Firefox/Safari/iOS).
+- **Segurança:** `docs/seguranca-frontend.md`; `X-Frame-Options` acrescentado ao nginx (CSP, `nosniff` e `Referrer-Policy` já existiam). `npm audit --audit-level=high` **falha**: `@angular/router` (alta, só SSR) e `piscina` (crítica, via `@angular/build`, só build) — correção exige atualizar o Angular; **não aplicada**. CA-16 (gate de audit provado no CI), CA-17 (varredura de segredos), CA-18 (varredura de `environments/`) e CA-21 (sem `console.log` de payload no bundle) **não verificados** — CI/varredura pendentes.
+- Teste antivazamento: `frontend/e2e/leak.spec.ts` (passa em Chromium). Firefox/WebKit não executados.
+
+## Nota de execução — 03/10/2026 (CI)
+
+workflow escrito e cada passo executado localmente; falta a primeira execução real no GitHub e a prova de falha em PR descartável.
+
+- Marcados: CA-04 (workflow só usa `npm ci`), CA-05 (`node-version-file: frontend/.nvmrc`), CA-18 (sem segredo em `environments/`; gitleaks sobre o histórico limpo).
+- Em aberto, exigem execução no GitHub: CA-01 a CA-03, CA-06, CA-07, CA-08, CA-09, CA-16, CA-17. `npm audit --audit-level=high` passa localmente depois de subir o Angular para 22.2.1 (corrige o DoS do `@angular/router` e o `piscina` crítico).
+- **Pendente, não implementado:** CA-10 (queda de cobertura em relação ao baseline). CA-11 e CA-21 seguem como estavam.

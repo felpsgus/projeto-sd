@@ -71,16 +71,15 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<ValidateUserResponse> ValidateUser(ValidateUserRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
-            return RespondAndLog(request.UserId, user: null, stopwatch.Elapsed, traceId);
+            return RespondAndLog(request.UserId, user: null, stopwatch.Elapsed);
         }
 
         var user = await _userLookup.FindByIdAsync(userId, context.CancellationToken);
 
-        return RespondAndLog(request.UserId, user, stopwatch.Elapsed, traceId);
+        return RespondAndLog(request.UserId, user, stopwatch.Elapsed);
     }
 
     /// <summary>
@@ -103,17 +102,16 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<LoginResponse> Login(LoginRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (_userStoreOptions.Value.Provider == UserStoreOptions.InMemoryProvider)
         {
-            return RespondLoginAndLog(login: null, retryAfter: null, stopwatch.Elapsed, traceId);
+            return RespondLoginAndLog(login: null, retryAfter: null, stopwatch.Elapsed);
         }
 
         var loginHandler = _serviceProvider.GetRequiredService<LoginHandler>();
         var result = await loginHandler.HandleAsync(request.Email, request.Password, context.CancellationToken);
 
-        return RespondLoginAndLog(result.IsSuccess ? result.Value : null, LockoutRetryAfter(result), stopwatch.Elapsed, traceId);
+        return RespondLoginAndLog(result.IsSuccess ? result.Value : null, LockoutRetryAfter(result), stopwatch.Elapsed);
     }
 
     /// <summary>BE-12: tempo restante quando a falha é o bloqueio por tentativas; senão <c>null</c>.</summary>
@@ -128,7 +126,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<RefreshSessionResponse> RefreshSession(RefreshSessionRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         RefreshSessionResult? refreshed = null;
 
@@ -140,7 +137,16 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         }
 
         // Nunca o token (nem o novo, nem o apresentado) no log (RN-AUTH-20).
-        Log.RefreshSessionCalled(_logger, refreshed is not null, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        if (refreshed is null)
+        {
+            // Warning: token inexistente, expirado, revogado ou reapresentado (reuso, RN-AUTH-17) — o
+            // chamador não distingue a causa, então o log também não.
+            Log.RefreshSessionRejected(_logger, stopwatch.Elapsed.TotalMilliseconds);
+        }
+        else
+        {
+            Log.RefreshSessionCalled(_logger, true, stopwatch.Elapsed.TotalMilliseconds);
+        }
 
         return refreshed is null
             ? new RefreshSessionResponse { Succeeded = false }
@@ -161,12 +167,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<Empty> Logout(LogoutRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             var invalid = AuthErrors.UserNotFound.ToRpcException();
-            Log.LogoutCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.LogoutCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalid;
         }
@@ -178,11 +183,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
 
             if (outcome == RevokeSessionOutcome.OwnedByAnotherUser)
             {
-                Log.LogoutWithForeignToken(_logger, userId, traceId);
+                Log.LogoutWithForeignToken(_logger, userId);
             }
         }
 
-        Log.LogoutCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.LogoutCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return new Empty();
     }
@@ -191,12 +196,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<Empty> LogoutAll(LogoutAllRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             var invalid = AuthErrors.UserNotFound.ToRpcException();
-            Log.LogoutAllCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.LogoutAllCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalid;
         }
@@ -207,7 +211,7 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
             await handler.HandleAsync(userId, context.CancellationToken);
         }
 
-        Log.LogoutAllCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.LogoutAllCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return new Empty();
     }
@@ -222,7 +226,6 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<RegisterResponse> Register(RegisterRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         var applicationRequest = new ApplicationRegisterUserRequest(request.Email, request.Password, request.DisplayName);
         var validationResult = await _registerValidator.ValidateAsync(applicationRequest, context.CancellationToken);
@@ -230,7 +233,7 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         if (!validationResult.IsValid)
         {
             var validationFailed = validationResult.ToValidationFailedException();
-            Log.RegisterCalled(_logger, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.RegisterCalled(_logger, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw validationFailed;
         }
@@ -241,12 +244,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.RegisterCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.RegisterCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.RegisterCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.RegisterCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return new RegisterResponse
         {
@@ -265,12 +268,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<ProfileResponse> GetProfile(GetProfileRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             var invalid = AuthErrors.UserNotFound.ToRpcException();
-            Log.GetProfileCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.GetProfileCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalid;
         }
@@ -281,12 +283,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.GetProfileCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.GetProfileCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.GetProfileCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.GetProfileCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return ToProfileResponse(result.Value);
     }
@@ -299,12 +301,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<ProfileResponse> UpdateProfile(UpdateProfileRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             var invalid = AuthErrors.UserNotFound.ToRpcException();
-            Log.UpdateProfileCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.UpdateProfileCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalid;
         }
@@ -315,12 +316,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         if (result.IsFailure)
         {
             var failure = result.ToRpcException();
-            Log.UpdateProfileCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.UpdateProfileCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.UpdateProfileCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.UpdateProfileCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return ToProfileResponse(result.Value);
     }
@@ -332,12 +333,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<Empty> ChangePassword(ProtoChangePasswordRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             var invalid = AuthErrors.UserNotFound.ToRpcException();
-            Log.ChangePasswordCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ChangePasswordCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalid;
         }
@@ -348,7 +348,7 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         if (!validationResult.IsValid)
         {
             var validationFailed = validationResult.ToValidationFailedException();
-            Log.ChangePasswordCalled(_logger, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ChangePasswordCalled(_logger, validationFailed.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw validationFailed;
         }
@@ -369,12 +369,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
                     new Dictionary<string, string[]> { [nameof(ApplicationChangePasswordRequest.CurrentPassword)] = [AuthErrors.InvalidCurrentPassword.Message] })
                 : result.ToRpcException();
 
-            Log.ChangePasswordCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ChangePasswordCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.ChangePasswordCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.ChangePasswordCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return new Empty();
     }
@@ -388,12 +388,11 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     public override async Task<Empty> DeleteAccount(DeleteAccountRequest request, ServerCallContext context)
     {
         var stopwatch = Stopwatch.StartNew();
-        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
 
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             var invalid = AuthErrors.UserNotFound.ToRpcException();
-            Log.DeleteAccountCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.DeleteAccountCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw invalid;
         }
@@ -412,12 +411,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
                     new Dictionary<string, string[]> { [nameof(request.Password)] = [AuthErrors.InvalidCurrentPassword.Message] })
                 : result.ToRpcException();
 
-            Log.DeleteAccountCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.DeleteAccountCalled(_logger, failure.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             throw failure;
         }
 
-        Log.DeleteAccountCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+        Log.DeleteAccountCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
         return new Empty();
     }
@@ -430,7 +429,7 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         CreatedAt = Timestamp.FromDateTime(DateTime.SpecifyKind(profile.CreatedAt, DateTimeKind.Utc)),
     };
 
-    private ValidateUserResponse RespondAndLog(string rawUserId, UserLookupResult? user, TimeSpan elapsed, string traceId)
+    private ValidateUserResponse RespondAndLog(string rawUserId, UserLookupResult? user, TimeSpan elapsed)
     {
         var response = user is null
             ? new ValidateUserResponse { Exists = false, Active = false, DisplayName = string.Empty }
@@ -438,15 +437,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
 
         // CA-10 — log estruturado sem dado sensível: userId, exists, active e
         // duração, nunca e-mail, hash de senha ou display_name na entrada de log.
-        // traceId (BE-27, CA-13): repassado pelo Tasks via metadata gRPC
-        // ("traceparent") para correlacionar os dois lados da chamada; vazio
-        // quando o chamador não o envia.
-        Log.ValidateUserCalled(_logger, rawUserId, response.Exists, response.Active, elapsed.TotalMilliseconds, traceId);
+        Log.ValidateUserCalled(_logger, rawUserId, response.Exists, response.Active, elapsed.TotalMilliseconds);
 
         return response;
     }
 
-    private LoginResponse RespondLoginAndLog(LoginResult? login, TimeSpan? retryAfter, TimeSpan elapsed, string traceId)
+    private LoginResponse RespondLoginAndLog(LoginResult? login, TimeSpan? retryAfter, TimeSpan elapsed)
     {
         var response = login is not null
             ? new LoginResponse
@@ -467,7 +463,14 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
 
         // CA-06 de BE-33/CA-14 de BE-12: nunca senha, hash ou token (access ou
         // refresh) no log — só userId (quando resolvido), succeeded, bloqueio e duração.
-        Log.LoginCalled(_logger, login is not null, retryAfter is not null, login?.UserId, elapsed.TotalMilliseconds, traceId);
+        if (retryAfter is not null)
+        {
+            Log.LoginLockedOut(_logger, elapsed.TotalMilliseconds);
+        }
+        else
+        {
+            Log.LoginCalled(_logger, login is not null, false, login?.UserId, elapsed.TotalMilliseconds);
+        }
 
         return response;
     }
@@ -476,61 +479,72 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     {
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "ValidateUser: userId={UserId}, exists={Exists}, active={Active}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ValidateUserCalled(ILogger logger, string userId, bool exists, bool active, double durationMs, string traceId);
+            Message = "ValidateUser: userId={UserId}, exists={Exists}, active={Active}, durationMs={DurationMs}")]
+        public static partial void ValidateUserCalled(ILogger logger, string userId, bool exists, bool active, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "Login: succeeded={Succeeded}, lockedOut={LockedOut}, userId={UserId}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void LoginCalled(ILogger logger, bool succeeded, bool lockedOut, Guid? userId, double durationMs, string traceId);
+            Message = "Login: succeeded={Succeeded}, lockedOut={LockedOut}, userId={UserId}, durationMs={DurationMs}")]
+        public static partial void LoginCalled(ILogger logger, bool succeeded, bool lockedOut, Guid? userId, double durationMs);
+
+        // BE-12/BE-24: bloqueio de login por tentativas é Warning (ADR 0002).
+        [LoggerMessage(
+            Level = LogLevel.Warning,
+            Message = "Login bloqueado por excesso de tentativas: durationMs={DurationMs}")]
+        public static partial void LoginLockedOut(ILogger logger, double durationMs);
+
+        [LoggerMessage(
+            Level = LogLevel.Warning,
+            Message = "RefreshSession recusado (token inválido, expirado ou reutilizado): durationMs={DurationMs}")]
+        public static partial void RefreshSessionRejected(ILogger logger, double durationMs);
 
         // BE-10/BE-11: nunca o valor de um refresh token no log.
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "RefreshSession: succeeded={Succeeded}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void RefreshSessionCalled(ILogger logger, bool succeeded, double durationMs, string traceId);
+            Message = "RefreshSession: succeeded={Succeeded}, durationMs={DurationMs}")]
+        public static partial void RefreshSessionCalled(ILogger logger, bool succeeded, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "Logout: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void LogoutCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "Logout: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void LogoutCalled(ILogger logger, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "LogoutAll: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void LogoutAllCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "LogoutAll: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void LogoutAllCalled(ILogger logger, StatusCode statusCode, double durationMs);
 
         // BE-11 CA-10: um usuário tentou encerrar a sessão de outro. Só o id de quem tentou.
         [LoggerMessage(
             Level = LogLevel.Warning,
-            Message = "Logout com refresh token de outro usuário ignorado: userId={UserId}, traceId={TraceId}")]
-        public static partial void LogoutWithForeignToken(ILogger logger, Guid userId, string traceId);
+            Message = "Logout com refresh token de outro usuário ignorado: userId={UserId}")]
+        public static partial void LogoutWithForeignToken(ILogger logger, Guid userId);
 
         // BE-07/14/15/16: nunca e-mail, senha, hash ou displayName no log —
         // só o status gRPC e a duração, mesmo padrão dos RPCs acima.
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "Register: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void RegisterCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "Register: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void RegisterCalled(ILogger logger, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "GetProfile: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void GetProfileCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "GetProfile: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void GetProfileCalled(ILogger logger, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "UpdateProfile: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void UpdateProfileCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "UpdateProfile: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void UpdateProfileCalled(ILogger logger, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "ChangePassword: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ChangePasswordCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "ChangePassword: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void ChangePasswordCalled(ILogger logger, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "DeleteAccount: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void DeleteAccountCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+            Message = "DeleteAccount: statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void DeleteAccountCalled(ILogger logger, StatusCode statusCode, double durationMs);
     }
 }

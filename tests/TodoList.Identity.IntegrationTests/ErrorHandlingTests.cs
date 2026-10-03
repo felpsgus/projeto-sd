@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,8 +8,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Serilog.Core;
+using Serilog.Events;
 using TodoList.Identity.Api.ErrorHandling;
+using TodoList.SharedKernel.Web;
 using Xunit;
 
 namespace TodoList.Identity.IntegrationTests;
@@ -45,8 +48,8 @@ public class ErrorHandlingTests
     [Fact] // CA-05, CA-06
     public async Task Endpoint_ComExcecaoNaoTratada_Retorna500GenericoENaoVazaDetalheForaDeDevelopment()
     {
-        var capturingProvider = new CapturingLoggerProvider();
-        using var host = await CreateHostAsync(environment: "Production", capturingProvider);
+        var sink = new EventSink();
+        using var host = await CreateHostAsync(environment: "Production", sink);
         var client = host.GetTestClient();
 
         var response = await client.GetAsync(new Uri("/test/boom", UriKind.Relative));
@@ -65,7 +68,8 @@ public class ErrorHandlingTests
         traceId.Should().NotBeNullOrWhiteSpace();
 
         // CA-06: o traceId da resposta corresponde ao da entrada de log da exceção.
-        capturingProvider.Messages.Should().Contain(message => message.Contains(traceId!, StringComparison.Ordinal));
+        sink.Events.Should().Contain(entry =>
+            entry.Exception is InvalidOperationException && entry.Properties["traceId"].ToString() == $"\"{traceId}\"");
     }
 
     [Fact] // CA-09 (metade Identity — a outra metade é TodoList.Tasks.IntegrationTests)
@@ -85,80 +89,39 @@ public class ErrorHandlingTests
         }
     }
 
-    private static async Task<IHost> CreateHostAsync(string environment = "Production", CapturingLoggerProvider? loggerProvider = null)
+    private static async Task<IHost> CreateHostAsync(string environment = "Production", ILogEventSink? sink = null)
     {
-        var hostBuilder = new HostBuilder()
-            .ConfigureWebHost(webHostBuilder =>
-            {
-                webHostBuilder
-                    .UseTestServer()
-                    .UseEnvironment(environment)
-                    .ConfigureServices(services =>
-                    {
-                        services.AddRouting();
-                        services.AddExceptionHandler<GlobalExceptionHandler>();
-                        services.AddProblemDetails(options => options.CustomizeProblemDetails =
-                            context => context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
+        // Mesma fiação de produção, incluindo o enricher de traceId do log estruturado.
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = environment });
+        builder.WebHost.UseTestServer();
+        builder.AddStructuredLogging("test");
+        builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+        builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails =
+            context => context.ProblemDetails.Extensions["traceId"] = context.HttpContext.GetTraceId());
 
-                        if (loggerProvider is not null)
-                        {
-                            services.AddLogging(logging => logging.AddProvider(loggerProvider));
-                        }
-                    })
-                    .Configure(app =>
-                    {
-                        app.UseExceptionHandler();
-                        app.UseRouting();
-                        app.UseEndpoints(endpoints =>
-                        {
+        if (sink is not null)
+        {
+            builder.Services.AddSingleton(sink);
+        }
 
-                            endpoints.MapGet("/test/not-found", () =>
-                                Microsoft.AspNetCore.Http.Results.Problem(detail: "Recurso de teste não encontrado.", statusCode: 404));
+        var app = builder.Build();
+        app.UseExceptionHandler();
+        app.MapGet("/test/not-found", () =>
+            Microsoft.AspNetCore.Http.Results.Problem(detail: "Recurso de teste não encontrado.", statusCode: 404));
 
-                            Func<Microsoft.AspNetCore.Http.IResult> boom = () =>
-                                throw new InvalidOperationException("detalhe interno que não pode vazar para o cliente");
-                            endpoints.MapGet("/test/boom", boom);
-                        });
-                    });
-            });
+        Func<Microsoft.AspNetCore.Http.IResult> boom = () =>
+            throw new InvalidOperationException("detalhe interno que não pode vazar para o cliente");
+        app.MapGet("/test/boom", boom);
 
-        var host = hostBuilder.Build();
-        await host.StartAsync();
+        await app.StartAsync();
 
-        return host;
+        return app;
     }
 
-    private sealed class CapturingLoggerProvider : ILoggerProvider
+    private sealed class EventSink : ILogEventSink
     {
-        private readonly List<string> _messages = [];
+        public ConcurrentQueue<LogEvent> Events { get; } = new();
 
-        public IReadOnlyList<string> Messages => _messages;
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(_messages);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger : ILogger
-        {
-            private readonly List<string> _messages;
-
-            public CapturingLogger(List<string> messages)
-            {
-                _messages = messages;
-            }
-
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            {
-                _messages.Add(formatter(state, exception));
-            }
-        }
+        public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
     }
 }
