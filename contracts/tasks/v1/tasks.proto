@@ -69,17 +69,24 @@ message CreateTaskRequest {
 // Prioridade de uma tarefa (RN-TASK-04). Valor 0 é o padrão do proto3 e significa
 // "não informado" (o servidor aplica Média); nunca aparece numa resposta.
 enum TaskPriority {
+  // Não informado; o servidor aplica Média (RN-TASK-04).
   TASK_PRIORITY_UNSPECIFIED = 0;
+  // Prioridade Baixa.
   TASK_PRIORITY_LOW = 1;
+  // Prioridade Média, o padrão.
   TASK_PRIORITY_MEDIUM = 2;
+  // Prioridade Alta.
   TASK_PRIORITY_HIGH = 3;
 }
 
 // Estado de uma tarefa (RN-TASK-06): nasce PENDING e alterna só por
 // CompleteTask/ReopenTask. O valor 0 é só o padrão do proto3.
 enum TaskStatus {
+  // Valor padrão do proto3; nunca aparece numa resposta.
   TASK_STATUS_UNSPECIFIED = 0;
+  // Pendente: estado inicial (RN-TASK-07) e o de uma tarefa reaberta (RN-TASK-09).
   TASK_STATUS_PENDING = 1;
+  // Concluída (RN-TASK-08); tem `completed_at`.
   TASK_STATUS_COMPLETED = 2;
 }
 
@@ -166,9 +173,13 @@ message ListTasksRequest {
 // TaskStatus (o estado real de uma tarefa nunca é "ALL") — este é só o
 // vocabulário de filtro, com um terceiro valor que significa "não filtrar".
 enum TaskStatusFilter {
+  // Não informado: não filtra por estado, igual a ALL (RN-LIST-02).
   TASK_STATUS_FILTER_UNSPECIFIED = 0;
+  // Só as tarefas Pendentes.
   TASK_STATUS_FILTER_PENDING = 1;
+  // Só as tarefas Concluídas.
   TASK_STATUS_FILTER_COMPLETED = 2;
+  // Pendentes e Concluídas, sem filtro de estado.
   TASK_STATUS_FILTER_ALL = 3;
 }
 

@@ -12,9 +12,9 @@ import "google/protobuf/timestamp.proto";
 // serviços falam com o Identity (D-29). Alterar este arquivo e recompilar
 // propaga a mudança para todos os lados em um único build (CA-07 de BE-25).
 service IdentityService {
-  // Valida o dono antes de criar a tarefa (RN-AUTZ-01, RN-USER-04): o
-  // Tasks pergunta se o `owner_id` recebido existe e está ativo antes de
-  // persistir a tarefa.
+  // Valida o dono antes de criar a tarefa (RN-AUTZ-01): o Tasks pergunta se
+  // o `owner_id` recebido ainda existe (o usuário pode ter sido excluído)
+  // antes de persistir a tarefa.
   rpc ValidateUser (ValidateUserRequest) returns (ValidateUserResponse);
 
   // Login (RN-AUTH-08/10): troca e-mail + senha por um access token e por um
@@ -26,7 +26,7 @@ service IdentityService {
   // Renovação de sessão (BE-10, RN-AUTH-14/16/17/18): troca um refresh token
   // válido por um novo par de tokens, na mesma sessão. O refresh token só
   // serve uma vez; reapresentar um já usado revoga a sessão inteira. Toda
-  // falha (inexistente, expirado, revogado, reuso, usuário inativo) é
+  // falha (inexistente, expirado, revogado, reuso, usuário excluído) é
   // `succeeded=false`, indistinguível — nunca status gRPC de erro por causa do
   // token, só por falha de infraestrutura.
   rpc RefreshSession (RefreshSessionRequest) returns (RefreshSessionResponse);
@@ -109,8 +109,8 @@ message LoginRequest {
 }
 
 message LoginResponse {
-  // Falso para e-mail inexistente, senha errada ou usuário inativo —
-  // as três causas são indistinguíveis (RN-AUTH-09). Nunca status de
+  // Falso para e-mail inexistente ou senha errada — as duas causas são
+  // indistinguíveis (RN-AUTH-09). Nunca status de
   // erro gRPC para credencial inválida, só para falha de infraestrutura.
   bool succeeded = 1;
   // Access token JWT, presente só quando succeeded=true.
@@ -185,6 +185,7 @@ message RegisterResponse {
   string id = 1;
   // E-mail já normalizado.
   string email = 2;
+  // Nome de exibição efetivo, já com o padrão aplicado (RN-AUTH-07).
   string display_name = 3;
   // Nunca contém senha nem hash (RN-AUTH-05) — a mensagem nem tem esse campo.
   google.protobuf.Timestamp created_at = 4;
@@ -197,6 +198,7 @@ message GetProfileRequest {
 }
 
 message UpdateProfileRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
   string user_id = 1;
   // Obrigatório; 1–100 caracteres após trim, não pode ser só espaços
   // (RN-USER-02) — validado por `User.Rename`.
@@ -204,20 +206,28 @@ message UpdateProfileRequest {
 }
 
 message ProfileResponse {
+  // Id do usuário (RN-USER-01).
   string id = 1;
+  // E-mail do usuário; imutável depois do cadastro (RN-USER-03).
   string email = 2;
+  // Nome de exibição atual do usuário (RN-USER-02).
   string display_name = 3;
+  // Data/hora do cadastro do usuário.
   google.protobuf.Timestamp created_at = 4;
 }
 
 message ChangePasswordRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
   string user_id = 1;
-  // Nunca em log (RN-AUTH-05, mesma regra de LoginRequest.password).
+  // Senha atual, exigida para autorizar a troca. Nunca em log (RN-AUTH-05,
+  // mesma regra de LoginRequest.password).
   string current_password = 2;
+  // Nova senha, sujeita à política de senha (RN-AUTH-04). Nunca em log.
   string new_password = 3;
 }
 
 message DeleteAccountRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
   string user_id = 1;
   // Confirmação de senha (D-19) — mesma proteção da troca de senha.
   string password = 2;

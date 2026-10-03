@@ -84,7 +84,7 @@ Existe um contrato Protocol Buffers versionado no repositório, único e compart
 - [x] **CA-03** — Os tipos gerados ficam no namespace `TodoList.Contracts.Identity.V1`.
 - [x] **CA-04** — `TodoList.Identity.Api` gera **apenas** o lado servidor; `TodoList.Tasks.Infrastructure` gera **apenas** o lado cliente (verificável pelos tipos disponíveis em cada assembly).
 - [ ] **CA-05** — O serviço declara exatamente dois RPCs: `ValidateUser` e `ValidateToken`. Nenhum a mais.
-- [ ] **CA-06** — Cada RPC e cada campo tem comentário no `.proto`.
+- [x] **CA-06** — Cada RPC e cada campo tem comentário no `.proto`. *(Atendido em 03/10/2026, issue #4; garantido por `ArchitectureTests.ContratosProto_TodoRpcECampoTemComentario`.)*
 - [ ] **CA-07** — Alterar o `.proto` e recompilar propaga a mudança para os dois serviços em um único build — comprovado adicionando temporariamente um campo e vendo-o aparecer dos dois lados.
 - [x] **CA-08** — Nenhum projeto de `Domain` ou `Application` referencia o `.proto` nem os tipos gerados (teste de arquitetura). O código gerado é assunto da borda.
 

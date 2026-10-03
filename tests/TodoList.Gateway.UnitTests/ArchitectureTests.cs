@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using FluentAssertions;
 using TodoList.Gateway.Api.Backends;
@@ -69,7 +70,38 @@ public class ArchitectureTests
             "o Gateway (D-33) não deve ter nenhuma ProjectReference a outro projeto TodoList.*");
     }
 
-    private static string FindGatewayCsproj()
+    [Fact] // BE-25 CA-06 / BE-32 CA-07
+    public void ContratosProto_TodoRpcECampoTemComentario()
+    {
+        var declaration = new Regex(@"^\s*(rpc\s|((optional|repeated)\s+)?([\w.]+\s+)?\w+\s*=\s*\d+\s*;)");
+        var uncommented = new List<string>();
+
+        foreach (var proto in new[] { "identity/v1/identity.proto", "tasks/v1/tasks.proto" })
+        {
+            var lines = File.ReadAllLines(Path.Combine(FindRepoRoot(), "contracts", proto));
+
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!declaration.IsMatch(lines[i]) || lines[i].Contains("//", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var previous = lines.Take(i).LastOrDefault(line => line.Trim().Length > 0) ?? "";
+                if (!previous.TrimStart().StartsWith("//", StringComparison.Ordinal))
+                {
+                    uncommented.Add($"{proto}:{i + 1}: {lines[i].Trim()}");
+                }
+            }
+        }
+
+        string.Join("\n", uncommented).Should().BeEmpty("o .proto é o contrato entre os serviços: todo rpc e campo precisa de comentário");
+    }
+
+    private static string FindGatewayCsproj() =>
+        Path.Combine(FindRepoRoot(), "src", "Gateway", "TodoList.Gateway.Api", "TodoList.Gateway.Api.csproj");
+
+    private static string FindRepoRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
@@ -83,6 +115,6 @@ public class ArchitectureTests
             throw new InvalidOperationException("Não foi possível localizar a raiz do repositório (TodoList.sln).");
         }
 
-        return Path.Combine(directory.FullName, "src", "Gateway", "TodoList.Gateway.Api", "TodoList.Gateway.Api.csproj");
+        return directory.FullName;
     }
 }

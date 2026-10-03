@@ -166,7 +166,7 @@ Os contratos Protocol Buffers do T2 existem e compilam: `identity.proto` ganha `
 - [x] **CA-04** — Nenhum número de campo de `ValidateUserRequest`, `ValidateUserResponse`, `ValidateTokenRequest` ou `ValidateTokenResponse` foi alterado em relação a BE-25.
 - [x] **CA-05** — Nenhuma mensagem de `tasks.proto` tem campo de dono/`owner_id`/`user_id` do lado do request de criação.
 - [x] **CA-06** — Nenhum dado sensível (senha em texto puro fora de `LoginRequest.password`, hash de senha) aparece em `LoginResponse` ou em `TaskReply`.
-- [ ] **CA-07** — Cada RPC e cada campo dos dois arquivos tem comentário explicando o significado de negócio e, quando aplicável, a RN de origem.
+- [x] **CA-07** — Cada RPC e cada campo dos dois arquivos tem comentário explicando o significado de negócio e, quando aplicável, a RN de origem. *(Atendido em 03/10/2026, issue #4; garantido por `ArchitectureTests.ContratosProto_TodoRpcECampoTemComentario`.)*
 - [x] **CA-08** — `TodoList.Gateway.Api` não referencia nenhum projeto `TodoList.Identity.*` nem `TodoList.Tasks.*` — só os dois `.proto` (D-33), verificado por teste de arquitetura ou inspeção do `.csproj`.
 - [x] **CA-09** — `TaskReply` tem um campo correspondente a cada propriedade pública de `TaskResponse` (`Id`, `Title`, `Description`, `Priority`, `Status`, `DueDate`, `CompletedAt`, `IsOverdue`, `CreatedAt`, `UpdatedAt`).
 
