@@ -77,17 +77,17 @@ Na VM, uma única origem pública (porta 80) serve o Angular compilado e repassa
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Uma rota profunda do SPA (ex.: `http://<IP>/tasks`) recarregada diretamente no navegador (F5) devolve o `index.html` do Angular, não um 404 do nginx.
+- [x] **CA-01** — Uma rota profunda do SPA (ex.: `http://<IP>/tasks`) recarregada diretamente no navegador (F5) devolve o `index.html` do Angular, não um 404 do nginx.
 - [ ] **CA-02** — `GET http://<IP>/api/tasks` (com token válido) chega ao Gateway e responde como se chamado diretamente — o `traceparent` de entrada é o **mesmo** que aparece no log do Gateway para essa requisição.
 - [ ] **CA-03** — As portas **8080, 5080, 5081, 5100, 5101** não respondem a partir de **fora** da VM — verificado por `curl --max-time 3` contra o IP externo em cada uma, recusa de conexão ou timeout em todas (substitui e amplia a verificação equivalente de BE-37 CA-03, que cobria só 5080/5081/5100/5101; agora 8080 entra na lista de portas fechadas).
 - [ ] **CA-04** — A porta **80** responde a partir de fora da VM, servindo o `index.html` do Angular.
-- [ ] **CA-05** — O navegador, ao usar a aplicação (DevTools → Network), nunca faz um preflight `OPTIONS` de CORS — todas as chamadas de `/api/*` são vistas como mesma origem.
+- [x] **CA-05** — O navegador, ao usar a aplicação (DevTools → Network), nunca faz um preflight `OPTIONS` de CORS — todas as chamadas de `/api/*` são vistas como mesma origem.
 - [ ] **CA-06** — `nginx -t` valida a configuração sem erro antes de qualquer `reload`/`restart` do `install-on-vm.sh`.
-- [ ] **CA-07** — Recarregar `index.html` sempre busca a versão mais nova do servidor (header `Cache-Control: no-cache` presente na resposta), enquanto um asset com hash no nome vem com `Cache-Control` indicando cacheável de forma imutável.
+- [x] **CA-07** — Recarregar `index.html` sempre busca a versão mais nova do servidor (header `Cache-Control: no-cache` presente na resposta), enquanto um asset com hash no nome vem com `Cache-Control` indicando cacheável de forma imutável.
 - [ ] **CA-08** — Os headers de segurança (`X-Content-Type-Options`, `Referrer-Policy`, CSP) estão presentes na resposta do `index.html`, e a aplicação Angular carrega e funciona sob essa CSP (nenhum recurso bloqueado no console do navegador).
-- [ ] **CA-09** — `frontend/Dockerfile` builda a imagem com sucesso a partir da raiz do repositório (mesmo padrão de comando documentado dos outros três Dockerfiles, BE-38).
-- [ ] **CA-10** — Trocar `GATEWAY_UPSTREAM` no container (variável de ambiente) muda o destino do proxy sem rebuild de imagem — verificado subindo o container duas vezes com valores diferentes.
-- [ ] **CA-11** — `docker inspect` confirma que o container do `frontend/Dockerfile` não roda como root.
+- [x] **CA-09** — `frontend/Dockerfile` builda a imagem com sucesso a partir da raiz do repositório (mesmo padrão de comando documentado dos outros três Dockerfiles, BE-38).
+- [x] **CA-10** — Trocar `GATEWAY_UPSTREAM` no container (variável de ambiente) muda o destino do proxy sem rebuild de imagem — verificado subindo o container duas vezes com valores diferentes.
+- [x] **CA-11** — `docker inspect` confirma que o container do `frontend/Dockerfile` não roda como root.
 
 ## Testes obrigatórios
 
@@ -99,3 +99,21 @@ Na VM, uma única origem pública (porta 80) serve o Angular compilado e repassa
 
 - **D-40** — O nginx é servidor estático com proxy de `/api`, implementando FD-16 (mesma origem) com processos separados; não é um segundo gateway. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **Pendência de T3** — Se o Gateway continua público (`--allow-unauthenticated`) no Cloud Run, ou passa a aceitar tráfego só do serviço de frontend, fica para quando o T3 começar.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 6 de 11. Não há teste automatizado do próprio nginx; o que foi marcado se apoia na configuração (`frontend/nginx.conf.template`, `frontend/Dockerfile`, `docker-compose.yml`) e, quando citado, na suíte Playwright (`frontend/e2e`, `baseURL` padrão `http://localhost`, ou seja, atravessa o nginx). A stack do compose estava parada na auditoria.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 | atendido (por configuração + e2e) | `location / { try_files $uri $uri/ /index.html; }` em `nginx.conf.template`; `e2e/a11y.spec.ts` abre rotas profundas (`/account/password`, `/tasks/<id>/edit`) direto pelo nginx. Sem teste dedicado de F5. |
+| CA-02 | em aberto | O template não sobrescreve `traceparent` (o nginx o repassa por padrão) e o README de deploy afirma correlação em campo, mas nenhum teste automatizado prova que o `traceparent` de entrada é o do log do Gateway através do nginx. |
+| CA-03 | em aberto (não verificável) | Portas 8080/5080/5081/5100/5101 fechadas para fora: depende do firewall/IP externo da VM. Por configuração, `docker-compose.yml` e `deploy/docker-compose.prod.yml` não publicam `ports:` do gateway/identity/tasks. |
+| CA-04 | em aberto (não verificável) | Porta 80 respondendo de fora da VM; `deploy/README.md` seção 13 registra verificação de campo em 30/09, sem prova aqui. |
+| CA-05 | atendido por desenho | Chamadas relativas (`apiBaseUrl` vazio, FD-16) e nenhum CORS configurado no Gateway; mesma origem não gera preflight. Não há asserção de ausência de `OPTIONS` nos e2e. |
+| CA-06 | em aberto (superado) | `install-on-vm.sh` não existe mais; o nginx roda em container (`nginxinc/nginx-unprivileged`) e não há passo `nginx -t` antes de reload. Uma configuração inválida derruba o container ao subir, em vez de ser validada antes. |
+| CA-07 | atendido | `location = /index.html` com `Cache-Control: no-cache`; assets com hash com `public, max-age=31536000, immutable` em `nginx.conf.template`. |
+| CA-08 | em aberto (parcial) | Headers `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e CSP estão em `/index.html` e nos assets (`nginx.conf.template`). Falta evidência de que a aplicação roda sem violação de CSP no console: nenhum e2e escuta `securitypolicyviolation`. |
+| CA-09 | atendido | `frontend/Dockerfile` (multi-stage node, nginx-unprivileged); imagem `todolist-frontend:latest` (83 MB) construída e publicada no registry local. O comando de build do frontend não aparece no `README.md` como o dos outros três. |
+| CA-10 | atendido (por configuração) | `NGINX_ENVSUBST_FILTER` e `set $api_upstream "http://${GATEWAY_UPSTREAM}"` no template; valor vindo do ambiente em `docker-compose.yml` e `deploy/docker-compose.prod.yml`. A verificação com dois valores diferentes não foi reexecutada. |
+| CA-11 | atendido | `docker inspect todolist-frontend:latest` mostra `User=101` (não-root). |

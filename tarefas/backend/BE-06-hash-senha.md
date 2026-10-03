@@ -44,18 +44,27 @@ Senha nunca existe em texto puro fora do momento da requisição: há um serviç
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `Hash("senha")` chamado duas vezes produz **hashes diferentes** (salt por senha).
-- [ ] **CA-02** — `Verify(senhaCorreta, hash)` é `true`; `Verify(senhaErrada, hash)` é `false`.
-- [ ] **CA-03** — `Verify` com hash malformado retorna `false` **sem lançar exceção**.
-- [ ] **CA-04** — O hash produzido não contém a senha em nenhuma forma recuperável (não é Base64/hex da senha, não é hash rápido sem salt).
-- [ ] **CA-05** — Mudar o parâmetro de custo na configuração **não invalida** hashes já gerados: `Verify` continua aceitando senhas antigas.
-- [ ] **CA-06** — A política aceita: `"abc12345"`, `"Senha123"`. Rejeita: `"abc1234"` (7 caracteres), `"abcdefgh"` (sem número), `"12345678"` (sem letra), `""` e `null`.
-- [ ] **CA-07** — Uma senha que viola duas regras retorna **duas** mensagens, não uma.
+- [x] **CA-01** — `Hash("senha")` chamado duas vezes produz **hashes diferentes** (salt por senha).
+- [x] **CA-02** — `Verify(senhaCorreta, hash)` é `true`; `Verify(senhaErrada, hash)` é `false`.
+- [x] **CA-03** — `Verify` com hash malformado retorna `false` **sem lançar exceção**.
+- [x] **CA-04** — O hash produzido não contém a senha em nenhuma forma recuperável (não é Base64/hex da senha, não é hash rápido sem salt).
+- [x] **CA-05** — Mudar o parâmetro de custo na configuração **não invalida** hashes já gerados: `Verify` continua aceitando senhas antigas.
+- [x] **CA-06** — A política aceita: `"abc12345"`, `"Senha123"`. Rejeita: `"abc1234"` (7 caracteres), `"abcdefgh"` (sem número), `"12345678"` (sem letra), `""` e `null`.
+- [x] **CA-07** — Uma senha que viola duas regras retorna **duas** mensagens, não uma.
 - [ ] **CA-08** — Nenhum tipo do fluxo de senha expõe a senha em `ToString()` (verificado por teste).
-- [ ] **CA-09** — Uma busca no repositório por logs/serialização confirma que nem a senha nem o hash aparecem em saída de log em nenhum nível, inclusive `Debug`.
+- [x] **CA-09** — Uma busca no repositório por logs/serialização confirma que nem a senha nem o hash aparecem em saída de log em nenhum nível, inclusive `Debug`.
 - [ ] **CA-10** — O tempo de `Hash` com os parâmetros de produção está na faixa alvo (medido e documentado no PR; não é assert de teste, para não ficar flaky).
 
 ## Testes obrigatórios
 
 - Unidade: CA-01 a CA-08 (parametrizados para a política).
 - Os testes usam parâmetros de custo reduzidos, configurados — nunca um `IPasswordHasher` fake que não faz hash.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 8 de 10.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-08 | em aberto (parcial) | Só `PasswordHashingOptions` e `AccessToken` têm `ToString()` testado. Os `record` `RegisterUserRequest`, `ChangePasswordRequest`, `LoginHttpRequest`, `RegisterHttpRequest`, `ChangePasswordHttpRequest` e `DeleteAccountHttpRequest` usam o `ToString()` gerado, que imprime `Password`. Nada loga esses objetos (`LogLeakageTests`), mas o critério pede que nenhum tipo do fluxo exponha a senha. |
+| CA-10 | em aberto | Medição do tempo de `Hash` "documentada no PR": não há registro dela no repositório. Não é verificável por código. |

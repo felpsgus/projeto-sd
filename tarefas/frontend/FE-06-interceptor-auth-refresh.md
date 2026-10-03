@@ -91,3 +91,11 @@ O usuário nunca é interrompido pela expiração do access token: as requisiç�
 
 - **FD-13** — Renovação proativa + reativa. Padrão adotado: ambas.
 - **FD-01**, **FD-16** — ✅ decididas: refresh por cookie `HttpOnly`, mesma origem, `withCredentials`.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 20 de 21.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-12 | em aberto (superado pelo desenho) | O backend não distingue refresh expirado, revogado ou reusado (comentário em `session-refresher.ts`); toda recusa vira `session_expired` ("Sua sessão expirou."), nunca "sua sessão foi encerrada". `session_revoked` só existe no modelo e na mensagem do login, sem produtor no fluxo de refresh. |

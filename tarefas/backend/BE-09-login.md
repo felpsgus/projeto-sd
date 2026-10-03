@@ -65,14 +65,14 @@ Um usuário ativo troca e-mail + senha por um par de tokens (access + refresh) e
 - [x] **CA-01b** — O corpo da resposta **não contém** o refresh token em nenhum campo (**D-20**, RN-AUTH-20).
 - [x] **CA-01c** — O cookie vem com `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/api/auth` — os quatro atributos verificados no cabeçalho `Set-Cookie`.
 - [x] **CA-01d** — O `Max-Age`/`Expires` do cookie corresponde a `Jwt:RefreshTokenDays`.
-- [ ] **CA-02** — O `accessToken` retornado é aceito por um endpoint protegido.
+- [x] **CA-02** — O `accessToken` retornado é aceito por um endpoint protegido.
 - [x] **CA-03** — O login funciona com o e-mail em qualquer combinação de maiúsculas/minúsculas.
 - [x] **CA-04** — Senha incorreta retorna **401** com código `auth.invalid_credentials`.
 - [x] **CA-05** — E-mail inexistente retorna **401** com **corpo byte a byte idêntico** ao de CA-04.
 - [x] **CA-06** — Usuário inativo, com senha **correta**, retorna **401** com o mesmo corpo de CA-04 e CA-05 — nunca 403, nunca mensagem sobre conta desativada (RN-USER-04 + RN-AUTH-09).
 - [x] **CA-07** — A resposta de erro **não** revela se o e-mail existe, em nenhum campo (`detail`, `title`, `type`, cabeçalho).
 - [x] **CA-08** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — verificado por teste comparando medianas de N execuções com tolerância larga, ou por asserção de que o caminho de hash dummy foi invocado.
-- [ ] **CA-09** — A resposta **não** contém hash de senha nem qualquer campo além do contrato acima.
+- [x] **CA-09** — A resposta **não** contém hash de senha nem qualquer campo além do contrato acima.
 - [x] **CA-10** — Cada login cria uma **nova** sessão/refresh token; dois logins do mesmo usuário produzem refresh tokens diferentes e **ambos válidos** (D-15, múltiplas sessões).
 - [x] **CA-10b** — Respostas de **falha** (401, 429) **não** emitem `Set-Cookie` — só o login bem-sucedido cria sessão.
 - [x] **CA-11** — Requisição com `email` ou `password` ausentes retorna **400** (validação), distinguível do 401.
@@ -93,3 +93,7 @@ Um usuário ativo troca e-mail + senha por um par de tokens (access + refresh) e
 - **Corpo da resposta** continua `{ "accessToken", "expiresAt" }` (compatível com o frontend do T2). O objeto `user` do contrato original **não** foi implementado — o perfil sai de `GET /api/me`. Por isso **CA-09** (que cita "o contrato acima") e **CA-02** (sem teste automatizado ponta a ponta contra o Identity real; coberto pelo `smoke.sh`) seguem abertos.
 - **Fora desta onda:** bloqueio por tentativas (BE-12); CA-10b cobre só o 401 — o 429 não existe ainda.
 - Evidência: `SessionEndpointsTests` (Gateway), `LoginHandlerTests` e `IdentityGrpcServiceTests` (Identity).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 17 de 17.

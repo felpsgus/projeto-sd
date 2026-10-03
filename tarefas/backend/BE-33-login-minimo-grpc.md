@@ -49,18 +49,18 @@ Um usuário ativo troca e-mail e senha, via RPC `Login`, por um access token vá
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Login com e-mail e senha corretos, usuário ativo, `Provider=Persisted` → `succeeded=true`, `access_token` preenchido e válido (aceito pela mesma validação de BE-08), `expires_at` e `user_id` corretos.
-- [ ] **CA-02** — Senha incorreta → `succeeded=false`, sem `access_token`.
-- [ ] **CA-03** — E-mail inexistente → resposta **idêntica** (mesmos campos, mesmos valores) à de CA-02.
-- [ ] **CA-04** — Usuário inativo, senha correta → resposta **idêntica** à de CA-02 e CA-03 (RN-USER-04 + RN-AUTH-09).
-- [ ] **CA-05** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — mesmo critério de BE-09 CA-08.
-- [ ] **CA-06** — Nenhum log produzido pelo `Login` contém e-mail, senha, hash de senha ou o token emitido — só `userId` (quando resolvido), `succeeded` e `traceId`.
+- [x] **CA-01** — Login com e-mail e senha corretos, usuário ativo, `Provider=Persisted` → `succeeded=true`, `access_token` preenchido e válido (aceito pela mesma validação de BE-08), `expires_at` e `user_id` corretos.
+- [x] **CA-02** — Senha incorreta → `succeeded=false`, sem `access_token`.
+- [x] **CA-03** — E-mail inexistente → resposta **idêntica** (mesmos campos, mesmos valores) à de CA-02.
+- [x] **CA-04** — Usuário inativo, senha correta → resposta **idêntica** à de CA-02 e CA-03 (RN-USER-04 + RN-AUTH-09).
+- [x] **CA-05** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — mesmo critério de BE-09 CA-08.
+- [x] **CA-06** — Nenhum log produzido pelo `Login` contém e-mail, senha, hash de senha ou o token emitido — só `userId` (quando resolvido), `succeeded` e `traceId`.
 - [ ] **CA-07** — Com `UserStore:SeedDemoUsers=true` e `UserStore:DemoUserPassword` ausente, a inicialização do Identity **falha** com mensagem indicando a configuração faltante.
 - [ ] **CA-08** — Com `UserStore:SeedDemoUsers=true` e `DemoUserPassword` presente, os dois usuários de demonstração autenticam com essa senha via `Login` (CA-01).
 - [ ] **CA-09** — Rodar o seed sobre um banco que já tem os dois usuários com o hash placeholder do T1 regrava o hash de ambos para um hash real — verificado consultando o banco antes/depois. Rodar o seed de novo, com a mesma senha, **não** escreve nada (idempotência); com outra `DemoUserPassword`, regrava.
-- [ ] **CA-10** — Nenhuma referência a `PlaceholderPasswordHash` sobra no código após esta task.
-- [ ] **CA-11** — Com `UserStore:Provider=InMemory`, `Login` responde `succeeded=false` para qualquer entrada (inclusive credenciais que seriam válidas em `Persisted`) e o aviso de que o modo não suporta autenticação é emitido **uma única vez, na inicialização** — não a cada chamada. Limitação registrada no README.
-- [ ] **CA-12** — `Login` nunca lança exceção nem devolve status gRPC diferente de `OK` por causa do conteúdo do request — inclusive e-mail vazio, malformado ou senha vazia, que resultam em `succeeded=false` como qualquer credencial inválida; erro de infraestrutura (ex.: banco indisponível) é o único caminho que pode propagar como falha de RPC.
+- [x] **CA-10** — Nenhuma referência a `PlaceholderPasswordHash` sobra no código após esta task.
+- [x] **CA-11** — Com `UserStore:Provider=InMemory`, `Login` responde `succeeded=false` para qualquer entrada (inclusive credenciais que seriam válidas em `Persisted`) e o aviso de que o modo não suporta autenticação é emitido **uma única vez, na inicialização** — não a cada chamada. Limitação registrada no README.
+- [x] **CA-12** — `Login` nunca lança exceção nem devolve status gRPC diferente de `OK` por causa do conteúdo do request — inclusive e-mail vazio, malformado ou senha vazia, que resultam em `succeeded=false` como qualquer credencial inválida; erro de infraestrutura (ex.: banco indisponível) é o único caminho que pode propagar como falha de RPC.
 
 ## Testes obrigatórios
 
@@ -73,3 +73,17 @@ Um usuário ativo troca e-mail e senha, via RPC `Login`, por um access token vá
 ## Decisões em aberto
 
 - **D-36** — Recorte do T2 para BE-09: só access token via gRPC, Gateway como borda REST. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 9 de 12.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-07 | superado por Onda E / D-39 | `UserStore:SeedDemoUsers` e `DemoUserPassword` foram removidos junto com o `DemoUserSeeder` (cadastro real, BE-07); não há mais configuração a validar. Ver nota em `src/Identity/TodoList.Identity.Api/Configuration/UserStoreOptions.cs` e `tarefas/PLANO-REGRAS-RESTANTES.md` (Fase 3). |
+| CA-08 | superado por Onda E / D-39 | Não existem mais usuários de demonstração; o login de usuários reais é coberto por `LoginGrpcTests` e `RegisterGrpcTests`. |
+| CA-09 | superado por Onda E / D-39 | Seed removido, sem hash placeholder a regravar nem idempotência de seed. |
+| CA-10 | atendido (verificado) | Nenhuma ocorrência de `PlaceholderPasswordHash` em `src/`, `tests/`, `deploy/` ou `docker-compose.yml`. |
+| CA-11 | atendido | Aviso único na inicialização em `Identity.Api/Program.cs` (`StartupLog.LoginNotSupportedWithInMemoryProvider`); `IdentityGrpcServiceTests.Login_ProviderInMemory_RetornaSucceededFalseSemConsultarRepositorio`; limitação documentada no `README.md`. |
+
+Nota: o `Login` evoluiu na Fase 4 (BE-10/BE-12: refresh token e bloqueio por tentativas); os CA-01 a CA-06 continuam cobertos por `LoginHandlerTests` e `IdentityGrpcServiceTests`.

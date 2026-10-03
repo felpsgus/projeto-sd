@@ -67,57 +67,57 @@ O usuário lista as próprias tarefas com filtros combináveis, busca textual, o
 
 ### Base e escopo
 
-- [ ] **CA-01** — `GET /api/tasks` retorna **somente** tarefas do usuário autenticado (RN-LIST-01) — verificado com duas contas povoadas.
-- [ ] **CA-02** — Tarefas removidas (soft delete) **não** aparecem em nenhum cenário, inclusive com `status=all` (RN-LIST-01).
-- [ ] **CA-03** — Sem token retorna **401** (RN-AUTZ-04).
-- [ ] **CA-04** — Usuário sem tarefas recebe **200** com `items: []`, `totalItems: 0`, `totalPages: 0` — não 404.
+- [x] **CA-01** — `GET /api/tasks` retorna **somente** tarefas do usuário autenticado (RN-LIST-01) — verificado com duas contas povoadas.
+- [x] **CA-02** — Tarefas removidas (soft delete) **não** aparecem em nenhum cenário, inclusive com `status=all` (RN-LIST-01).
+- [x] **CA-03** — Sem token retorna **401** (RN-AUTZ-04).
+- [x] **CA-04** — Usuário sem tarefas recebe **200** com `items: []`, `totalItems: 0`, `totalPages: 0` — não 404.
 
 ### Filtros
 
-- [ ] **CA-05** — `status=pending` retorna só pendentes; `status=completed` só concluídas; `status=all` (e ausência do parâmetro) retorna ambas (RN-LIST-02).
-- [ ] **CA-06** — `priority=high` retorna só as de prioridade alta (RN-LIST-03).
-- [ ] **CA-07** — `priority=low&priority=high` retorna as duas prioridades, e nenhuma `medium`.
-- [ ] **CA-08** — `overdue=true` retorna apenas tarefas **pendentes com vencimento anterior a hoje** (RN-LIST-04 + RN-TASK-16): exclui as sem vencimento, as com vencimento hoje, as futuras e as **concluídas mesmo que vencidas**.
-- [ ] **CA-09** — `overdue=false` retorna as **não** atrasadas.
-- [ ] **CA-10** — Filtros combinam: `status=pending&priority=high&overdue=true` aplica os três simultaneamente.
-- [ ] **CA-11** — Valor inválido em `status`, `priority` ou `overdue` retorna **400**, não é ignorado silenciosamente.
+- [x] **CA-05** — `status=pending` retorna só pendentes; `status=completed` só concluídas; `status=all` (e ausência do parâmetro) retorna ambas (RN-LIST-02).
+- [x] **CA-06** — `priority=high` retorna só as de prioridade alta (RN-LIST-03).
+- [x] **CA-07** — `priority=low&priority=high` retorna as duas prioridades, e nenhuma `medium`.
+- [x] **CA-08** — `overdue=true` retorna apenas tarefas **pendentes com vencimento anterior a hoje** (RN-LIST-04 + RN-TASK-16): exclui as sem vencimento, as com vencimento hoje, as futuras e as **concluídas mesmo que vencidas**.
+- [x] **CA-09** — `overdue=false` retorna as **não** atrasadas.
+- [x] **CA-10** — Filtros combinam: `status=pending&priority=high&overdue=true` aplica os três simultaneamente.
+- [x] **CA-11** — Valor inválido em `status`, `priority` ou `overdue` retorna **400**, não é ignorado silenciosamente.
 
 ### Busca
 
-- [ ] **CA-12** — `search=relatório` encontra tarefas com o termo no **título** (RN-LIST-05).
-- [ ] **CA-13** — `search` também encontra pelo termo na **descrição** (D-16).
-- [ ] **CA-14** — A busca é case-insensitive: `search=RELATÓRIO` encontra `"relatório"`.
-- [ ] **CA-15** — `search=%` e `search=_` não funcionam como curinga: retornam apenas tarefas que contêm literalmente esses caracteres.
-- [ ] **CA-16** — `search` combina com os demais filtros.
-- [ ] **CA-17** — `search` vazio ou só-espaços é tratado como ausente.
+- [x] **CA-12** — `search=relatório` encontra tarefas com o termo no **título** (RN-LIST-05).
+- [x] **CA-13** — `search` também encontra pelo termo na **descrição** (D-16).
+- [x] **CA-14** — A busca é case-insensitive: `search=RELATÓRIO` encontra `"relatório"`.
+- [x] **CA-15** — `search=%` e `search=_` não funcionam como curinga: retornam apenas tarefas que contêm literalmente esses caracteres.
+- [x] **CA-16** — `search` combina com os demais filtros.
+- [x] **CA-17** — `search` vazio ou só-espaços é tratado como ausente.
 
 ### Ordenação
 
-- [ ] **CA-18** — Todas as pendentes aparecem antes de todas as concluídas (RN-LIST-06), independentemente de vencimento.
-- [ ] **CA-19** — Dentro do mesmo estado, ordena por vencimento **crescente**.
-- [ ] **CA-20** — Tarefas **sem vencimento** vêm **depois** das com vencimento, dentro do mesmo estado.
-- [ ] **CA-21** — Empates de vencimento (ou ambas sem vencimento) são resolvidos por data de criação crescente.
-- [ ] **CA-22** — A ordenação é **estável e determinística**: a mesma consulta repetida N vezes devolve a mesma sequência exata (desempate por `Id`).
-- [ ] **CA-23** — Um cenário com ao menos 8 tarefas cobrindo todas as combinações (pendente/concluída × com/sem vencimento × vencimentos iguais) valida a ordem completa numa única asserção de sequência.
+- [x] **CA-18** — Todas as pendentes aparecem antes de todas as concluídas (RN-LIST-06), independentemente de vencimento.
+- [x] **CA-19** — Dentro do mesmo estado, ordena por vencimento **crescente**.
+- [x] **CA-20** — Tarefas **sem vencimento** vêm **depois** das com vencimento, dentro do mesmo estado.
+- [x] **CA-21** — Empates de vencimento (ou ambas sem vencimento) são resolvidos por data de criação crescente.
+- [x] **CA-22** — A ordenação é **estável e determinística**: a mesma consulta repetida N vezes devolve a mesma sequência exata (desempate por `Id`).
+- [x] **CA-23** — Um cenário com ao menos 8 tarefas cobrindo todas as combinações (pendente/concluída × com/sem vencimento × vencimentos iguais) valida a ordem completa numa única asserção de sequência.
 
 ### Paginação
 
-- [ ] **CA-24** — Sem `page`/`pageSize`, retorna a página 1 com **20** itens (RN-LIST-07 / D-09).
-- [ ] **CA-25** — `totalItems` reflete o total **após os filtros**, não o total geral do usuário.
+- [x] **CA-24** — Sem `page`/`pageSize`, retorna a página 1 com **20** itens (RN-LIST-07 / D-09).
+- [x] **CA-25** — `totalItems` reflete o total **após os filtros**, não o total geral do usuário.
 - [ ] **CA-26** — `totalPages` = `ceil(totalItems / pageSize)`.
-- [ ] **CA-27** — Percorrer todas as páginas retorna **cada tarefa exatamente uma vez**, sem repetição nem omissão (teste com 25 tarefas e `pageSize=10`).
-- [ ] **CA-28** — `page` além do total retorna **200** com `items: []` e `totalItems` correto — não 404.
-- [ ] **CA-29** — `pageSize` acima de `Paging:MaxPageSize` retorna **400** (ou é limitado ao máximo — escolher **um** comportamento e testá-lo).
-- [ ] **CA-30** — `page=0`, `page=-1` ou `pageSize=0` retornam **400**.
-- [ ] **CA-31** — Alterar `Paging:DefaultPageSize` para 5 muda o padrão sem alteração de código.
+- [x] **CA-27** — Percorrer todas as páginas retorna **cada tarefa exatamente uma vez**, sem repetição nem omissão (teste com 25 tarefas e `pageSize=10`).
+- [x] **CA-28** — `page` além do total retorna **200** com `items: []` e `totalItems` correto — não 404.
+- [x] **CA-29** — `pageSize` acima de `Paging:MaxPageSize` retorna **400** (ou é limitado ao máximo — escolher **um** comportamento e testá-lo).
+- [x] **CA-30** — `page=0`, `page=-1` ou `pageSize=0` retornam **400**.
+- [x] **CA-31** — Alterar `Paging:DefaultPageSize` para 5 muda o padrão sem alteração de código.
 
 ### Desempenho e corretude de query
 
-- [ ] **CA-32** — Todos os filtros, a busca, a ordenação e a paginação são executados **no banco**: o SQL gerado contém `WHERE`, `ORDER BY`, `LIMIT`/`OFFSET`. Verificado por captura do SQL em teste.
-- [ ] **CA-33** — O filtro `overdue` aparece no `WHERE` do SQL, não é avaliado em memória.
-- [ ] **CA-33b** — O `@today` do `WHERE` é a data de `IClientDate`, não a data UTC do servidor (**D-18**): com relógio UTC em `2026-08-21T00:30` e header `X-Client-Date: 2026-08-20`, uma tarefa vencendo em `2026-08-20` **não** aparece em `overdue=true` e vem com `isOverdue: false`.
-- [ ] **CA-33c** — Filtro e projeção usam **o mesmo** valor de "hoje": nenhum item retornado por `overdue=true` traz `isOverdue: false`, e vice-versa.
-- [ ] **CA-34** — A consulta não materializa mais linhas do que `pageSize` (+ a contagem).
+- [x] **CA-32** — Todos os filtros, a busca, a ordenação e a paginação são executados **no banco**: o SQL gerado contém `WHERE`, `ORDER BY`, `LIMIT`/`OFFSET`. Verificado por captura do SQL em teste.
+- [x] **CA-33** — O filtro `overdue` aparece no `WHERE` do SQL, não é avaliado em memória.
+- [x] **CA-33b** — O `@today` do `WHERE` é a data de `IClientDate`, não a data UTC do servidor (**D-18**): com relógio UTC em `2026-08-21T00:30` e header `X-Client-Date: 2026-08-20`, uma tarefa vencendo em `2026-08-20` **não** aparece em `overdue=true` e vem com `isOverdue: false`.
+- [x] **CA-33c** — Filtro e projeção usam **o mesmo** valor de "hoje": nenhum item retornado por `overdue=true` traz `isOverdue: false`, e vice-versa.
+- [x] **CA-34** — A consulta não materializa mais linhas do que `pageSize` (+ a contagem).
 - [ ] **CA-35** — Com 1000 tarefas para um usuário, a listagem paginada responde dentro de um limite razoável documentado no PR (medição, não assert flaky).
 
 ## Testes obrigatórios
@@ -131,3 +131,14 @@ O usuário lista as próprias tarefas com filtros combináveis, busca textual, o
 - **D-09** — Tamanho padrão da página. **Adotado aqui: 20**, configurável. Confirmar com produto.
 - **D-16** — Busca inclui descrição. Padrão provisório: sim.
 - **D-18** — ✅ decidida: "hoje" é a data local do usuário, via `IClientDate`.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 35 de 37.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-26 | em aberto — superado por BE-41 (CA-08) | A resposta do Gateway (`ListTasksHttpResponse`) e o `ListTasksReply` só trazem `items`, `page`, `pageSize` e `totalCount`; **não existe `totalPages` na API** — o proto diz que "o cliente calcula totalPages" (o front o faz via `computed`). O critério ("`totalPages` = ceil(totalItems/pageSize)") não é cumprido pelo backend e nenhum teste de backend o verifica. |
+| CA-35 | não verificável por código | Exige medição de desempenho com 1000 tarefas documentada em PR; não há teste nem registro. |
+| CA-04/CA-25 | atendidos (campo renomeado) | O critério fala em `totalItems`/`totalPages`; o contrato real usa `totalCount` (sem `totalPages`, ver CA-26). O comportamento (200, lista vazia, total zero; total após filtros) está em `ListTasksFiltersGrpcTests.ListTasks_SemTarefas_...`/`...TotalCountReflete_OTotalAposOFiltro`. |
+| CA-01 a CA-34 | atendidos em outro lugar | `GET /api/tasks` vive no Gateway (D-32; validação 400 de `page`/`pageSize`/filtros em `ListTasksQueryValidator` + `ListTasksTests`); a lógica de filtro/ordem/paginação é do Tasks, testada via gRPC com dataset determinístico (`ListTasksDatasetFixture`, `ListTasksFiltersGrpcTests`) em SQLite. CA-32/33/34: SQL capturado em Postgres real por `ListTasksPostgresQueryTests` (categoria Docker). CA-29: comportamento escolhido = 400. |

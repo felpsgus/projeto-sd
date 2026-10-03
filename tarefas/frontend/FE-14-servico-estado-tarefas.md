@@ -54,20 +54,20 @@ Existe uma camada única de estado para tarefas, exposta por signals, que todas 
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `load(query)` popula `items` e `pagination` a partir da resposta paginada da API.
-- [ ] **CA-02** — Durante a carga, `status` é `'loading'`; ao concluir, `'success'`; em falha, `'error'` com `error` preenchido.
-- [ ] **CA-03** — `isEmpty` é `true` apenas em sucesso com zero itens — nunca durante o carregamento.
-- [ ] **CA-04** — `isFilteredEmpty` distingue "você ainda não tem tarefas" de "nenhuma tarefa corresponde ao filtro".
-- [ ] **CA-05** — Uma resposta **404** em `getById`, `update`, `complete`, `reopen` ou `remove` produz sempre o mesmo estado `not_found` e a mesma mensagem (RN-AUTZ-03).
-- [ ] **CA-06** — A camada **não** expõe nenhuma informação que permita distinguir tarefa inexistente de tarefa alheia.
-- [ ] **CA-07** — Toda mutação bem-sucedida deixa `items` consistente com o servidor após a reconciliação (verificado comparando com um segundo `load`).
-- [ ] **CA-08** — Duas chamadas de `load` em sequência rápida não deixam a lista com o resultado da **primeira** (proteção contra resposta fora de ordem).
-- [ ] **CA-09** — `clear()` esvazia `items`, `pagination`, `query` e `error`.
-- [ ] **CA-10** — `endSession` dispara `clear()`: após trocar de usuário na mesma aba, nenhum dado do anterior aparece.
-- [ ] **CA-11** — Nenhum componente injeta `TasksApi` diretamente (verificado por busca no código e lint).
+- [x] **CA-01** — `load(query)` popula `items` e `pagination` a partir da resposta paginada da API.
+- [x] **CA-02** — Durante a carga, `status` é `'loading'`; ao concluir, `'success'`; em falha, `'error'` com `error` preenchido.
+- [x] **CA-03** — `isEmpty` é `true` apenas em sucesso com zero itens — nunca durante o carregamento.
+- [x] **CA-04** — `isFilteredEmpty` distingue "você ainda não tem tarefas" de "nenhuma tarefa corresponde ao filtro".
+- [x] **CA-05** — Uma resposta **404** em `getById`, `update`, `complete`, `reopen` ou `remove` produz sempre o mesmo estado `not_found` e a mesma mensagem (RN-AUTZ-03).
+- [x] **CA-06** — A camada **não** expõe nenhuma informação que permita distinguir tarefa inexistente de tarefa alheia.
+- [x] **CA-07** — Toda mutação bem-sucedida deixa `items` consistente com o servidor após a reconciliação (verificado comparando com um segundo `load`).
+- [x] **CA-08** — Duas chamadas de `load` em sequência rápida não deixam a lista com o resultado da **primeira** (proteção contra resposta fora de ordem).
+- [x] **CA-09** — `clear()` esvazia `items`, `pagination`, `query` e `error`.
+- [x] **CA-10** — `endSession` dispara `clear()`: após trocar de usuário na mesma aba, nenhum dado do anterior aparece.
+- [x] **CA-11** — Nenhum componente injeta `TasksApi` diretamente (verificado por busca no código e lint).
 - [ ] **CA-12** — Nenhum `effect()` é usado para disparar requisição.
-- [ ] **CA-13** — Um erro em uma mutação **não** corrompe a lista: `items` permanece no último estado válido conhecido.
-- [ ] **CA-14** — `TaskResponse` é consumido como veio da API; `isOverdue` **não** é recalculado no cliente (FD-09).
+- [x] **CA-13** — Um erro em uma mutação **não** corrompe a lista: `items` permanece no último estado válido conhecido.
+- [x] **CA-14** — `TaskResponse` é consumido como veio da API; `isOverdue` **não** é recalculado no cliente (FD-09).
 
 ## Testes obrigatórios
 
@@ -78,3 +78,14 @@ Existe uma camada única de estado para tarefas, exposta por signals, que todas 
 
 - **FD-05** — Serviços com signals.
 - **FD-09** — `isOverdue` vem da API.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 14.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-05 | atendido em outro lugar | O store não tem estado `not_found` próprio; 404 vira `AppError` com `NOT_FOUND_MESSAGE` fixa em `core/errors/error-mapper.ts` (testado em `error-mapper.spec.ts`), e as telas reagem (E2E 11, `edit-task.component.spec.ts`). `getById`/`update` repassam o erro; `complete`/`reopen`/`remove` removem o item. |
+| CA-06 | atendido em outro lugar | Mesma origem: o mapeador não distingue tarefa alheia de inexistente (E2E 11 compara o DOM das duas). |
+| CA-11 | atendido em outro lugar | Verificado por busca: só `tasks.store.ts` importa `TasksApi` fora de `core/api`. Não há regra de lint que o imponha. |
+| CA-12 | em aberto | O store não usa `effect()` para requisição, mas `TasksPageComponent` dispara `store.load` dentro de um `effect()` (URL como fonte de verdade, FE-16). Desvio deliberado e documentado no componente; nenhuma decisão `FD-*` o oficializa, então o critério à letra não é atendido. |

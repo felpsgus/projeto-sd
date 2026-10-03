@@ -60,31 +60,31 @@ O Tasks Service passa a ser alcançável **só** por gRPC — `CreateTask` subst
 
 ### `CreateTask`
 
-- [ ] **CA-01** — Chamada `CreateTask` válida com `x-user-id` de usuário ativo devolve `OK` e a tarefa é gravada com `OwnerId` igual ao valor de `x-user-id` (verificado no banco).
-- [ ] **CA-02** — `TaskReply` espelha o `TaskResponse` de [BE-17](BE-17-criar-tarefa.md)/[BE-32](BE-32-contratos-grpc-t2.md) — sem campo de dono no proto (RN-AUTZ-01 sem exposição de `OwnerId` no contrato).
-- [ ] **CA-03** — Request inválido (título vazio, descrição > 2000, `due_date` fora do formato) devolve `StatusCode.InvalidArgument` **antes de qualquer chamada ao Identity**, com trailer `error-code: validation.failed` e trailer `validation-errors` contendo um JSON `{ "campo": ["mensagem", ...] }` — o mesmo dicionário que o `ValidationProblem` REST devolvia, para o Gateway reconstruir o 400 sem perder o detalhe por campo (**D-35**).
-- [ ] **CA-04** — Dono inexistente no Identity devolve `StatusCode.NotFound` (`task.owner_not_found`), sem gravação (herdado de [BE-28](BE-28-validacao-dono-grpc.md) CA-04).
-- [ ] **CA-05** — Dono existente porém inativo devolve `StatusCode.FailedPrecondition` (`task.owner_inactive`), sem gravação (**D-35**; herdado de BE-28 CA-06).
-- [ ] **CA-06** — Limite de 500 tarefas ativas excedido devolve `StatusCode.FailedPrecondition` (`task.active_limit_reached`) — código distinto de `task.owner_inactive` no trailer (herdado de BE-17 CA-14).
-- [ ] **CA-07** — Com o Identity fora do ar, a chamada devolve `StatusCode.Unavailable` (`identity.unavailable`) dentro do deadline configurado, sem gravação (herdado de BE-28 CA-08/CA-09).
+- [x] **CA-01** — Chamada `CreateTask` válida com `x-user-id` de usuário ativo devolve `OK` e a tarefa é gravada com `OwnerId` igual ao valor de `x-user-id` (verificado no banco).
+- [x] **CA-02** — `TaskReply` espelha o `TaskResponse` de [BE-17](BE-17-criar-tarefa.md)/[BE-32](BE-32-contratos-grpc-t2.md) — sem campo de dono no proto (RN-AUTZ-01 sem exposição de `OwnerId` no contrato).
+- [x] **CA-03** — Request inválido (título vazio, descrição > 2000, `due_date` fora do formato) devolve `StatusCode.InvalidArgument` **antes de qualquer chamada ao Identity**, com trailer `error-code: validation.failed` e trailer `validation-errors` contendo um JSON `{ "campo": ["mensagem", ...] }` — o mesmo dicionário que o `ValidationProblem` REST devolvia, para o Gateway reconstruir o 400 sem perder o detalhe por campo (**D-35**).
+- [x] **CA-04** — Dono inexistente no Identity devolve `StatusCode.NotFound` (`task.owner_not_found`), sem gravação (herdado de [BE-28](BE-28-validacao-dono-grpc.md) CA-04).
+- [x] **CA-05** — Dono existente porém inativo devolve `StatusCode.FailedPrecondition` (`task.owner_inactive`), sem gravação (**D-35**; herdado de BE-28 CA-06).
+- [x] **CA-06** — Limite de 500 tarefas ativas excedido devolve `StatusCode.FailedPrecondition` (`task.active_limit_reached`) — código distinto de `task.owner_inactive` no trailer (herdado de BE-17 CA-14).
+- [x] **CA-07** — Com o Identity fora do ar, a chamada devolve `StatusCode.Unavailable` (`identity.unavailable`) dentro do deadline configurado, sem gravação (herdado de BE-28 CA-08/CA-09).
 
 ### Identidade
 
-- [ ] **CA-08** — `x-user-id` ausente na metadata devolve `StatusCode.Unauthenticated`, e `TasksGrpcService.CreateTask` **nunca é invocado** (verificado: nenhuma chamada ao `IIdentityGateway` ocorre).
-- [ ] **CA-09** — `x-user-id` presente mas não parseável como `Guid` devolve `StatusCode.Unauthenticated`, mesmo comportamento do CA-08.
-- [ ] **CA-10** — `CallerIdentityCurrentUser` é a **única** implementação de `ICurrentUser` registrada no container do Tasks — não há `if`/factory condicional em `Program.cs` (verificado por revisão/teste de composição de DI).
+- [x] **CA-08** — `x-user-id` ausente na metadata devolve `StatusCode.Unauthenticated`, e `TasksGrpcService.CreateTask` **nunca é invocado** (verificado: nenhuma chamada ao `IIdentityGateway` ocorre).
+- [x] **CA-09** — `x-user-id` presente mas não parseável como `Guid` devolve `StatusCode.Unauthenticated`, mesmo comportamento do CA-08.
+- [x] **CA-10** — `CallerIdentityCurrentUser` é a **única** implementação de `ICurrentUser` registrada no container do Tasks — não há `if`/factory condicional em `Program.cs` (verificado por revisão/teste de composição de DI).
 
 ### Remoção do REST
 
-- [ ] **CA-11** — Nenhum endpoint REST de tarefa está mapeado no Tasks Service — teste que enumera as rotas HTTP do `WebApplicationFactory` e falha se qualquer rota além de `/health` (e `/health/ready`, se existir) aparecer.
-- [ ] **CA-12** — A chave `Tasks:AllowAnonymousCreate` não existe em nenhum `appsettings*.json` nem é lida em nenhum ponto do código — varredura de texto no repositório.
-- [ ] **CA-13** — `Configuration/TasksCreationOptions.cs`, `Security/NotYetAuthenticatedCurrentUser.cs`, `Security/RequireValidUserIdHeaderFilter.cs` e `Startup/StartupLog.cs` não existem mais no repositório.
+- [x] **CA-11** — Nenhum endpoint REST de tarefa está mapeado no Tasks Service — teste que enumera as rotas HTTP do `WebApplicationFactory` e falha se qualquer rota além de `/health` (e `/health/ready`, se existir) aparecer.
+- [x] **CA-12** — A chave `Tasks:AllowAnonymousCreate` não existe em nenhum `appsettings*.json` nem é lida em nenhum ponto do código — varredura de texto no repositório.
+- [x] **CA-13** — `Configuration/TasksCreationOptions.cs`, `Security/NotYetAuthenticatedCurrentUser.cs`, `Security/RequireValidUserIdHeaderFilter.cs` e `Startup/StartupLog.cs` não existem mais no repositório.
 
 ### Infraestrutura e não regressão
 
-- [ ] **CA-14** — O health check gRPC (`grpc.health.v1.Health/Check`) responde `SERVING` com o Tasks no ar e com o banco acessível.
-- [ ] **CA-15** — `CreateTaskHandler` não sofreu nenhuma alteração de assinatura ou de comportamento — todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos, agora exercitados via gRPC.
-- [ ] **CA-16** — O `traceId` da chamada `CreateTask` chega ao log de saída da chamada ao Identity ([BE-27](BE-27-tasks-cliente-grpc.md), CA-13) — mesmo `traceId` visto pelo Gateway, se um já tiver sido enviado na metadata.
+- [x] **CA-14** — O health check gRPC (`grpc.health.v1.Health/Check`) responde `SERVING` com o Tasks no ar e com o banco acessível.
+- [x] **CA-15** — `CreateTaskHandler` não sofreu nenhuma alteração de assinatura ou de comportamento — todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos, agora exercitados via gRPC.
+- [x] **CA-16** — O `traceId` da chamada `CreateTask` chega ao log de saída da chamada ao Identity ([BE-27](BE-27-tasks-cliente-grpc.md), CA-13) — mesmo `traceId` visto pelo Gateway, se um já tiver sido enviado na metadata.
 
 ## Testes obrigatórios
 
@@ -101,3 +101,9 @@ O Tasks Service passa a ser alcançável **só** por gRPC — `CreateTask` subst
 - **D-34** — Identidade do chamador via metadata `x-user-id`/`x-client-date`; o Tasks confia no Gateway (**D-32**).
 - **D-35** — Mapeamento `ErrorType` → `StatusCode` gRPC e `error-code` no trailer.
 - **D-37** — Endpoint único HTTP/2 por serviço + gRPC Health Checking Protocol, alinhado ao Cloud Run.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 16.
+
+Observações (sem pendência): CA-10 é verificado por revisão (`Tasks.Api/Program.cs` registra só `AddScoped<ICurrentUser, CallerIdentityCurrentUser>()`; não há teste de composição de DI). CA-03 garante "antes do Identity" pela ordem em `TasksGrpcService.CreateTask` (validação antes de `CreateTaskHandler`); `CreateTaskGrpcTests` confere os trailers `error-code` e `validation-errors`, mas nenhum teste afirma explicitamente a ausência de chamada ao Identity nesse caminho.

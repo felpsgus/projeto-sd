@@ -57,40 +57,40 @@ O usuário filtra e busca as próprias tarefas, e o resultado fica refletido na 
 
 ### Filtros
 
-- [ ] **CA-01** — Filtrar por "Pendentes" mostra só pendentes; "Concluídas" só concluídas; "Todas" mostra ambas (RN-LIST-02).
-- [ ] **CA-02** — Filtrar por prioridade Alta mostra só as de prioridade alta (RN-LIST-03).
-- [ ] **CA-03** — Selecionar Baixa **e** Alta envia `priority=low&priority=high` e mostra as duas.
-- [ ] **CA-04** — O alternador "Atrasadas" mostra apenas tarefas atrasadas (RN-LIST-04).
-- [ ] **CA-05** — Os filtros combinam: estado + prioridade + atrasadas + busca aplicados simultaneamente.
-- [ ] **CA-06** — "Limpar filtros" volta ao estado inicial e some quando não há filtro ativo.
-- [ ] **CA-07** — Os filtros ativos são indicados visualmente.
+- [x] **CA-01** — Filtrar por "Pendentes" mostra só pendentes; "Concluídas" só concluídas; "Todas" mostra ambas (RN-LIST-02).
+- [x] **CA-02** — Filtrar por prioridade Alta mostra só as de prioridade alta (RN-LIST-03).
+- [x] **CA-03** — Selecionar Baixa **e** Alta envia `priority=low&priority=high` e mostra as duas.
+- [x] **CA-04** — O alternador "Atrasadas" mostra apenas tarefas atrasadas (RN-LIST-04).
+- [x] **CA-05** — Os filtros combinam: estado + prioridade + atrasadas + busca aplicados simultaneamente.
+- [x] **CA-06** — "Limpar filtros" volta ao estado inicial e some quando não há filtro ativo.
+- [x] **CA-07** — Os filtros ativos são indicados visualmente.
 
 ### Busca
 
-- [ ] **CA-08** — Buscar por um termo presente no **título** retorna a tarefa (RN-LIST-05).
-- [ ] **CA-09** — Buscar por um termo presente na **descrição** retorna a tarefa.
-- [ ] **CA-10** — Digitar "relatorio" rapidamente dispara **uma** requisição, não uma por tecla (debounce).
-- [ ] **CA-11** — Digitação rápida seguida de resultado fora de ordem **não** deixa a lista com o resultado antigo.
-- [ ] **CA-12** — Limpar o campo de busca remove o parâmetro da URL e recarrega a lista completa.
-- [ ] **CA-13** — Busca com termo sem resultado exibe o estado vazio **de filtro**, com opção de limpar (não "crie sua primeira tarefa").
+- [x] **CA-08** — Buscar por um termo presente no **título** retorna a tarefa (RN-LIST-05).
+- [x] **CA-09** — Buscar por um termo presente na **descrição** retorna a tarefa.
+- [x] **CA-10** — Digitar "relatorio" rapidamente dispara **uma** requisição, não uma por tecla (debounce).
+- [x] **CA-11** — Digitação rápida seguida de resultado fora de ordem **não** deixa a lista com o resultado antigo.
+- [x] **CA-12** — Limpar o campo de busca remove o parâmetro da URL e recarrega a lista completa.
+- [x] **CA-13** — Busca com termo sem resultado exibe o estado vazio **de filtro**, com opção de limpar (não "crie sua primeira tarefa").
 
 ### URL
 
-- [ ] **CA-14** — Alterar qualquer filtro atualiza a query string da URL (FD-08).
-- [ ] **CA-15** — Abrir `/tasks?status=pending&priority=high` diretamente aplica os dois filtros e a lista já vem filtrada.
-- [ ] **CA-16** — Recarregar a página (`F5`) preserva filtros, busca e página.
+- [x] **CA-14** — Alterar qualquer filtro atualiza a query string da URL (FD-08).
+- [x] **CA-15** — Abrir `/tasks?status=pending&priority=high` diretamente aplica os dois filtros e a lista já vem filtrada.
+- [x] **CA-16** — Recarregar a página (`F5`) preserva filtros, busca e página.
 - [ ] **CA-17** — Filtros ausentes **não** aparecem na URL.
-- [ ] **CA-18** — Parâmetro inválido (`?status=xyz`, `?page=abc`, `?page=-1`) é ignorado e a tela carrega com o padrão, sem erro técnico visível.
+- [x] **CA-18** — Parâmetro inválido (`?status=xyz`, `?page=abc`, `?page=-1`) é ignorado e a tela carrega com o padrão, sem erro técnico visível.
 - [ ] **CA-19** — O botão "voltar" após digitar uma busca não exige N cliques para sair da tela (uso de `replaceUrl`).
-- [ ] **CA-20** — Não existe estado de filtro duplicado fora da URL (verificado por revisão: o `query` do store é derivado dos parâmetros da rota).
+- [x] **CA-20** — Não existe estado de filtro duplicado fora da URL (verificado por revisão: o `query` do store é derivado dos parâmetros da rota).
 
 ### Paginação e interação
 
-- [ ] **CA-21** — Alterar um filtro estando na página 3 volta para a página 1.
-- [ ] **CA-22** — A paginação preserva os filtros ativos ao mudar de página.
-- [ ] **CA-23** — Os controles de filtro têm labels associados e são operáveis só pelo teclado.
-- [ ] **CA-24** — A mudança de resultado é anunciada a leitor de tela (`aria-live` com a contagem, ex.: "12 tarefas encontradas").
-- [ ] **CA-25** — A barra de filtros é usável em 360 px, colapsando se necessário.
+- [x] **CA-21** — Alterar um filtro estando na página 3 volta para a página 1.
+- [x] **CA-22** — A paginação preserva os filtros ativos ao mudar de página.
+- [x] **CA-23** — Os controles de filtro têm labels associados e são operáveis só pelo teclado.
+- [x] **CA-24** — A mudança de resultado é anunciada a leitor de tela (`aria-live` com a contagem, ex.: "12 tarefas encontradas").
+- [x] **CA-25** — A barra de filtros é usável em 360 px, colapsando se necessário.
 
 ## Testes obrigatórios
 
@@ -101,3 +101,15 @@ O usuário filtra e busca as próprias tarefas, e o resultado fica refletido na 
 ## Decisões em aberto
 
 - **FD-08** — Filtros na URL como query params.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 23 de 25.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 | atendido em outro lugar | Componente testa o parâmetro enviado ("Pendentes"); a filtragem real é do backend, confirmada pelo E2E 5 ("Beta concluida" some) e pelo contrato em `TaskEndpoints.cs` (`status`, `priority` repetível, `overdue`, `search`). |
+| CA-17 | em aberto | `buildTasksQueryParams` omite os padrões (null), mas nenhum teste afirma o conteúdo da URL ao limpar/alterar filtros; o E2E 5 só afirma a presença de `status=pending`/`search=Alfa`. |
+| CA-19 | em aberto | `applyFilters` usa `replaceUrl: true`, mas nenhum teste verifica o histórico. |
+| CA-20 | atendido em outro lugar | Atendido por revisão: `queryState` deriva de `queryParamMap`; `store.filters` é só espelho do último `load`. `searchInputSignal` é espelho local do campo para o debounce, sincronizado com a URL. |
+| CA-23 | atendido em outro lugar | Labels testados (`tasks-page.component.spec.ts`, CA-23); operação por teclado vale por serem controles nativos (radio, checkbox, search), sem teste de teclado dedicado. |

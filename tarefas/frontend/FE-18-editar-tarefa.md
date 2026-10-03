@@ -46,43 +46,43 @@ O usuário edita título, descrição, prioridade e vencimento de uma tarefa sua
 
 ### Carga
 
-- [ ] **CA-01** — A tela carrega e preenche todos os campos com os valores atuais da tarefa.
-- [ ] **CA-02** — Durante a carga, exibe indicador — não um formulário vazio que "pisca" com os valores depois.
-- [ ] **CA-03** — Exibe o estado atual e a data de última atualização, ambos somente leitura (RN-TASK-14).
-- [ ] **CA-04** — Tarefa sem descrição ou sem vencimento carrega com os campos vazios, sem `null` na tela.
+- [x] **CA-01** — A tela carrega e preenche todos os campos com os valores atuais da tarefa.
+- [x] **CA-02** — Durante a carga, exibe indicador — não um formulário vazio que "pisca" com os valores depois.
+- [x] **CA-03** — Exibe o estado atual e a data de última atualização, ambos somente leitura (RN-TASK-14).
+- [x] **CA-04** — Tarefa sem descrição ou sem vencimento carrega com os campos vazios, sem `null` na tela.
 
 ### Edição
 
 - [ ] **CA-05** — Alterar os quatro campos e salvar persiste todos (RN-TASK-11).
-- [ ] **CA-06** — Alterar **apenas o título** e salvar **preserva** descrição, prioridade e vencimento — não os apaga.
-- [ ] **CA-07** — O request `PUT` enviado contém **os quatro campos**, com os valores correntes da tela (verificado no teste da chamada).
-- [ ] **CA-08** — Limpar a descrição e salvar efetivamente a limpa.
-- [ ] **CA-09** — Limpar o vencimento e salvar efetivamente o remove.
+- [x] **CA-06** — Alterar **apenas o título** e salvar **preserva** descrição, prioridade e vencimento — não os apaga.
+- [x] **CA-07** — O request `PUT` enviado contém **os quatro campos**, com os valores correntes da tela (verificado no teste da chamada).
+- [x] **CA-08** — Limpar a descrição e salvar efetivamente a limpa.
+- [x] **CA-09** — Limpar o vencimento e salvar efetivamente o remove.
 - [ ] **CA-10** — Editar uma tarefa **concluída** funciona e ela **permanece concluída**.
-- [ ] **CA-11** — O formulário **não** tem nenhum controle de estado (Pendente/Concluída).
-- [ ] **CA-12** — Após salvar, a lista reflete a tarefa atualizada na posição correta da ordenação.
+- [x] **CA-11** — O formulário **não** tem nenhum controle de estado (Pendente/Concluída).
+- [x] **CA-12** — Após salvar, a lista reflete a tarefa atualizada na posição correta da ordenação.
 - [ ] **CA-13** — O botão salvar fica desabilitado sem alterações pendentes e durante o envio; clique duplo envia **uma** requisição.
 
 ### Validação
 
 - [ ] **CA-14** — As mesmas validações de FE-17 valem: título 1–200 e não só espaços, descrição ≤ 2000, prioridade válida.
-- [ ] **CA-15** — O componente de formulário é **o mesmo** de FE-17 (verificado por revisão — não há validação duplicada).
-- [ ] **CA-16** — Vencimento no passado continua sendo aceito (RN-TASK-05).
+- [x] **CA-15** — O componente de formulário é **o mesmo** de FE-17 (verificado por revisão — não há validação duplicada).
+- [x] **CA-16** — Vencimento no passado continua sendo aceito (RN-TASK-05).
 
 ### Não encontrada (RN-AUTZ-03)
 
-- [ ] **CA-17** — Id inexistente exibe "Tarefa não encontrada" com link para a lista.
-- [ ] **CA-18** — Tarefa de **outro usuário** exibe **exatamente a mesma** tela e mensagem — nunca "sem permissão" nem "acesso negado".
-- [ ] **CA-19** — Tarefa removida exibe a mesma tela.
-- [ ] **CA-20** — Um teste compara o DOM renderizado nos três casos e confirma que são indistinguíveis.
-- [ ] **CA-21** — Id em formato inválido na URL (`/tasks/abc/edit`) exibe a mesma tela de não encontrada, sem erro técnico.
-- [ ] **CA-22** — Receber 404 **ao salvar** (tarefa removida em outra aba enquanto era editada) exibe a mensagem sem travar a tela.
+- [x] **CA-17** — Id inexistente exibe "Tarefa não encontrada" com link para a lista.
+- [x] **CA-18** — Tarefa de **outro usuário** exibe **exatamente a mesma** tela e mensagem — nunca "sem permissão" nem "acesso negado".
+- [x] **CA-19** — Tarefa removida exibe a mesma tela.
+- [x] **CA-20** — Um teste compara o DOM renderizado nos três casos e confirma que são indistinguíveis.
+- [x] **CA-21** — Id em formato inválido na URL (`/tasks/abc/edit`) exibe a mesma tela de não encontrada, sem erro técnico.
+- [x] **CA-22** — Receber 404 **ao salvar** (tarefa removida em outra aba enquanto era editada) exibe a mensagem sem travar a tela.
 
 ### Navegação e acessibilidade
 
 - [ ] **CA-23** — Sair com alterações não salvas exibe aviso; sem alterações, não exibe.
-- [ ] **CA-24** — Cancelar volta à lista sem salvar.
-- [ ] **CA-25** — Erro de rede preserva o que foi digitado.
+- [x] **CA-24** — Cancelar volta à lista sem salvar.
+- [x] **CA-25** — Erro de rede preserva o que foi digitado.
 - [ ] **CA-26** — Operável só pelo teclado; foco no primeiro campo com erro após falha; usável em 360 px.
 
 ## Testes obrigatórios
@@ -90,3 +90,19 @@ O usuário edita título, descrição, prioridade e vencimento de uma tarefa sua
 - Componente (Testing Library): CA-01 a CA-17, CA-21 a CA-26.
 - **CA-06 e CA-07 são obrigatórios** — o apagamento silencioso por `PUT` parcial é o defeito mais provável e o mais difícil de perceber.
 - **CA-18 e CA-20 são o guardião de RN-AUTZ-03 no cliente.**
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 20 de 26.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-05 | em aberto | O teste de edição altera só o título; nenhum teste altera os quatro campos juntos. |
+| CA-10 | em aberto | Sem teste de edição de tarefa concluída. O front não envia `status` e o Gateway documenta que PUT mantém a tarefa concluída. |
+| CA-13 | em aberto | Não implementado: "Salvar alterações" só desabilita durante o envio, não sem alterações pendentes. Clique duplo protegido por `submitting` mas sem teste. |
+| CA-14 | em aberto | Mesmas validações do `TaskFormComponent` compartilhado, mas sem teste de limites (ver FE-17 CA-08/CA-09). |
+| CA-18 | atendido em outro lugar | E2E 11 (`e2e/flows.spec.ts`): usuário B abre o link do usuário A e vê "Tarefa não encontrada"; unitário `edit-task.component.spec.ts` confere ausência de "permissão/acesso negado". |
+| CA-20 | atendido em outro lugar | E2E 11 compara o `innerText` de `main` entre tarefa alheia e id inexistente (iguais). O caso "removida" usa o mesmo caminho 404 e só tem teste unitário de texto. |
+| CA-23 | em aberto | Guarda e `canDeactivate` com `window.confirm` implementados e ligados em `app.routes.ts`; sem spec da guarda nem do componente. |
+| CA-25 | atendido em outro lugar | Mesmo `TaskFormComponent` do `create-task.component.spec.ts` (erro de rede preserva o digitado); sem teste na tela de edição. |
+| CA-26 | em aberto | Foco no primeiro campo com erro sem teste; o E2E de 360 px não visita `/tasks/:id/edit`; sem teste de teclado. |

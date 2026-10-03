@@ -63,7 +63,7 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
 ### Fluxo feliz
 
 - [x] **CA-01** — `POST /api/auth/refresh` com o cookie válido e **corpo vazio** retorna **200** com novo access token no corpo e novo refresh token em `Set-Cookie`.
-- [ ] **CA-02** — O novo access token é aceito por um endpoint protegido.
+- [x] **CA-02** — O novo access token é aceito por um endpoint protegido.
 - [x] **CA-03** — O novo refresh token é **diferente** do apresentado (RN-AUTH-16).
 - [x] **CA-03b** — O corpo da resposta **não contém** o refresh token (**D-20**).
 - [x] **CA-03c** — Enviar o refresh token no **corpo**, em **query string** ou em header customizado **não** autentica a renovação: sem o cookie, retorna 401. Há um único caminho de entrada.
@@ -78,7 +78,7 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
 - [x] **CA-09** — Após a detecção de reuso, **toda a cadeia daquela sessão** fica revogada: o refresh token mais recente, obtido legitimamente, também para de funcionar (RN-AUTH-17).
 - [x] **CA-10** — Após a detecção de reuso, o usuário consegue voltar a operar **apenas** fazendo login novamente.
 - [x] **CA-11** — A detecção de reuso **não** afeta outras sessões do mesmo usuário (outro dispositivo continua funcionando — D-15).
-- [ ] **CA-12** — Dois refreshes **concorrentes** com o mesmo token: exatamente um retorna 200 e o outro 401; o banco não fica com dois tokens ativos derivados do mesmo pai.
+- [x] **CA-12** — Dois refreshes **concorrentes** com o mesmo token: exatamente um retorna 200 e o outro 401; o banco não fica com dois tokens ativos derivados do mesmo pai.
 
 ### Expiração e revogação
 
@@ -122,3 +122,7 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
 - **`Max-Age`** do cookie vem de `refresh_token_expires_at` (RPC), derivado de `Jwt:RefreshTokenDays` (padrão 7, faixa 1–90, validada no start).
 - **Logs:** o valor do token nunca é logado; `IssuedRefreshToken`, `LoginOutcome` e `RefreshOutcome` sobrescrevem `ToString`. O Gateway não tem log de requisição/cabeçalhos; o nginx usa o formato padrão (sem `Cookie`/`Set-Cookie`) e repassa `Set-Cookie`/`Cookie` em `/api/` por padrão.
 - **CAs em aberto:** **CA-02** (sem teste ponta a ponta contra o Identity real; `smoke.sh`) e **CA-12** — o teste de concorrência obrigatório existe (`RefreshTokenPostgresTests.RefreshSession_DoisRedeemsParalelosDoMesmoToken_ExatamenteUmSucede`, `Category=Docker`), mas **não foi executado**: não havia Docker na máquina desta onda. A semântica do UPDATE condicional (uma linha afetada só na primeira tentativa) foi verificada em SQLite (`RefreshTokenSqliteTests`) e a corrida simulada em unidade. **Rodar a suíte Docker antes de fechar o CA-12.**
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 25 de 25.

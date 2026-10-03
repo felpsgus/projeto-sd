@@ -72,3 +72,7 @@ O usuário encerra a própria sessão quando quiser, e o refresh token daquela s
 - **CA-11:** o access token continua válido até expirar — **D-41** e [ADR-0001](../../docs/adr/0001-logout-nao-invalida-access-token.md); o teste `AccessTokenEmitidoAntesDoLogout_ContinuaAceitoAteExpirar` registra a expectativa.
 - **RN-AUTH-19 nas outras tasks:** a troca de senha ([BE-15](BE-15-alteracao-senha.md)) revoga as sessões (`PasswordChanged`) no mesmo `SaveChangesAsync` do novo hash; a exclusão de conta ([BE-16](BE-16-exclusao-conta.md)) leva os tokens pela cascata da FK.
 - **Verificação em banco:** CA-03/CA-04/CA-05 verificados em SQLite (`RefreshTokenSqliteTests`) e escritos para Postgres (`RefreshTokenPostgresTests`, `Category=Docker`, **não executados** nesta onda por falta de Docker).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 14 de 14.

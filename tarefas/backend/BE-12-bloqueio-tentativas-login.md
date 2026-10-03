@@ -87,3 +87,7 @@ A task foi escrita para um backend REST monolítico; hoje o login é o RPC `Logi
 - **Decisões:** D-03 e D-14 fechadas em **D-43**.
 - **Testes:** política em `LoginHandlerTests` (relógio fake, store em memória); Postgres real em `LoginLockoutPostgresTests` (`Category=Docker`, inclui 10 tentativas concorrentes e "reinício"); 429 no Gateway em `AuthLoginTests`.
 - **Fora de escopo:** expurgo de linhas antigas de `login_attempts` (ver consequências do ADR-0002).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 14 de 14.

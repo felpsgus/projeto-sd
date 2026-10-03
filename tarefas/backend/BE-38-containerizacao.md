@@ -71,12 +71,12 @@ Registrado aqui como mapa do que vem a seguir, sem numerar nem criar arquivo de 
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — As três imagens (`identity`, `tasks`, `gateway`) constroem com sucesso a partir da **raiz** do repositório, com o comando `docker build -f <caminho>/Dockerfile .` documentado.
-- [ ] **CA-02** — Nenhuma das três imagens roda como root — `docker inspect --format '{{.Config.User}}'` mostra `app` (ou equivalente não-root) nas três.
+- [x] **CA-01** — As três imagens (`identity`, `tasks`, `gateway`) constroem com sucesso a partir da **raiz** do repositório, com o comando `docker build -f <caminho>/Dockerfile .` documentado.
+- [x] **CA-02** — Nenhuma das três imagens roda como root — `docker inspect --format '{{.Config.User}}'` mostra `app` (ou equivalente não-root) nas três.
 - [ ] **CA-03** — Com `artifacts/sql/` gerado por `scripts/publish.ps1`, `docker compose --profile full up --build` sobe a stack inteira (postgres, migrate, identity, tasks, gateway) e o roteiro 401/400/201 de verificação (BE-39) passa executado contra `http://localhost:8080`.
-- [ ] **CA-04** — Só a porta 8080 (do `gateway`) fica exposta no host depois do `up --profile full` — `docker compose ps` confirma que `identity` e `tasks` não têm mapeamento de porta publicada.
-- [ ] **CA-05** — Nenhum segredo (senha de banco, `Jwt__SigningKey`, senha de demonstração) aparece embutido em nenhuma das três imagens — verificado por `docker history` e `docker inspect` das imagens finais, e por leitura dos três `Dockerfile` (segredos só entram via `env_file`/variável de ambiente do compose, nunca em `ENV` fixo ou `ARG` sem `--secret`).
-- [ ] **CA-06** — `docker compose up postgres` continua subindo e funcionando exatamente como antes desta task, sem exigir o perfil `full` nem qualquer variável nova.
+- [x] **CA-04** — Só a porta 8080 (do `gateway`) fica exposta no host depois do `up --profile full` — `docker compose ps` confirma que `identity` e `tasks` não têm mapeamento de porta publicada.
+- [x] **CA-05** — Nenhum segredo (senha de banco, `Jwt__SigningKey`, senha de demonstração) aparece embutido em nenhuma das três imagens — verificado por `docker history` e `docker inspect` das imagens finais, e por leitura dos três `Dockerfile` (segredos só entram via `env_file`/variável de ambiente do compose, nunca em `ENV` fixo ou `ARG` sem `--secret`).
+- [x] **CA-06** — `docker compose up postgres` continua subindo e funcionando exatamente como antes desta task, sem exigir o perfil `full` nem qualquer variável nova.
 - [ ] **CA-07** — O tamanho final de cada uma das três imagens está registrado (README ou PR desta task).
 
 ## Testes obrigatórios
@@ -94,3 +94,17 @@ Registrado aqui como mapa do que vem a seguir, sem numerar nem criar arquivo de 
 > - **`frontend`** (build de `frontend/Dockerfile`, nginx não-root na 8080) entra no perfil `full` — **CA-04 é superado por BE-42/D-40**: a partir desta emenda, é o `frontend` quem publica porta no host (ex.: `80:8080`), e o `gateway` **deixa** de publicar porta — passa a ser alcançado só pelo `frontend` na rede interna do compose, espelhando a mesma mudança de topologia da VM (BE-37/D-40).
 > - **Chaves RSA:** os segredos do perfil `full` passam a incluir as chaves de `Jwt:PrivateKeyPath`/`Jwt:PublicKeyPath` (BE-40/D-38, substituindo `Jwt__SigningKey`), montadas **read-only** a partir de uma pasta local ignorada pelo git (ex.: `.secrets/jwt/`) — não mais como variável de ambiente com o valor da chave.
 > - Os demais critérios (CA-01, CA-02, CA-03 — agora validado contra `http://localhost` via `frontend`, CA-05 a CA-07) continuam válidos, ajustados para a topologia com quatro serviços no perfil `full`.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 5 de 7.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 | atendido | Três Dockerfiles em `src/*/Dockerfile` com contexto na raiz; comandos `docker build -f ... .` documentados no `README.md` (~linha 1095); imagens `todolist-identity/tasks/gateway:latest` existem no Docker local. |
+| CA-02 | atendido | `docker inspect` das imagens mostra `User=1654` (`USER $APP_UID`, não-root) nas três; frontend `User=101`. |
+| CA-03 | em aberto (não verificável agora) | A stack do compose estava parada na auditoria e o roteiro mudou (frontend na porta 80, sem `scripts/publish.ps1`, SQL por `scripts/new-migrations-sql.ps1`; não há mais porta 8080 no host). A subida completa com `--profile full` não foi reexecutada. |
+| CA-04 | atendido em outro lugar | `docker-compose.yml`: `identity`, `tasks` e `gateway` sem `ports:` (D-32/D-40); só o `frontend` publica `80:8080`. O `postgres` (fora do perfil `full`) publica 5432 para desenvolvimento, como antes. |
+| CA-05 | atendido | Nenhum `ENV`/`ARG` com segredo nos Dockerfiles; `docker history --no-trunc` de identity e gateway não mostra password/secret/SigningKey/PRIVATE. |
+| CA-06 | atendido | O serviço `postgres` não tem `profiles:` nem variável nova (`docker-compose.yml`). |
+| CA-07 | em aberto (não atendido) | O tamanho final das imagens não está registrado no `README.md`, em `deploy/README.md` nem em PR versionado (hoje: identity 393 MB, tasks 388 MB, gateway 348 MB, frontend 83 MB no Docker local). |

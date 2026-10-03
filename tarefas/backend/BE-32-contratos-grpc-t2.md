@@ -160,15 +160,15 @@ Os contratos Protocol Buffers do T2 existem e compilam: `identity.proto` ganha `
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `dotnet build` gera código C# a partir de `identity.proto` nos três consumidores esperados: `TodoList.Identity.Api` (server), `TodoList.Tasks.Infrastructure` (client), `TodoList.Gateway.Api` (client) — e nenhuma cópia local do arquivo existe fora de `contracts/`.
-- [ ] **CA-02** — `dotnet build` gera código C# a partir de `tasks.proto` em `TodoList.Tasks.Api` (server) e `TodoList.Gateway.Api` (client), sem cópia local.
-- [ ] **CA-03** — A mudança em `identity.proto` é compatível: um cliente que só conhecia `ValidateUser`/`ValidateToken` (código gerado antes do T2) continua compilando e funcionando sem alteração — comprovado por BE-27/BE-28 continuarem passando sem modificação.
-- [ ] **CA-04** — Nenhum número de campo de `ValidateUserRequest`, `ValidateUserResponse`, `ValidateTokenRequest` ou `ValidateTokenResponse` foi alterado em relação a BE-25.
-- [ ] **CA-05** — Nenhuma mensagem de `tasks.proto` tem campo de dono/`owner_id`/`user_id` do lado do request de criação.
-- [ ] **CA-06** — Nenhum dado sensível (senha em texto puro fora de `LoginRequest.password`, hash de senha) aparece em `LoginResponse` ou em `TaskReply`.
+- [x] **CA-01** — `dotnet build` gera código C# a partir de `identity.proto` nos três consumidores esperados: `TodoList.Identity.Api` (server), `TodoList.Tasks.Infrastructure` (client), `TodoList.Gateway.Api` (client) — e nenhuma cópia local do arquivo existe fora de `contracts/`.
+- [x] **CA-02** — `dotnet build` gera código C# a partir de `tasks.proto` em `TodoList.Tasks.Api` (server) e `TodoList.Gateway.Api` (client), sem cópia local.
+- [x] **CA-03** — A mudança em `identity.proto` é compatível: um cliente que só conhecia `ValidateUser`/`ValidateToken` (código gerado antes do T2) continua compilando e funcionando sem alteração — comprovado por BE-27/BE-28 continuarem passando sem modificação.
+- [x] **CA-04** — Nenhum número de campo de `ValidateUserRequest`, `ValidateUserResponse`, `ValidateTokenRequest` ou `ValidateTokenResponse` foi alterado em relação a BE-25.
+- [x] **CA-05** — Nenhuma mensagem de `tasks.proto` tem campo de dono/`owner_id`/`user_id` do lado do request de criação.
+- [x] **CA-06** — Nenhum dado sensível (senha em texto puro fora de `LoginRequest.password`, hash de senha) aparece em `LoginResponse` ou em `TaskReply`.
 - [ ] **CA-07** — Cada RPC e cada campo dos dois arquivos tem comentário explicando o significado de negócio e, quando aplicável, a RN de origem.
-- [ ] **CA-08** — `TodoList.Gateway.Api` não referencia nenhum projeto `TodoList.Identity.*` nem `TodoList.Tasks.*` — só os dois `.proto` (D-33), verificado por teste de arquitetura ou inspeção do `.csproj`.
-- [ ] **CA-09** — `TaskReply` tem um campo correspondente a cada propriedade pública de `TaskResponse` (`Id`, `Title`, `Description`, `Priority`, `Status`, `DueDate`, `CompletedAt`, `IsOverdue`, `CreatedAt`, `UpdatedAt`).
+- [x] **CA-08** — `TodoList.Gateway.Api` não referencia nenhum projeto `TodoList.Identity.*` nem `TodoList.Tasks.*` — só os dois `.proto` (D-33), verificado por teste de arquitetura ou inspeção do `.csproj`.
+- [x] **CA-09** — `TaskReply` tem um campo correspondente a cada propriedade pública de `TaskResponse` (`Id`, `Title`, `Description`, `Priority`, `Status`, `DueDate`, `CompletedAt`, `IsOverdue`, `CreatedAt`, `UpdatedAt`).
 
 ## Testes obrigatórios
 
@@ -180,3 +180,13 @@ Os contratos Protocol Buffers do T2 existem e compilam: `identity.proto` ganha `
 - **D-29** — `.proto` em `contracts/` na raiz, referenciado por caminho relativo — o mesmo padrão se estende a `tasks.proto`. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-33** — Formato do projeto `TodoList.Gateway.Api` (sem Domain/Application). Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-34** — Identidade do chamador via metadata gRPC `x-user-id`/`x-client-date`, nunca no corpo. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 8 de 9.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-03 | atendido em outro lugar | `ValidateToken` foi removido do contrato por D-38 (RS256 validado local no Gateway). `ValidateUser` segue intacto e compatível: `contracts/identity/v1/identity.proto`, `tests/TodoList.Tasks.UnitTests/GrpcIdentityGatewayTests.cs`. Todas as extensões posteriores foram aditivas. |
+| CA-04 | atendido em outro lugar | As mensagens `ValidateToken*` não existem mais (D-38). Os números de campo de `ValidateUserRequest` (`user_id=1`) e `ValidateUserResponse` (`exists=1`, `active=2`, `display_name=3`) são idênticos aos de BE-25. |
+| CA-07 | em aberto | Faltam comentários em campos: `ProfileResponse` (todos), `RegisterResponse.email`/`display_name`, `UpdateProfileRequest.user_id`, `ChangePasswordRequest.user_id`/`new_password`, e nos valores dos enums `TaskStatus`/`TaskStatusFilter`. O critério exige "cada campo". |

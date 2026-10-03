@@ -56,28 +56,28 @@ O Tasks Service consegue perguntar ao Identity, por gRPC, se um usuário existe 
 
 ### Contrato interno
 
-- [ ] **CA-01** — `IIdentityGateway` e `UserValidation` estão em `TodoList.Tasks.Application`; `GrpcIdentityGateway` está em `TodoList.Tasks.Infrastructure`.
-- [ ] **CA-02** — Nenhum tipo gerado a partir do `.proto` aparece em `TodoList.Tasks.Application` ou `TodoList.Tasks.Domain` — **teste de arquitetura**, não revisão.
-- [ ] **CA-03** — Nenhuma referência a `Grpc.*` ou `Google.Protobuf` nos `.csproj` de `Domain` e `Application` do Tasks.
+- [x] **CA-01** — `IIdentityGateway` e `UserValidation` estão em `TodoList.Tasks.Application`; `GrpcIdentityGateway` está em `TodoList.Tasks.Infrastructure`.
+- [x] **CA-02** — Nenhum tipo gerado a partir do `.proto` aparece em `TodoList.Tasks.Application` ou `TodoList.Tasks.Domain` — **teste de arquitetura**, não revisão.
+- [x] **CA-03** — Nenhuma referência a `Grpc.*` ou `Google.Protobuf` nos `.csproj` de `Domain` e `Application` do Tasks.
 
 ### Chamada
 
-- [ ] **CA-04** — Com o Identity no ar, `ValidateUserAsync` de um usuário ativo devolve `Exists=true, Active=true` e o nome de exibição.
-- [ ] **CA-05** — A resposta negativa do Identity (`exists=false`) chega como `UserValidation(false, false, "")`, sem exceção.
-- [ ] **CA-06** — O endereço do Identity vem de `Identity:GrpcAddress`; uma varredura do código não encontra `localhost`, `http://` nem número de porta literal fora de `appsettings*.json` ([BE-30](BE-30-configuracao-enderecos-grpc.md)).
-- [ ] **CA-07** — Alterar `Identity:GrpcAddress` para um endereço diferente faz a chamada ir para lá, **sem recompilar**.
+- [x] **CA-04** — Com o Identity no ar, `ValidateUserAsync` de um usuário ativo devolve `Exists=true, Active=true` e o nome de exibição.
+- [x] **CA-05** — A resposta negativa do Identity (`exists=false`) chega como `UserValidation(false, false, "")`, sem exceção.
+- [x] **CA-06** — O endereço do Identity vem de `Identity:GrpcAddress`; uma varredura do código não encontra `localhost`, `http://` nem número de porta literal fora de `appsettings*.json` ([BE-30](BE-30-configuracao-enderecos-grpc.md)).
+- [x] **CA-07** — Alterar `Identity:GrpcAddress` para um endereço diferente faz a chamada ir para lá, **sem recompilar**.
 
 ### Falha e limites
 
-- [ ] **CA-08** — Com o Identity desligado, a chamada falha em no máximo `Identity:GrpcTimeoutSeconds` e a `RpcException` **não** escapa da `Infrastructure`.
-- [ ] **CA-09** — Com o Identity respondendo mais lento que o deadline, a chamada é cancelada no prazo — não fica pendurada.
-- [ ] **CA-10** — O `CancellationToken` da requisição HTTP é repassado à chamada gRPC: cancelar a requisição do cliente cancela a chamada ao Identity.
-- [ ] **CA-11** — O canal gRPC é reutilizado entre chamadas (nenhum `GrpcChannel.ForAddress` no corpo de um método de chamada).
+- [x] **CA-08** — Com o Identity desligado, a chamada falha em no máximo `Identity:GrpcTimeoutSeconds` e a `RpcException` **não** escapa da `Infrastructure`.
+- [x] **CA-09** — Com o Identity respondendo mais lento que o deadline, a chamada é cancelada no prazo — não fica pendurada.
+- [x] **CA-10** — O `CancellationToken` da requisição HTTP é repassado à chamada gRPC: cancelar a requisição do cliente cancela a chamada ao Identity.
+- [x] **CA-11** — O canal gRPC é reutilizado entre chamadas (nenhum `GrpcChannel.ForAddress` no corpo de um método de chamada).
 
 ### Observabilidade
 
-- [ ] **CA-12** — Cada chamada produz log com `userId`, `StatusCode` do gRPC e duração.
-- [ ] **CA-13** — O `traceId` da requisição HTTP chega ao log do Identity pela metadata gRPC — os dois lados são correlacionáveis ([BE-24](BE-24-observabilidade-ci.md), CA-07c).
+- [x] **CA-12** — Cada chamada produz log com `userId`, `StatusCode` do gRPC e duração.
+- [x] **CA-13** — O `traceId` da requisição HTTP chega ao log do Identity pela metadata gRPC — os dois lados são correlacionáveis ([BE-24](BE-24-observabilidade-ci.md), CA-07c).
 
 ## Testes obrigatórios
 
@@ -89,3 +89,13 @@ O Tasks Service consegue perguntar ao Identity, por gRPC, se um usuário existe 
 ## Decisões em aberto
 
 - **D-28** — Comportamento na indisponibilidade do Identity. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md) e [BE-28](BE-28-validacao-dono-grpc.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 13.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-11 | atendido por inspeção | `AddGrpcClient<IdentityServiceClient>` (`Tasks.Infrastructure/Identity/ServiceCollectionExtensions.cs`) e nenhuma ocorrência de `GrpcChannel.ForAddress`; sem teste automatizado que impeça regressão. |
+| CA-10 | atendido (nível do gateway) | `GrpcIdentityGatewayTests.ValidateUserAsync_RepassaOCancellationTokenRecebidoParaAChamadaGrpc` prova o repasse do token; não há teste ponta a ponta de cancelamento da requisição. |
+| CA-06/CA-07 | atendidos em outro lugar | Chave de configuração segue `Identity:GrpcAddress`; varredura em `Tasks.UnitTests/ArchitectureTests.CodigoDoTasks_NaoContemEnderecoOuPortaLiteral_ForaDosAppsettings`; troca de endereço em `GrpcIdentityGatewayIntegrationTests` (inclusive por variável de ambiente). |

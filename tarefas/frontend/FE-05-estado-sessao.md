@@ -97,3 +97,7 @@ Existe uma única fonte de verdade sobre "quem está logado", exposta por signal
 
 - **FD-01** — ✅ decidida: refresh token em cookie `HttpOnly`; o frontend não armazena credencial alguma.
 - **FD-05** — Estado por serviços com signals.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 16.

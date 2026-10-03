@@ -86,47 +86,47 @@ O `errorCode` do trailer `error-code` alimenta `ProblemDetails.extensions.errorC
 
 ### Endpoint público e tradução (requisito 1 e 4 de `t2.md`)
 
-- [ ] **CA-01** — `POST /api/tasks` com token válido e payload válido devolve **201** com `Location: /api/tasks/{id}` e o corpo do `TaskHttpResponse` — a chamada efetivamente atravessou gRPC até o Tasks (verificado com o Tasks real ou um fake instrumentado).
-- [ ] **CA-02** — `POST /api/auth/login` com credenciais válidas devolve **200** com `{accessToken, expiresAt}`; nenhum outro campo sensível no corpo.
-- [ ] **CA-03** — `POST /api/auth/login` com credenciais inválidas devolve **401** com `auth.invalid_credentials` — mesma resposta, byte a byte, para e-mail inexistente, senha errada e usuário inativo (RN-AUTH-09, RN-USER-04; o Gateway só vê `succeeded=false`, [BE-33](BE-33-login-minimo-grpc.md)).
-- [ ] **CA-04** — O tipo gerado do `.proto` (`Contracts.Tasks.V1.*`, `Contracts.Identity.V1.*`) nunca aparece serializado na resposta HTTP — só os DTOs de `Contracts/` (verificado por inspeção do corpo de resposta serializado).
+- [x] **CA-01** — `POST /api/tasks` com token válido e payload válido devolve **201** com `Location: /api/tasks/{id}` e o corpo do `TaskHttpResponse` — a chamada efetivamente atravessou gRPC até o Tasks (verificado com o Tasks real ou um fake instrumentado).
+- [x] **CA-02** — `POST /api/auth/login` com credenciais válidas devolve **200** com `{accessToken, expiresAt}`; nenhum outro campo sensível no corpo.
+- [x] **CA-03** — `POST /api/auth/login` com credenciais inválidas devolve **401** com `auth.invalid_credentials` — mesma resposta, byte a byte, para e-mail inexistente, senha errada e usuário inativo (RN-AUTH-09, RN-USER-04; o Gateway só vê `succeeded=false`, [BE-33](BE-33-login-minimo-grpc.md)).
+- [x] **CA-04** — O tipo gerado do `.proto` (`Contracts.Tasks.V1.*`, `Contracts.Identity.V1.*`) nunca aparece serializado na resposta HTTP — só os DTOs de `Contracts/` (verificado por inspeção do corpo de resposta serializado).
 
 ### Validação na borda (requisito 2 de `t2.md`)
 
-- [ ] **CA-05** — `POST /api/tasks` com token válido e `title` ausente/vazio devolve **400** apontando o campo, e **nenhuma** chamada gRPC ao Tasks ocorre (verificado: `CreateTask` não invocado no fake).
-- [ ] **CA-06** — `POST /api/tasks` com `priority: "Urgente"` (fora do enum) devolve **400**, não 500.
-- [ ] **CA-07** — `POST /api/tasks` com JSON malformado (chave faltando aspas, vírgula sobrando) devolve **400** `ProblemDetails`, não 500.
-- [ ] **CA-08** — `dueDate` fora do formato `yyyy-MM-dd` devolve **400**.
+- [x] **CA-05** — `POST /api/tasks` com token válido e `title` ausente/vazio devolve **400** apontando o campo, e **nenhuma** chamada gRPC ao Tasks ocorre (verificado: `CreateTask` não invocado no fake).
+- [x] **CA-06** — `POST /api/tasks` com `priority: "Urgente"` (fora do enum) devolve **400**, não 500.
+- [x] **CA-07** — `POST /api/tasks` com JSON malformado (chave faltando aspas, vírgula sobrando) devolve **400** `ProblemDetails`, não 500.
+- [x] **CA-08** — `dueDate` fora do formato `yyyy-MM-dd` devolve **400**.
 
 ### Segurança (requisito 3 de `t2.md`)
 
-- [ ] **CA-09** — `POST /api/tasks` sem `Authorization` devolve **401**, mesmo com corpo válido.
-- [ ] **CA-10** — `POST /api/tasks` com token expirado ou assinatura inválida devolve **401**.
-- [ ] **CA-11** — `POST /api/tasks` sem token **e** com payload inválido devolve **401** (não 400) — a ordem autenticação-antes-de-validação é observável.
-- [ ] **CA-12** — O corpo do 401 não distingue "token ausente" de "token inválido"/"expirado" (mesma regra de [BE-13](BE-13-protecao-endpoints.md) CA-11).
+- [x] **CA-09** — `POST /api/tasks` sem `Authorization` devolve **401**, mesmo com corpo válido.
+- [x] **CA-10** — `POST /api/tasks` com token expirado ou assinatura inválida devolve **401**.
+- [x] **CA-11** — `POST /api/tasks` sem token **e** com payload inválido devolve **401** (não 400) — a ordem autenticação-antes-de-validação é observável.
+- [x] **CA-12** — O corpo do 401 não distingue "token ausente" de "token inválido"/"expirado" (mesma regra de [BE-13](BE-13-protecao-endpoints.md) CA-11).
 - [ ] **CA-13** — Com o Identity inalcançável no momento de `ValidateToken`, a requisição autenticada devolve **503** com `Retry-After` — nunca 401.
-- [ ] **CA-14** — `/health`, `POST /api/auth/login` e a documentação OpenAPI/Scalar permanecem acessíveis sem token; todo o resto exige token por padrão (teste de guarda de rotas com allowlist explícita, mesmo padrão de [BE-13](BE-13-protecao-endpoints.md) CA-07).
+- [x] **CA-14** — `/health`, `POST /api/auth/login` e a documentação OpenAPI/Scalar permanecem acessíveis sem token; todo o resto exige token por padrão (teste de guarda de rotas com allowlist explícita, mesmo padrão de [BE-13](BE-13-protecao-endpoints.md) CA-07).
 - [ ] **CA-15** — Nenhuma chave `Jwt:*` existe em nenhum `appsettings*.json` do Gateway nem é lida no código (varredura).
 
 ### Mapeamento de erro (D-35)
 
-- [ ] **CA-16** — `RpcException` com `NotFound` do Tasks (dono inexistente) vira **404** no Gateway, com `errorCode` do trailer preservado no `ProblemDetails`.
-- [ ] **CA-17** — `RpcException` com `FailedPrecondition` (dono inativo **ou** limite de tarefas ativas) vira **409**, com o `errorCode` distinguindo os dois casos.
-- [ ] **CA-18** — `RpcException` com `Unavailable`/`DeadlineExceeded` de qualquer backend vira **503** com `Retry-After`.
-- [ ] **CA-19** — Nenhuma resposta de erro do Gateway expõe stack trace, endereço interno de gRPC ou mensagem crua de `RpcException`.
+- [x] **CA-16** — `RpcException` com `NotFound` do Tasks (dono inexistente) vira **404** no Gateway, com `errorCode` do trailer preservado no `ProblemDetails`.
+- [x] **CA-17** — `RpcException` com `FailedPrecondition` (dono inativo **ou** limite de tarefas ativas) vira **409**, com o `errorCode` distinguindo os dois casos.
+- [x] **CA-18** — `RpcException` com `Unavailable`/`DeadlineExceeded` de qualquer backend vira **503** com `Retry-After`.
+- [x] **CA-19** — Nenhuma resposta de erro do Gateway expõe stack trace, endereço interno de gRPC ou mensagem crua de `RpcException`.
 
 ### Arquitetura
 
-- [ ] **CA-20** — O assembly de `TodoList.Gateway.Api` não referencia (direta ou transitivamente, via `.csproj`) `TodoList.Identity.*` nem `TodoList.Tasks.*` — teste de arquitetura.
-- [ ] **CA-21** — `TodoList.Gateway.Api.csproj` referencia só os `.proto` de `contracts/identity/v1/` e `contracts/tasks/v1/`, ambos com `GrpcServices="Client"`.
-- [ ] **CA-22** — Alterar `Backends:IdentityGrpcAddress`/`Backends:TasksGrpcAddress` para outro endereço redireciona a chamada sem recompilar.
-- [ ] **CA-23** — Removendo o valor de `Backends:IdentityGrpcAddress` (ou colocando algo que não é URI absoluta), a aplicação falha na inicialização (`ValidateOnStart`), não na primeira requisição.
+- [x] **CA-20** — O assembly de `TodoList.Gateway.Api` não referencia (direta ou transitivamente, via `.csproj`) `TodoList.Identity.*` nem `TodoList.Tasks.*` — teste de arquitetura.
+- [x] **CA-21** — `TodoList.Gateway.Api.csproj` referencia só os `.proto` de `contracts/identity/v1/` e `contracts/tasks/v1/`, ambos com `GrpcServices="Client"`.
+- [x] **CA-22** — Alterar `Backends:IdentityGrpcAddress`/`Backends:TasksGrpcAddress` para outro endereço redireciona a chamada sem recompilar.
+- [x] **CA-23** — Removendo o valor de `Backends:IdentityGrpcAddress` (ou colocando algo que não é URI absoluta), a aplicação falha na inicialização (`ValidateOnStart`), não na primeira requisição.
 
 ### Disponibilidade e rastreabilidade
 
-- [ ] **CA-24** — `POST /api/auth/login` com o Identity inalcançável devolve **503** com `Retry-After` — nunca 401: "não consegui perguntar" não é "credencial inválida" (mesmo princípio do CA-13).
-- [ ] **CA-25** — O `traceId` da requisição HTTP de entrada chega às duas chamadas gRPC de saída (`ValidateToken` e `CreateTask`) na metadata `traceparent` — verificado no fake dos clientes. É o que permite, na demonstração ([BE-39](BE-39-verificacao-t2.md)), seguir uma requisição pelos logs dos três serviços.
-- [ ] **CA-26** — Cada chamada gRPC de saída do Gateway gera **uma** linha de log estruturado com backend, RPC, `StatusCode`, duração e `traceId` na própria mensagem — mesmo padrão de `GrpcIdentityGateway` no Tasks ([BE-27](BE-27-tasks-cliente-grpc.md)). **Nunca** o token, a senha ou o corpo da requisição.
+- [x] **CA-24** — `POST /api/auth/login` com o Identity inalcançável devolve **503** com `Retry-After` — nunca 401: "não consegui perguntar" não é "credencial inválida" (mesmo princípio do CA-13).
+- [x] **CA-25** — O `traceId` da requisição HTTP de entrada chega às duas chamadas gRPC de saída (`ValidateToken` e `CreateTask`) na metadata `traceparent` — verificado no fake dos clientes. É o que permite, na demonstração ([BE-39](BE-39-verificacao-t2.md)), seguir uma requisição pelos logs dos três serviços.
+- [x] **CA-26** — Cada chamada gRPC de saída do Gateway gera **uma** linha de log estruturado com backend, RPC, `StatusCode`, duração e `traceId` na própria mensagem — mesmo padrão de `GrpcIdentityGateway` no Tasks ([BE-27](BE-27-tasks-cliente-grpc.md)). **Nunca** o token, a senha ou o corpo da requisição.
 
 ## Testes obrigatórios
 
@@ -152,3 +152,13 @@ O `errorCode` do trailer `error-code` alimenta `ProblemDetails.extensions.errorC
 > - **Rotas GET ([BE-41](BE-41-listar-e-consultar-tarefas-grpc.md)):** `GET /api/tasks` e `GET /api/tasks/{id:guid}` passam a existir no Gateway — o `Location` do 201 de `POST /api/tasks` (CA-01) passa a apontar para uma rota que **resolve de fato**.
 > - **nginx na frente ([BE-42](BE-42-nginx-mesma-origem.md)):** na VM, o Gateway passa a escutar em `127.0.0.1:8080` (não mais `0.0.0.0:8080`) — a porta pública passa a ser a 80 do nginx. `ForwardedHeaders` é habilitado com `KnownProxies=127.0.0.1`, para o Gateway enxergar o IP real do cliente através do proxy.
 > - Os demais critérios de aceite (validação na borda, mapeamento de erro gRPC, arquitetura, CA-01 a CA-12, CA-16 a CA-23, CA-25, CA-26) continuam válidos sem alteração.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 24 de 26.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-13 | superado por D-38 / BE-40 | O Gateway não chama mais `ValidateToken` (RPC removido); a validação do JWT é local (`Authentication/ServiceCollectionExtensions.cs`), então não há "Identity inalcançável na autenticação". O princípio "não consegui perguntar não é 401" segue valendo e é testado no login (`AuthLoginTests.Login_IdentityIndisponivel_Retorna503ComRetryAfterNunca401`, CA-24) e em `CreateTaskTests` (CA-18). |
+| CA-15 | superado por D-38 / BE-40 | O critério proibia `Jwt:*` no Gateway; agora o Gateway precisa de `Jwt:PublicKeyPath`, `Issuer` e `Audience` (só a chave pública, nunca a privada), validados na inicialização (`JwtOptions`, `JwtStartupValidationTests`). Ver BE-40. |
+| CA-25 | atendido (parcialmente reinterpretado) | O `traceparent` chega ao `CreateTask` (`CreateTaskTests.CreateTask_TraceparentDaRequisicaoDeEntrada_ChegaAoCreateTask`); `ValidateToken` não existe mais (D-38), então só há esta chamada gRPC de saída em `POST /api/tasks`. |

@@ -55,14 +55,14 @@ Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a auten
 
 ### Modo definitivo
 
-- [ ] **CA-07** — Com `Tasks:AllowAnonymousCreate=false` (padrão), `POST /api/tasks` sem token responde **401** ([BE-13](BE-13-protecao-endpoints.md)).
+- [x] **CA-07** — Com `Tasks:AllowAnonymousCreate=false` (padrão), `POST /api/tasks` sem token responde **401** ([BE-13](BE-13-protecao-endpoints.md)).
 - [ ] **CA-08** — Com o modo `false`, o header `X-User-Id` é **completamente ignorado**: enviá-lo junto de um token válido não muda o dono da tarefa. Este é o critério que garante que a porta provisória não vira escalada de privilégio.
 - [ ] **CA-09** — Trocar entre os dois modos é mudança de configuração, sem recompilar e **sem alterar o handler**.
 
 ### Não regressão
 
 - [ ] **CA-10** — Nos dois modos, o `CreateTaskHandler` é exatamente o mesmo código e todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos.
-- [ ] **CA-11** — Os demais endpoints de tarefa continuam exigindo autenticação mesmo com o modo ligado.
+- [x] **CA-11** — Os demais endpoints de tarefa continuam exigindo autenticação mesmo com o modo ligado.
 - [ ] **CA-12** — O endpoint consta da allowlist do teste de guarda de rotas com justificativa escrita, e **apenas** quando o modo está ligado.
 
 ## Testes obrigatórios
@@ -74,3 +74,15 @@ Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a auten
 ## Decisões em aberto
 
 - **D-30** — Origem provisória da identidade no Tasks (`X-User-Id` sob flag). Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 2 de 12.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 a CA-06 | em aberto — superado por D-30 (fechada no T2) e D-34 | O gatilho REST do Tasks, o header `X-User-Id` e a flag `Tasks:AllowAnonymousCreate` foram removidos por BE-35: o Tasks é só gRPC e a identidade chega pela metadata `x-user-id`, preenchida pelo Gateway depois de validar o JWT. Não há mais "modo provisório ligado" a testar (restam só menções em comentários de `ICurrentUser`/`CallerIdentityCurrentUser`/`TaskOptions`). |
+| CA-07 | atendido em outro lugar | O "modo definitivo" é o único modo: `POST /api/tasks` sem token responde 401 no Gateway (`AuthenticationTests.CreateTask_SemAuthorizationHeader_Retorna401MesmoComPayloadValido`). |
+| CA-08 | em aberto — superado por D-30/D-34 (sem teste) | O dono vem só do claim `sub` (interceptor de metadata do Gateway; `CreateTaskTests.CreateTask_MetadataDeSaida_TemUserIdDoClaimSubEClientDateRepassado`), mas nenhum teste envia um header HTTP `X-User-Id` ao Gateway junto de token válido para provar que é ignorado. |
+| CA-09, CA-10, CA-12 | em aberto — superado por D-30 | Dependem da existência de dois modos de configuração; o modo provisório não existe mais. `RouteGuardTests` já garante que `POST /api/tasks` não é anônimo (nenhuma rota de tarefa está na allowlist). |
+| CA-11 | atendido em outro lugar | Todas as rotas fora da allowlist exigem autenticação: `RouteGuardTests.MapEndpoints_SoARotasDaAllowlistPermitemAcessoAnonimo` (Gateway). |

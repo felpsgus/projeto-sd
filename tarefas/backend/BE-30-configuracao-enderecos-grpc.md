@@ -70,3 +70,11 @@ Onde cada serviço escuta e para onde o Tasks chama são **configuração**, nã
 - Integração: CA-02, CA-05 — subir com configuração faltando/inválida e afirmar a falha na inicialização.
 - Integração: CA-03, CA-04, CA-06 — sobrescrita por variável de ambiente com efeito observável.
 - Verificação automatizada no CI para CA-01 (varredura por padrão de literal), junto das varreduras já previstas em [BE-24](BE-24-observabilidade-ci.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 9 de 10.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-06 | em aberto — não verificável por código | `CreateTaskCustomAddressEndToEndTests` cobre o caminho com Identity em endereço não padrão, mas sobre `TestServer` (sem TCP real), e o texto do critério (`POST /api/tasks` direto no Tasks, dois `dotnet run`) está desatualizado pelo T2 (o Tasks é só gRPC, atrás do Gateway). A prova ponta a ponta com endereços só por variável de ambiente é o `docker-compose.yml`/`deploy/smoke.sh` (`Identity__GrpcAddress`, `Backends__*GrpcAddress`), que exige rodar a stack. |

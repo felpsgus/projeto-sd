@@ -52,16 +52,16 @@ Erro de negócio e erro técnico têm caminhos distintos e previsíveis: o prime
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `Result<T>.Value` em um resultado de falha lança; `Result.Error` em um sucesso lança. Ambos cobertos por teste.
-- [ ] **CA-02** — Cada `ErrorType` mapeia para o status HTTP da tabela acima, verificado por teste parametrizado cobrindo **todos** os valores do enum.
-- [ ] **CA-03** — Toda resposta de erro da API tem `Content-Type: application/problem+json` e inclui `type`, `title`, `status`, `detail` e `traceId`.
-- [ ] **CA-04** — Um request inválido retorna **400** com a lista de erros **por campo**, não uma mensagem única concatenada.
-- [ ] **CA-05** — Uma exceção não tratada em um handler retorna **500** com corpo genérico; em ambiente não-`Development` o corpo **não** contém nome de tipo, stack trace nem mensagem da exceção original.
-- [ ] **CA-06** — O `traceId` da resposta de erro corresponde ao da entrada de log gerada para aquela requisição.
+- [x] **CA-01** — `Result<T>.Value` em um resultado de falha lança; `Result.Error` em um sucesso lança. Ambos cobertos por teste.
+- [x] **CA-02** — Cada `ErrorType` mapeia para o status HTTP da tabela acima, verificado por teste parametrizado cobrindo **todos** os valores do enum.
+- [x] **CA-03** — Toda resposta de erro da API tem `Content-Type: application/problem+json` e inclui `type`, `title`, `status`, `detail` e `traceId`.
+- [x] **CA-04** — Um request inválido retorna **400** com a lista de erros **por campo**, não uma mensagem única concatenada.
+- [x] **CA-05** — Uma exceção não tratada em um handler retorna **500** com corpo genérico; em ambiente não-`Development` o corpo **não** contém nome de tipo, stack trace nem mensagem da exceção original.
+- [x] **CA-06** — O `traceId` da resposta de erro corresponde ao da entrada de log gerada para aquela requisição.
 - [ ] **CA-07** — Não existe nenhuma string literal de mensagem de erro fora do catálogo de erros (verificado em revisão; opcionalmente por analyzer).
-- [ ] **CA-08** — Um endpoint que retorna `Result` de falha do tipo `NotFound` responde 404 **sem** o handler precisar escrever o `switch` manualmente.
-- [ ] **CA-09** — Os dois serviços produzem `ProblemDetails` com a mesma forma para o mesmo `ErrorType`, comprovado por teste de integração em cada um.
-- [ ] **CA-10** — `TodoList.SharedKernel` contém apenas `Result`, `Result<T>`, `Error` e `ErrorType` — nenhuma entidade, DTO de negócio ou regra (**D-26**). Verificado por revisão e por teste de arquitetura sobre os tipos públicos do assembly.
+- [x] **CA-08** — Um endpoint que retorna `Result` de falha do tipo `NotFound` responde 404 **sem** o handler precisar escrever o `switch` manualmente.
+- [x] **CA-09** — Os dois serviços produzem `ProblemDetails` com a mesma forma para o mesmo `ErrorType`, comprovado por teste de integração em cada um.
+- [x] **CA-10** — `TodoList.SharedKernel` contém apenas `Result`, `Result<T>`, `Error` e `ErrorType` — nenhuma entidade, DTO de negócio ou regra (**D-26**). Verificado por revisão e por teste de arquitetura sobre os tipos públicos do assembly.
 
 ## Testes obrigatórios
 
@@ -72,3 +72,12 @@ Erro de negócio e erro técnico têm caminhos distintos e previsíveis: o prime
 ## Decisões em aberto
 
 - **D-26** — `SharedKernel` como único código compartilhado entre os serviços. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 9 de 10.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-02 | atendido em outro lugar | O mapeamento deixou de ser `ErrorType` → HTTP direto (D-35). `ErrorType` → gRPC: `ResultGrpcStatusTests` (Tasks, `ToStatusCode_CobreTodosOsValoresDoEnum`). gRPC → HTTP: `GrpcErrorMappingTests` (Gateway). |
+| CA-07 | em aberto | Critério de revisão humana (nenhuma mensagem de erro literal fora do catálogo). Não há analyzer nem teste que o confirme. |

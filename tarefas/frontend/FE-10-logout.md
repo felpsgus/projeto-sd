@@ -51,7 +51,7 @@ O usuário sai da aplicação quando quiser, e nada do que ele viu permanece ace
 - [x] **CA-03** — Após sair, o usuário está em `/login` e o `AppShell` não é mais exibido.
 - [x] **CA-04** — Após sair, nenhum token permanece em memória ou storage (teste que inspeciona ambos).
 - [x] **CA-05** — Após sair, acessar `/tasks` pela URL leva ao login (o guard de [FE-07](FE-07-roteamento-guards.md) atua).
-- [ ] **CA-06** — O botão "voltar" do navegador **não** exibe a tela autenticada anterior, nem por um instante (`replaceUrl`).
+- [x] **CA-06** — O botão "voltar" do navegador **não** exibe a tela autenticada anterior, nem por um instante (`replaceUrl`).
 - [x] **CA-07** — O estado de tarefas em memória é limpo: entrar com **outro** usuário na mesma aba não mostra nenhum dado do anterior.
 - [x] **CA-08** — Se `POST /api/auth/logout` falhar (500 ou rede fora), a sessão local **ainda assim** é encerrada e o usuário vai para o login.
 - [x] **CA-09** — Nesse caso, o erro da API não é exibido como falha da operação — o usuário saiu, do ponto de vista dele.
@@ -65,3 +65,12 @@ O usuário sai da aplicação quando quiser, e nada do que ele viu permanece ace
 - Componente/integração: CA-01 a CA-10, CA-13.
 - **CA-04 e CA-07 são testes de segurança obrigatórios** — o vazamento entre usuários na mesma aba é silencioso e não aparece em revisão de código.
 - Logout entra no E2E crítico de [FE-22](FE-22-testes-e2e.md), incluindo o teste do botão "voltar" (CA-06).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 14.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-02b | em aberto | Nenhum E2E verifica que o cookie de refresh some do contexto do navegador após o logout (`leak.spec.ts` só afirma `HttpOnly`; `document.cookie` nunca o mostraria de qualquer forma). |
+| CA-06 | atendido em outro lugar | E2E `flows.spec.ts` #10 (logout, `/tasks` leva ao login, `goBack` não exibe tela autenticada); `replaceUrl` coberto em `logout.service.spec.ts`. |

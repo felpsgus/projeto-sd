@@ -51,37 +51,37 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 
 ### Fluxo
 
-- [ ] **CA-01** — Login com credenciais válidas leva a `/tasks` e o cabeçalho passa a exibir o nome do usuário.
+- [x] **CA-01** — Login com credenciais válidas leva a `/tasks` e o cabeçalho passa a exibir o nome do usuário.
 - [ ] **CA-02** — Login vindo de rota protegida retorna o usuário **para aquela rota** após autenticar.
 - [ ] **CA-03** — O botão de envio fica desabilitado durante a requisição, e clique duplo dispara **uma** chamada.
-- [ ] **CA-04** — Campos vazios impedem o envio, com erro por campo (validação local).
+- [x] **CA-04** — Campos vazios impedem o envio, com erro por campo (validação local).
 
 ### RN-AUTH-09 — indistinguibilidade
 
-- [ ] **CA-05** — Senha incorreta exibe exatamente **"E-mail ou senha inválidos."**
-- [ ] **CA-06** — E-mail inexistente exibe **a mesma mensagem, no mesmo lugar, com o mesmo destaque visual**.
-- [ ] **CA-07** — Conta inativa (RN-USER-04) exibe **a mesma mensagem** — a tela não menciona conta desativada.
-- [ ] **CA-08** — Em nenhum desses casos um campo específico é marcado como inválido: o erro é do formulário, não do e-mail.
-- [ ] **CA-09** — A tela **não** faz nenhuma chamada de verificação de e-mail antes do envio.
+- [x] **CA-05** — Senha incorreta exibe exatamente **"E-mail ou senha inválidos."**
+- [x] **CA-06** — E-mail inexistente exibe **a mesma mensagem, no mesmo lugar, com o mesmo destaque visual**.
+- [x] **CA-07** — Conta inativa (RN-USER-04) exibe **a mesma mensagem** — a tela não menciona conta desativada.
+- [x] **CA-08** — Em nenhum desses casos um campo específico é marcado como inválido: o erro é do formulário, não do e-mail.
+- [x] **CA-09** — A tela **não** faz nenhuma chamada de verificação de e-mail antes do envio.
 - [ ] **CA-10** — Um teste compara o DOM renderizado nos três cenários de falha e confirma que o texto e a estrutura da mensagem são idênticos.
 
 ### RN-AUTH-13 — bloqueio
 
-- [ ] **CA-11** — Resposta **429** exibe mensagem de excesso de tentativas, distinta da mensagem de credencial inválida.
+- [x] **CA-11** — Resposta **429** exibe mensagem de excesso de tentativas, distinta da mensagem de credencial inválida.
 - [ ] **CA-12** — A mensagem informa o tempo de espera com base no `Retry-After`, com contagem regressiva.
 - [ ] **CA-13** — O botão de envio fica desabilitado enquanto o bloqueio dura e é reabilitado ao terminar, sem recarregar a página.
-- [ ] **CA-14** — `Retry-After` ausente exibe a mensagem sem tempo específico, sem valor inventado.
-- [ ] **CA-15** — O tempo exibido vem da resposta, não de uma constante `15` no código do frontend.
+- [x] **CA-14** — `Retry-After` ausente exibe a mensagem sem tempo específico, sem valor inventado.
+- [x] **CA-15** — O tempo exibido vem da resposta, não de uma constante `15` no código do frontend.
 
 ### Contexto e segurança
 
-- [ ] **CA-16** — Chegando por sessão expirada, a tela exibe "sua sessão expirou" **antes** de qualquer tentativa de login.
-- [ ] **CA-17** — Chegando por revogação (RN-AUTH-19), exibe a mensagem de sessão encerrada.
-- [ ] **CA-18** — **Não existe** link de "esqueci minha senha" na tela (RN-AUTH-22).
-- [ ] **CA-19** — Nenhuma senha aparece em storage, URL, `console` ou atributo do DOM (teste de segurança).
-- [ ] **CA-20** — Campos usam `autocomplete="username"` e `autocomplete="current-password"`.
+- [x] **CA-16** — Chegando por sessão expirada, a tela exibe "sua sessão expirou" **antes** de qualquer tentativa de login.
+- [x] **CA-17** — Chegando por revogação (RN-AUTH-19), exibe a mensagem de sessão encerrada.
+- [x] **CA-18** — **Não existe** link de "esqueci minha senha" na tela (RN-AUTH-22).
+- [x] **CA-19** — Nenhuma senha aparece em storage, URL, `console` ou atributo do DOM (teste de segurança).
+- [x] **CA-20** — Campos usam `autocomplete="username"` e `autocomplete="current-password"`.
 - [ ] **CA-21** — A mensagem de erro é anunciada por leitor de tela (`aria-live`) e o foco vai para ela ou para o campo de e-mail.
-- [ ] **CA-22** — A tela é operável só pelo teclado e usável em 360 px.
+- [x] **CA-22** — A tela é operável só pelo teclado e usável em 360 px.
 
 ## Testes obrigatórios
 
@@ -89,3 +89,18 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 - **CA-05 a CA-10 são o guardião de RN-AUTH-09 no cliente** — o teste comparativo de CA-10 é obrigatório.
 - **CA-19 é teste de segurança obrigatório.**
 - Login é o primeiro fluxo crítico do E2E ([FE-22](FE-22-testes-e2e.md)).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 22.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-02 | em aberto | Sem teste de navegação à `returnUrl` após o login (código em `LoginComponent.submit`); só o E2E "cadastro, login" cobre o destino padrão `/tasks`. |
+| CA-03 | em aberto | `disabled`/`aria-busy` durante o envio e a guarda `submitting()` existem, mas nenhum teste de login verifica o botão desabilitado nem o clique duplo. |
+| CA-10 | em aberto | O teste "CA-05 a CA-10" itera sobre um array de um único código (`auth.invalid_credentials`); não compara o DOM de três cenários, como o critério exige. |
+| CA-12 | em aberto | O tempo vem de `Retry-After` (testado: 540 s vira "9 minutos"), mas não há contagem regressiva. |
+| CA-13 | em aberto (decisão de desenho) | O botão não é desabilitado durante o bloqueio; o teste afirma o oposto ("a tela não trava"). Não atendido. |
+| CA-21 | em aberto | `role="alert"`/`aria-live="assertive"` e `focus()` do erro estão no código; o teste só verifica `role="alert"`, não o foco. |
+
+CA-06/CA-07 atendidos por desenho (o 401 é idêntico, sem tratamento por cenário), mas o teste correspondente só exerce um cenário.

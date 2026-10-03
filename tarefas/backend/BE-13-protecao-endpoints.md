@@ -51,27 +51,27 @@ Todo endpoint é protegido **por padrão**; o acesso anônimo é a exceção dec
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Um endpoint novo, criado sem nenhum atributo, exige autenticação por padrão.
-- [ ] **CA-02** — Requisição sem cabeçalho `Authorization` a um endpoint protegido retorna **401** com corpo `application/problem+json`.
-- [ ] **CA-03** — Requisição com token expirado retorna **401**.
+- [x] **CA-01** — Um endpoint novo, criado sem nenhum atributo, exige autenticação por padrão.
+- [x] **CA-02** — Requisição sem cabeçalho `Authorization` a um endpoint protegido retorna **401** com corpo `application/problem+json`.
+- [x] **CA-03** — Requisição com token expirado retorna **401**.
 - [ ] **CA-04** — Requisição com token malformado ou assinatura inválida retorna **401**, nunca 500.
-- [ ] **CA-05** — Requisição com token válido é processada normalmente.
-- [ ] **CA-06** — `ICurrentUser.Id` dentro de um handler autenticado devolve o `Guid` do claim `sub`.
-- [ ] **CA-07** — O teste de guarda enumera as rotas e **falha** quando um endpoint anônimo não listado na allowlist é adicionado (comprovado adicionando um endpoint temporário durante o desenvolvimento).
-- [ ] **CA-08** — Os endpoints públicos do Identity permanecem acessíveis sem token: `/health`, `register`, `login`, `refresh` e a documentação OpenAPI.
-- [ ] **CA-09** — `/api/auth/logout` **exige** autenticação (não está na allowlist).
-- [ ] **CA-09b** — O Tasks Service sobe **sem nenhuma configuração `Jwt:*`** e sem registrar autenticação Bearer ([BE-08](BE-08-emissao-jwt.md), CA-15).
-- [ ] **CA-09c** — O teste de guarda de rotas roda no Identity com a allowlist acima. No Tasks, o equivalente é o teste de [BE-29](BE-29-gatilho-http-criar-tarefa.md) CA-08, que garante que a identidade repassada só é aceita no modo provisório.
-- [ ] **CA-10** — A camada `Application` não referencia `Microsoft.AspNetCore.*` (teste de arquitetura).
-- [ ] **CA-11** — O corpo da resposta 401 não vaza detalhe do motivo (expirado vs. inválido vs. ausente).
+- [x] **CA-05** — Requisição com token válido é processada normalmente.
+- [x] **CA-06** — `ICurrentUser.Id` dentro de um handler autenticado devolve o `Guid` do claim `sub`.
+- [x] **CA-07** — O teste de guarda enumera as rotas e **falha** quando um endpoint anônimo não listado na allowlist é adicionado (comprovado adicionando um endpoint temporário durante o desenvolvimento).
+- [x] **CA-08** — Os endpoints públicos do Identity permanecem acessíveis sem token: `/health`, `register`, `login`, `refresh` e a documentação OpenAPI.
+- [x] **CA-09** — `/api/auth/logout` **exige** autenticação (não está na allowlist).
+- [x] **CA-09b** — O Tasks Service sobe **sem nenhuma configuração `Jwt:*`** e sem registrar autenticação Bearer ([BE-08](BE-08-emissao-jwt.md), CA-15).
+- [x] **CA-09c** — O teste de guarda de rotas roda no Identity com a allowlist acima. No Tasks, o equivalente é o teste de [BE-29](BE-29-gatilho-http-criar-tarefa.md) CA-08, que garante que a identidade repassada só é aceita no modo provisório.
+- [x] **CA-10** — A camada `Application` não referencia `Microsoft.AspNetCore.*` (teste de arquitetura).
+- [x] **CA-11** — O corpo da resposta 401 não vaza detalhe do motivo (expirado vs. inválido vs. ausente).
 
 ### `IClientDate` (D-18)
 
-- [ ] **CA-12** — Com `X-Client-Date: 2026-08-21`, `IClientDate.Today` devolve `2026-08-21`.
-- [ ] **CA-13** — Sem o header, `Today` devolve a data UTC do `TimeProvider`, e a requisição é processada normalmente (**200**, não 400).
-- [ ] **CA-14** — Header malformado (`"ontem"`, `"21/08/2026"`, `"2026-13-45"`, string vazia) cai no mesmo fallback, sem erro e sem exceção.
-- [ ] **CA-15** — O valor é request-scoped: duas requisições simultâneas com headers diferentes enxergam cada uma a sua própria data.
-- [ ] **CA-16** — `IClientDate` é lido de um único ponto; nenhum handler recebe `today` como parâmetro próprio (verificado por revisão).
+- [x] **CA-12** — Com `X-Client-Date: 2026-08-21`, `IClientDate.Today` devolve `2026-08-21`.
+- [x] **CA-13** — Sem o header, `Today` devolve a data UTC do `TimeProvider`, e a requisição é processada normalmente (**200**, não 400).
+- [x] **CA-14** — Header malformado (`"ontem"`, `"21/08/2026"`, `"2026-13-45"`, string vazia) cai no mesmo fallback, sem erro e sem exceção.
+- [x] **CA-15** — O valor é request-scoped: duas requisições simultâneas com headers diferentes enxergam cada uma a sua própria data.
+- [x] **CA-16** — `IClientDate` é lido de um único ponto; nenhum handler recebe `today` como parâmetro próprio (verificado por revisão).
 
 ## Testes obrigatórios
 
@@ -85,3 +85,18 @@ Todo endpoint é protegido **por padrão**; o acesso anônimo é a exceção dec
 - **D-18** — ✅ decidida: data local do usuário via header. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-31** — ✅ decidida: o Tasks não valida JWT; validação externa é por `ValidateToken`.
 - **D-32** — ✅ decidida: o Gateway é a origem única, e os serviços não são publicamente acessíveis.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 17 de 18.
+
+Os critérios CA-01 a CA-11 descrevem o pipeline HTTP do Identity. Desde D-32/D-38 ele vive no Gateway (`SetFallbackPolicy` + `AddJwtBearer` em `Program.cs`), exercitado por `AuthenticationTests`, `RouteGuardTests` e `SessionEndpointsTests`.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-04 | em aberto | `AuthenticationTests` cobre assinatura inválida (HS256, `alg=none`, outra chave), mas nenhum teste envia um token malformado (texto que não é JWT) para confirmar que a resposta é 401 e não 500. |
+| CA-06 | atendido em outro lugar | O Gateway lê o `sub` e o repassa em `x-user-id` (`CreateTask_MetadataDeSaida_TemUserIdDoClaimSubEClientDateRepassado`). `CallerIdentityCurrentUserTests` (Tasks) mostra `ICurrentUser.Id` devolvendo o Guid. |
+| CA-08 | atendido em outro lugar | Allowlist em `RouteGuardTests` (`/health`, `login`, `refresh`, `register`, OpenAPI/Scalar), no Gateway e não no Identity. |
+| CA-09c | atendido em outro lugar | Guarda de rotas no Gateway (`RouteGuardTests`). No Tasks: `RouteInventoryTests` e `RequireCallerIdentityGrpcTests`, que substituem o teste do BE-29, já extinto (D-30 fechada). |
+| CA-10 | atendido por construção | `Identity.Application` e `Tasks.Application` usam `Microsoft.NET.Sdk` sem `FrameworkReference` ao ASP.NET Core, e nenhum `.cs` os usa. Não há teste de arquitetura dedicado. |
+| CA-15 | atendido por construção | `IClientDate` é `AddScoped` e lê a metadata da própria chamada (`HttpContextClientDate`). Não há teste com duas requisições simultâneas. |

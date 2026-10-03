@@ -78,3 +78,11 @@ Qualquer pessoa consegue, seguindo apenas o `README.md`, subir os dois serviços
 
 - Integração ponta a ponta: CA-03, CA-04, CA-06 — Tasks e Identity reais, não substituídos.
 - Verificação manual documentada de CA-02, feita por alguém que não escreveu o código, com o resultado registrado no PR.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 11 de 12.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-02 | em aberto — não verificável por código | Exige que alguém que não escreveu o projeto suba os serviços seguindo só o README, em máquina limpa, e registre o resultado no PR; verificação humana. |

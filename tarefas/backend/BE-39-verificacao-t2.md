@@ -57,15 +57,15 @@ Qualquer pessoa consegue, seguindo apenas o `README.md`, subir os três serviço
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Existe uma tabela **requisito do `t2.md` → passo do roteiro → evidência** (log, resposta HTTP, ou ambos) cobrindo os quatro requisitos numerados do enunciado (REST público, validação na borda com 400/201, autenticação com 401, tradução JSON→gRPC).
+- [x] **CA-01** — Existe uma tabela **requisito do `t2.md` → passo do roteiro → evidência** (log, resposta HTTP, ou ambos) cobrindo os quatro requisitos numerados do enunciado (REST público, validação na borda com 400/201, autenticação com 401, tradução JSON→gRPC).
 - [ ] **CA-02** — `scripts/demo-t2.ps1` e `deploy/smoke.sh` saem com código **≠ 0** se qualquer status HTTP divergir do esperado, e com **0** quando todos os passos passam.
 - [ ] **CA-03** — O roteiro de apresentação (`deploy/README.md`) cabe em **5 minutos** num ensaio cronometrado real, com o tempo registrado.
 - [ ] **CA-04** — A verificação contra a VM (`scripts/demo-t2.ps1 -BaseUrl http://<IP externo>:8080`) é executada **a partir de fora** — pelo IP externo da `maquina-1-psd`, porta 8080 —, não de dentro da própria VM via `127.0.0.1`.
-- [ ] **CA-05** — Os passos 1 e 2 da sequência (sem token, token lixo) respondem **401** nos dois — comprovando que o middleware trata os dois casos, não apenas um deles.
-- [ ] **CA-06** — O passo 6 (usuário inativo) responde **401** com corpo indistinguível do de uma credencial simplesmente errada (RN-AUTH-09 estendida ao Gateway).
+- [x] **CA-05** — Os passos 1 e 2 da sequência (sem token, token lixo) respondem **401** nos dois — comprovando que o middleware trata os dois casos, não apenas um deles.
+- [x] **CA-06** — O passo 6 (usuário inativo) responde **401** com corpo indistinguível do de uma credencial simplesmente errada (RN-AUTH-09 estendida ao Gateway).
 - [ ] **CA-07** — O caminho de falha controlada (Identity parado) responde **503** com `Retry-After`, nunca 401 nem 500, verificado com o Identity de fato encerrado.
 - [ ] **CA-08** — O trecho de log documentado no README/roteiro mostra o mesmo `traceId` nas linhas do Gateway, do Tasks e do Identity, para o caminho de sucesso.
-- [ ] **CA-09** — Nenhum log ou resposta mostrados no material da task contém senha, hash de senha ou o access token completo (RN-AUTH-05, mesmo cuidado de BE-31 CA-12).
+- [x] **CA-09** — Nenhum log ou resposta mostrados no material da task contém senha, hash de senha ou o access token completo (RN-AUTH-05, mesmo cuidado de BE-31 CA-12).
 
 ## Testes obrigatórios
 
@@ -106,7 +106,7 @@ Os três casos respondem **401** com o mesmo corpo (`errorCode=auth.unauthorized
 
 ### CA-01 atualizado — sete requisitos numerados do `t2.md`
 
-- [ ] **CA-01** — Existe uma tabela **requisito do `t2.md` (1 a 7) → passo do roteiro → evidência** (log, resposta HTTP, tela do frontend, ou combinação), cobrindo:
+- [x] **CA-01** — Existe uma tabela **requisito do `t2.md` (1 a 7) → passo do roteiro → evidência** (log, resposta HTTP, tela do frontend, ou combinação), cobrindo:
   1. Frontend funcional, falando só com o Gateway;
   2. API Gateway como ponto único de entrada REST;
   3. Backend com ≥ 2 microsserviços internos via gRPC;
@@ -158,3 +158,20 @@ roteiro de 10 minutos:
   em `deploy/README.md` como contas prontas do roteiro foram removidas ou marcadas como histórico
   (a tabela de ids fixos de `InMemoryUserLookup`, usada só para `ValidateUser` em memória — D-39 — não é
   afetada; ela nunca dependeu do seed).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 5 de 11 (o arquivo tem duas linhas `CA-01` e duas `CA-03`: a original e a da emenda de 21/09; as duas `CA-01` foram marcadas).
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 (as duas) | atendido | Tabela "Requisito do `t2.md` (1 a 7) → ato → evidência" em `deploy/README.md`, seção 11. A tabela existe; a evidência ao vivo só se produz na apresentação. |
+| CA-02 | em aberto (parcial) | `deploy/smoke.sh` sai com 1 se algum status diverge e com 0 se todos passam. `scripts/demo-t2.ps1` não existe no repositório (o roteiro em linha de comando é `deploy/demo.sh`, interativo, sem código de saída por passo). |
+| CA-03 (original, 5 min) | em aberto (superado) | Substituído pelo limite de 10 minutos da emenda; ver a linha seguinte. |
+| CA-03 (revisado, 10 min) | em aberto (não verificável) | Ensaio cronometrado não feito: `deploy/README.md` seção 11 mantém `[PENDENTE]` e a seção 13 repete "ainda não feito". Risco direto para 22/10. |
+| CA-04 | em aberto (não verificável) | Execução a partir de fora da VM só pode ser confirmada na VM; `deploy/README.md` seção 13 afirma verificação de campo em 30/09, sem prova aqui. A base mudou para `http://<IP>` na porta 80 (BE-42/D-40). |
+| CA-05 | atendido | `deploy/smoke.sh` (passos 1 e 2) espera 401 nos dois casos, mais o token adulterado (2b); `AuthenticationTests` cobre o lado do Gateway. O script não foi reexecutado nesta auditoria. |
+| CA-06 | atendido | `deploy/smoke.sh` passo 7 espera 401 `auth.invalid_credentials`; `AuthLoginTests.Login_CredenciaisInvalidas_Retorna401ComMesmoCorpoParaTodasAsCausas` cobre o mesmo corpo para inexistente/errada/inativo. Atenção: o passo 7 é PULADO sem `DEMO_INACTIVE_EMAIL`. |
+| CA-07 | em aberto (não verificável) | `deploy/demo.sh --falha` (`dc stop identity`) e o README afirmam o 503 com `Retry-After`, e `AuthLoginTests.Login_IdentityIndisponivel_Retorna503ComRetryAfterNunca401` cobre o mapeamento, mas o teste automatizado usa um Identity falso; o Identity real encerrado só se prova na VM/stack. |
+| CA-08 | em aberto (parcial) | O trecho de log do `README.md` (~linhas 885-925) é anterior a BE-40: mostra `ValidateToken` (removido) e o usuário do seed (removido); o próprio texto diz "pendente de recaptura". O `traceId` compartilhado Gateway/Tasks/Identity é coberto por `Tasks.IntegrationTests/Tasks/TraceIdCorrelationTests` e `Gateway.IntegrationTests/LogLeakageTests`, mas o material documentado precisa ser recapturado. |
+| CA-09 | atendido | Nenhum JWT, senha ou hash nos trechos do `README.md` e do `deploy/README.md` (varredura por `eyJ`/senha); `LogLeakageTests` garante o mesmo nos logs reais. |

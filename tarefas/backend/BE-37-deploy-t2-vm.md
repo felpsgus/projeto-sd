@@ -77,7 +77,7 @@ A `maquina-1-psd` passa a rodar três units systemd — Identity, Tasks e Gatewa
 - [ ] **CA-01** — As três units (`todolist-identity`, `todolist-tasks`, `todolist-gateway`) estão `active (running)` na `maquina-1-psd` e continuam assim depois de um `sudo reboot` da VM (`systemctl is-enabled` confirma as três habilitadas).
 - [ ] **CA-02** — O Gateway responde a uma requisição real (`POST /api/auth/login` ou o roteiro de BE-39) a partir de **fora** da VPC, pelo IP externo na porta 8080.
 - [ ] **CA-03** — As portas 5080, 5081, 5100 e 5101 **não respondem** a partir de fora da VPC — verificado por `curl --max-time 3` contra o IP externo, recusa de conexão ou timeout em todas.
-- [ ] **CA-04** — Nenhum segredo (chave JWT, senha de banco, senha de demonstração) está versionado em `deploy/*.env.example`, no `.git` ou em qualquer arquivo do repositório — só os `.env` reais na VM, `600 root:root`.
+- [x] **CA-04** — Nenhum segredo (chave JWT, senha de banco, senha de demonstração) está versionado em `deploy/*.env.example`, no `.git` ou em qualquer arquivo do repositório — só os `.env` reais na VM, `600 root:root`.
 - [ ] **CA-05** — O upgrade da VM do T1 para o T2 preserva os dados: os usuários semeados no T1 continuam existindo (mesmo `id`), agora com hash real em vez do placeholder, e nenhuma tarefa pré-existente em `tasks.tasks` é perdida.
 - [ ] **CA-06** — O tempo do roteiro de subida completo (do upload do tarball até as três units `active` e a verificação de fora respondendo) está documentado no `deploy/README.md`, medido em pelo menos uma execução real.
 - [ ] **CA-07** — `install-on-vm.sh` se recusa a continuar se `gateway.env` estiver faltando ou com algum valor placeholder, no mesmo padrão já aplicado a `identity.env`/`tasks.env`.
@@ -101,3 +101,20 @@ A `maquina-1-psd` passa a rodar três units systemd — Identity, Tasks e Gatewa
 > - **Chaves RSA:** o item "editar `/etc/todolist/identity.env`, acrescentando `Jwt__SigningKey`" do roteiro de upgrade é **superado por BE-40/D-38** — a VM passa a gerar um par de chaves RSA (`openssl genpkey`) em `/etc/todolist/jwt/`, referenciado por `Jwt__PrivateKeyPath` (Identity) e `Jwt__PublicKeyPath` (Gateway), em vez de uma `Jwt__SigningKey` simétrica. Como as três units rodam como o mesmo usuário `todolist`, a chave privada fica `root:0400` e chega só ao Identity via `LoadCredential=` do systemd (detalhe em BE-40).
 > - **Front no tarball:** `scripts/publish.ps1` passa a incluir também o build do Angular (`publish/frontend/`), servido pelo nginx.
 > - Os demais critérios (CA-01, CA-04 a CA-08) continuam válidos sem alteração.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 1 de 8.
+
+O desenho desta task (três units systemd com binários publicados, `install-on-vm.sh`, `*.env` em `/etc/todolist`) foi substituído pelo deploy em Docker: uma única `todolist.service` (`Type=oneshot`) sobe `docker-compose.prod.yml` (identity, tasks, gateway, frontend/nginx, migrate), com Cloud SQL como banco. Artefatos: `deploy/todolist.service`, `deploy/docker-compose.prod.yml`, `deploy/install-docker-on-vm.sh`, `deploy/todolist.env.example`, `deploy/README.md`. Nada que dependa da VM foi verificado (sem acesso).
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 | em aberto (não verificável + superado) | Exige três units e reboot na VM. Hoje há uma só unit (`todolist.service`) e o estado na VM não é verificável por código; `deploy/README.md` seção 13 lista o teste de reboot entre as pendências. |
+| CA-02 | em aberto (não verificável) | Requer acesso externo ao IP da VM. A origem pública passou a ser o nginx na porta 80 (D-40), não o Gateway na 8080. |
+| CA-03 | em aberto (não verificável) | Requer `curl` de fora da VPC; as portas 5080/5081/5100/5101 do desenho systemd nem existem mais, e os containers não publicam `ports:` (só o frontend, 80). |
+| CA-04 | atendido (só o lado do repositório) | `deploy/todolist.env.example` só tem placeholders (`TROQUE_ESTA_SENHA`, `<IP_PRIVADO_CLOUDSQL>`); nenhuma chave PEM ou `.env` versionado (`git ls-files`); `install-docker-on-vm.sh` instala o `.env` com `-m 600 -o root`. As permissões reais na VM não foram verificadas. |
+| CA-05 | em aberto (não verificável + superado) | Upgrade T1 para T2 na VM; os usuários semeados do T1 deixaram de existir (seed removido, Onda E). Não há como conferir os dados da VM. |
+| CA-06 | em aberto (não verificável) | O tempo de subida medido não está em `deploy/README.md`; o único tempo previsto, o do ensaio cronometrado, está como `[PENDENTE]` (seção 11). |
+| CA-07 | em aberto (não atendido) | `install-on-vm.sh` não existe. `install-docker-on-vm.sh` copia `todolist.env.example` para `.env` com os placeholders e manda preencher à mão, mas não se recusa a prosseguir com placeholder. |
+| CA-08 | em aberto (superado) | A lista "Depois do T1" não existe mais no `deploy/README.md`; o runbook foi reescrito para Docker + Cloud SQL (seção 13 traz as pendências atuais). |

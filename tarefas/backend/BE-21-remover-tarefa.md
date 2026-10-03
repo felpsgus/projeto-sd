@@ -33,19 +33,19 @@ O usuário remove as próprias tarefas; elas desaparecem de tudo que ele enxerga
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `DELETE /api/tasks/{id}` de tarefa própria retorna **204** (RN-TASK-12).
-- [ ] **CA-02** — A linha **continua existindo** no banco, com `DeletedAt` preenchido (RN-TASK-13) — verificado com `IgnoreQueryFilters()`.
-- [ ] **CA-03** — `updatedAt` é atualizado pela remoção (RN-TASK-14).
-- [ ] **CA-04** — Após a remoção, `GET /api/tasks/{id}` retorna **404**.
-- [ ] **CA-05** — Após a remoção, a tarefa não aparece na listagem, em **nenhum** filtro — inclusive `status=all` (RN-LIST-01).
-- [ ] **CA-06** — Após a remoção, a contagem de tarefas ativas do usuário diminui: estando no teto do limite, é possível criar uma nova tarefa.
-- [ ] **CA-07** — Uma tarefa **concluída** também pode ser removida.
-- [ ] **CA-08** — `DELETE` de tarefa já removida retorna **404**.
-- [ ] **CA-09** — `DELETE` de tarefa de **outro usuário** retorna **404**, com corpo idêntico ao de id inexistente, e a tarefa da vítima permanece **intacta** no banco (`DeletedAt` continua nulo) — RN-AUTZ-02, RN-AUTZ-03.
-- [ ] **CA-10** — `DELETE` de id inexistente retorna **404**.
-- [ ] **CA-11** — `DELETE` sem token retorna **401**.
-- [ ] **CA-12** — Nenhum caminho da API executa `DELETE` físico de tarefa (verificado por revisão do código e ausência de `Remove()` sobre `TodoTask` fora de BE-16 e BE-23).
-- [ ] **CA-13** — A remoção de uma tarefa não afeta nenhuma outra tarefa do mesmo usuário.
+- [x] **CA-01** — `DELETE /api/tasks/{id}` de tarefa própria retorna **204** (RN-TASK-12).
+- [x] **CA-02** — A linha **continua existindo** no banco, com `DeletedAt` preenchido (RN-TASK-13) — verificado com `IgnoreQueryFilters()`.
+- [x] **CA-03** — `updatedAt` é atualizado pela remoção (RN-TASK-14).
+- [x] **CA-04** — Após a remoção, `GET /api/tasks/{id}` retorna **404**.
+- [x] **CA-05** — Após a remoção, a tarefa não aparece na listagem, em **nenhum** filtro — inclusive `status=all` (RN-LIST-01).
+- [x] **CA-06** — Após a remoção, a contagem de tarefas ativas do usuário diminui: estando no teto do limite, é possível criar uma nova tarefa.
+- [x] **CA-07** — Uma tarefa **concluída** também pode ser removida.
+- [x] **CA-08** — `DELETE` de tarefa já removida retorna **404**.
+- [x] **CA-09** — `DELETE` de tarefa de **outro usuário** retorna **404**, com corpo idêntico ao de id inexistente, e a tarefa da vítima permanece **intacta** no banco (`DeletedAt` continua nulo) — RN-AUTZ-02, RN-AUTZ-03.
+- [x] **CA-10** — `DELETE` de id inexistente retorna **404**.
+- [x] **CA-11** — `DELETE` sem token retorna **401**.
+- [x] **CA-12** — Nenhum caminho da API executa `DELETE` físico de tarefa (verificado por revisão do código e ausência de `Remove()` sobre `TodoTask` fora de BE-16 e BE-23).
+- [x] **CA-13** — A remoção de uma tarefa não afeta nenhuma outra tarefa do mesmo usuário.
 
 ## Testes obrigatórios
 
@@ -56,3 +56,12 @@ O usuário remove as próprias tarefas; elas desaparecem de tudo que ele enxerga
 ## Decisões em aberto
 
 - **D-07** — Soft delete. Padrão adotado. Se virar hard delete, esta task simplifica e [BE-23](BE-23-expurgo-tarefas-removidas.md) deixa de existir.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 13.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-12 | atendido (com ressalva) | Revisão do código: nenhum handler apaga fisicamente tarefa — `DeleteTaskHandler` só chama `SoftDelete`; os únicos apagamentos físicos são a cascata de FK (BE-16) e `TasksRetentionPurger` (`ExecuteDeleteAsync`, BE-23). Ressalva: `ITodoTaskRepository.Remove(TodoTask)` continua público e sem uso, e não há teste que impeça seu uso futuro. |
+| CA-01 a CA-11, CA-13 | atendidos em outro lugar | Rota `DELETE /api/tasks/{id}` no Gateway (D-32); soft delete, 404 e isolamento por dono em `DeleteTaskGrpcTests` + `DeleteTaskPostgresSoftDeleteTests` (Tasks); 204/401/404 em `DeleteTaskTests` do Gateway. CA-05 testado com o filtro padrão (`status=All`). |

@@ -82,39 +82,39 @@ message GetTaskRequest {
 
 ### Contrato
 
-- [ ] **CA-01** — `tasks.proto` compila nos dois lados (`Server` no Tasks, `Client` no Gateway) sem alterar a forma de `CreateTaskRequest`/`TaskReply` já existentes.
+- [x] **CA-01** — `tasks.proto` compila nos dois lados (`Server` no Tasks, `Client` no Gateway) sem alterar a forma de `CreateTaskRequest`/`TaskReply` já existentes.
 
 ### Tasks — `ListTasks`
 
-- [ ] **CA-02** — `ListTasks` retorna **somente** tarefas do `owner_id` presente em `x-user-id` — verificado com dois donos populados.
-- [ ] **CA-03** — Tarefas removidas (soft delete) não aparecem em nenhum cenário.
-- [ ] **CA-04** — Sem tarefas, retorna lista vazia com `total_count=0` — nunca erro.
+- [x] **CA-02** — `ListTasks` retorna **somente** tarefas do `owner_id` presente em `x-user-id` — verificado com dois donos populados.
+- [x] **CA-03** — Tarefas removidas (soft delete) não aparecem em nenhum cenário.
+- [x] **CA-04** — Sem tarefas, retorna lista vazia com `total_count=0` — nunca erro.
 - [ ] **CA-05** — Os itens vêm ordenados por criação **decrescente** — mais recente primeiro.
-- [ ] **CA-06** — Sem `page`/`page_size` (ou com `0`), aplica o padrão (`page=1`, `page_size=Paging:DefaultPageSize`).
-- [ ] **CA-07** — `page_size` acima de `Paging:MaxPageSize`, ou `page`/`page_size` negativos, retornam erro de validação (`InvalidArgument`), não são silenciosamente truncados no Tasks.
-- [ ] **CA-08** — `total_count` reflete o total de tarefas do dono (não removidas), não o total da página.
-- [ ] **CA-09** — Percorrer todas as páginas devolve cada tarefa exatamente uma vez, sem repetição nem omissão (mesmo teste de BE-22 CA-27, adaptado ao gRPC).
-- [ ] **CA-10** — `is_overdue` de cada item usa `x-client-date`, não a data UTC do servidor — mesmo cenário de fuso de BE-22 CA-33b.
-- [ ] **CA-11** — A consulta é executada no banco (`WHERE`, `ORDER BY`, `LIMIT`/`OFFSET`) — verificado por captura de SQL em teste, não avaliação em memória.
+- [x] **CA-06** — Sem `page`/`page_size` (ou com `0`), aplica o padrão (`page=1`, `page_size=Paging:DefaultPageSize`).
+- [x] **CA-07** — `page_size` acima de `Paging:MaxPageSize`, ou `page`/`page_size` negativos, retornam erro de validação (`InvalidArgument`), não são silenciosamente truncados no Tasks.
+- [x] **CA-08** — `total_count` reflete o total de tarefas do dono (não removidas), não o total da página.
+- [x] **CA-09** — Percorrer todas as páginas devolve cada tarefa exatamente uma vez, sem repetição nem omissão (mesmo teste de BE-22 CA-27, adaptado ao gRPC).
+- [x] **CA-10** — `is_overdue` de cada item usa `x-client-date`, não a data UTC do servidor — mesmo cenário de fuso de BE-22 CA-33b.
+- [x] **CA-11** — A consulta é executada no banco (`WHERE`, `ORDER BY`, `LIMIT`/`OFFSET`) — verificado por captura de SQL em teste, não avaliação em memória.
 
 ### Tasks — `GetTask`
 
-- [ ] **CA-12** — `GetTask` de uma tarefa própria retorna o `TaskReply` completo, com `is_overdue` calculado.
-- [ ] **CA-13** — `GetTask` de id inexistente retorna `NotFound`.
-- [ ] **CA-14** — `GetTask` de tarefa de **outro** dono retorna `NotFound` — nunca outro status, nunca a tarefa.
-- [ ] **CA-15** — As respostas de CA-13 e CA-14 são indistinguíveis no `RpcException` observado pelo chamador (mesmo `StatusCode`, sem detalhe que vaze qual dos dois casos ocorreu) — RN-AUTZ-03 aplicada ao gRPC.
-- [ ] **CA-16** — `GetTask` de tarefa própria **removida** retorna o mesmo `NotFound` de CA-13/CA-14.
+- [x] **CA-12** — `GetTask` de uma tarefa própria retorna o `TaskReply` completo, com `is_overdue` calculado.
+- [x] **CA-13** — `GetTask` de id inexistente retorna `NotFound`.
+- [x] **CA-14** — `GetTask` de tarefa de **outro** dono retorna `NotFound` — nunca outro status, nunca a tarefa.
+- [x] **CA-15** — As respostas de CA-13 e CA-14 são indistinguíveis no `RpcException` observado pelo chamador (mesmo `StatusCode`, sem detalhe que vaze qual dos dois casos ocorreu) — RN-AUTZ-03 aplicada ao gRPC.
+- [x] **CA-16** — `GetTask` de tarefa própria **removida** retorna o mesmo `NotFound` de CA-13/CA-14.
 
 ### Gateway
 
-- [ ] **CA-17** — `GET /api/tasks?page=1&pageSize=20` com token válido retorna **200** com `{items, page, pageSize, totalCount}`.
-- [ ] **CA-18** — `GET /api/tasks` sem token retorna **401**.
-- [ ] **CA-19** — `GET /api/tasks?page=0` ou `pageSize` fora de 1–100 retorna **400** na borda, **sem** chamar `ListTasks` no Tasks (verificado no fake).
-- [ ] **CA-20** — `GET /api/tasks/{id}` com um `id` de tarefa própria retorna **200** com o `TaskHttpResponse`.
-- [ ] **CA-21** — `GET /api/tasks/{id}` de tarefa alheia ou inexistente retorna **404**, corpos idênticos entre os dois casos.
-- [ ] **CA-22** — `GET /api/tasks/abc` (id não é GUID) retorna **400** sem round-trip gRPC.
-- [ ] **CA-23** — O `Location` devolvido por `POST /api/tasks` (201) resolve com sucesso num `GET` subsequente ao mesmo caminho, com o **mesmo** token — verificação de ponta a ponta de que a rota passou a existir.
-- [ ] **CA-24** — O tipo gerado do `.proto` (`ListTasksReply`, `TaskReply`) nunca é serializado direto na resposta HTTP — mesma regra de BE-36 CA-04.
+- [x] **CA-17** — `GET /api/tasks?page=1&pageSize=20` com token válido retorna **200** com `{items, page, pageSize, totalCount}`.
+- [x] **CA-18** — `GET /api/tasks` sem token retorna **401**.
+- [x] **CA-19** — `GET /api/tasks?page=0` ou `pageSize` fora de 1–100 retorna **400** na borda, **sem** chamar `ListTasks` no Tasks (verificado no fake).
+- [x] **CA-20** — `GET /api/tasks/{id}` com um `id` de tarefa própria retorna **200** com o `TaskHttpResponse`.
+- [x] **CA-21** — `GET /api/tasks/{id}` de tarefa alheia ou inexistente retorna **404**, corpos idênticos entre os dois casos.
+- [x] **CA-22** — `GET /api/tasks/abc` (id não é GUID) retorna **400** sem round-trip gRPC.
+- [x] **CA-23** — O `Location` devolvido por `POST /api/tasks` (201) resolve com sucesso num `GET` subsequente ao mesmo caminho, com o **mesmo** token — verificação de ponta a ponta de que a rota passou a existir.
+- [x] **CA-24** — O tipo gerado do `.proto` (`ListTasksReply`, `TaskReply`) nunca é serializado direto na resposta HTTP — mesma regra de BE-36 CA-04.
 
 ## Testes obrigatórios
 
@@ -127,3 +127,13 @@ message GetTaskRequest {
 - **D-09** — Tamanho de página (20/100), reaproveitado sem alteração. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-18** — "Atrasada" usa a data local do usuário via `x-client-date`, reaproveitado sem alteração. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-34** — Identidade via metadata `x-user-id`/`x-client-date`, reaproveitada sem alteração. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 23 de 24.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-05 | em aberto (superado por BE-22) | A ordenação por criação decrescente era provisória e foi substituída pelo critério fixo de RN-LIST-06 (`tasks.proto`, comentário de `ListTasks`). `ListTasksGrpcTests.ListTasks_ComVariasTarefas_OrdenaPorCriacaoCrescenteQuandoEmpatadas` afirma o desempate por criação CRESCENTE, o oposto do que o CA exige. |
+
+Notas: CA-11 é coberto por `Tasks.IntegrationTests/Persistence/ListTasksPostgresQueryTests` (SQL capturado contra Postgres real, categoria Docker). CA-19 e CA-22 afirmam "sem chamar o Tasks" no fake do Gateway.

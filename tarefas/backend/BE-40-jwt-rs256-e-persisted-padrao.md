@@ -109,40 +109,40 @@ O Gateway valida o JWT **localmente**, no próprio middleware de autenticação 
 
 ### Identity — emissão RS256
 
-- [ ] **CA-01** — Um token emitido por `ITokenService.GenerateAccessToken` tem o header `alg=RS256` e um `kid` presente.
-- [ ] **CA-02** — O `kid` é estável entre chamadas (mesmo processo, mesma chave) e seu valor corresponde ao thumbprint RFC 7638 calculado a partir do `public.pem` correspondente.
-- [ ] **CA-03** — Subir o Identity sem `Jwt:PrivateKeyPath` falha na inicialização, com mensagem que nomeia `Jwt:PrivateKeyPath` e não expõe conteúdo de arquivo nenhum.
-- [ ] **CA-04** — Subir com `Jwt:PrivateKeyPath` apontando para um arquivo inexistente falha na inicialização.
-- [ ] **CA-05** — Subir com um arquivo que existe mas não é um PEM PKCS8 válido (ex.: texto arbitrário) falha na inicialização.
-- [ ] **CA-06** — Subir com uma chave RSA de 1024 bits falha na inicialização, com mensagem indicando o tamanho mínimo exigido (2048).
-- [ ] **CA-07** — `ValidateToken` (BE-34) continua funcionando fim a fim com a nova chave RS256 — token emitido é validado com sucesso pelo próprio RPC, usando a parte pública.
+- [x] **CA-01** — Um token emitido por `ITokenService.GenerateAccessToken` tem o header `alg=RS256` e um `kid` presente.
+- [x] **CA-02** — O `kid` é estável entre chamadas (mesmo processo, mesma chave) e seu valor corresponde ao thumbprint RFC 7638 calculado a partir do `public.pem` correspondente.
+- [x] **CA-03** — Subir o Identity sem `Jwt:PrivateKeyPath` falha na inicialização, com mensagem que nomeia `Jwt:PrivateKeyPath` e não expõe conteúdo de arquivo nenhum.
+- [x] **CA-04** — Subir com `Jwt:PrivateKeyPath` apontando para um arquivo inexistente falha na inicialização.
+- [x] **CA-05** — Subir com um arquivo que existe mas não é um PEM PKCS8 válido (ex.: texto arbitrário) falha na inicialização.
+- [x] **CA-06** — Subir com uma chave RSA de 1024 bits falha na inicialização, com mensagem indicando o tamanho mínimo exigido (2048).
+- [x] **CA-07** — `ValidateToken` (BE-34) continua funcionando fim a fim com a nova chave RS256 — token emitido é validado com sucesso pelo próprio RPC, usando a parte pública.
 
 ### Gateway — `AddJwtBearer`
 
-- [ ] **CA-08** — `POST /api/tasks` com um token HS256 (assinado com qualquer chave simétrica, inclusive uma "parecida") é rejeitado com **401**.
-- [ ] **CA-09** — Um token com `alg=none` e sem assinatura é rejeitado com **401**.
-- [ ] **CA-10** — Um token RS256 assinado por **outra** chave privada (não a do Identity configurado) é rejeitado com **401**.
-- [ ] **CA-11** — Um token expirado é rejeitado com **401**, inclusive 1 segundo após `exp` (`ClockSkew` zero).
-- [ ] **CA-12** — Um token com `iss` ou `aud` diferentes do configurado no Gateway é rejeitado com **401**.
-- [ ] **CA-13** — Um token RS256 válido, emitido pelo Identity com a chave configurada, é aceito e uma criação de tarefa completa retorna **201**.
-- [ ] **CA-14** — O `x-user-id` que chega ao Tasks (metadata gRPC) é igual ao claim `sub` do token — verificado com um token cujo `sub` é conhecido, contra o fake gRPC do Tasks (regressão do risco de `MapInboundClaims`).
-- [ ] **CA-15** — O corpo do 401 é idêntico (`errorCode=auth.unauthorized`, mesmo formato de `ProblemDetails`) para todos os casos de CA-08 a CA-12 — nenhum distingue a causa.
-- [ ] **CA-16** — Subir o Gateway sem `Jwt:PublicKeyPath`, ou apontando para arquivo inexistente/ilegível/não-PEM, falha na inicialização.
+- [x] **CA-08** — `POST /api/tasks` com um token HS256 (assinado com qualquer chave simétrica, inclusive uma "parecida") é rejeitado com **401**.
+- [x] **CA-09** — Um token com `alg=none` e sem assinatura é rejeitado com **401**.
+- [x] **CA-10** — Um token RS256 assinado por **outra** chave privada (não a do Identity configurado) é rejeitado com **401**.
+- [x] **CA-11** — Um token expirado é rejeitado com **401**, inclusive 1 segundo após `exp` (`ClockSkew` zero).
+- [x] **CA-12** — Um token com `iss` ou `aud` diferentes do configurado no Gateway é rejeitado com **401**.
+- [x] **CA-13** — Um token RS256 válido, emitido pelo Identity com a chave configurada, é aceito e uma criação de tarefa completa retorna **201**.
+- [x] **CA-14** — O `x-user-id` que chega ao Tasks (metadata gRPC) é igual ao claim `sub` do token — verificado com um token cujo `sub` é conhecido, contra o fake gRPC do Tasks (regressão do risco de `MapInboundClaims`).
+- [x] **CA-15** — O corpo do 401 é idêntico (`errorCode=auth.unauthorized`, mesmo formato de `ProblemDetails`) para todos os casos de CA-08 a CA-12 — nenhum distingue a causa.
+- [x] **CA-16** — Subir o Gateway sem `Jwt:PublicKeyPath`, ou apontando para arquivo inexistente/ilegível/não-PEM, falha na inicialização.
 
 ### Arquitetura e configuração
 
-- [ ] **CA-17** — Nenhum `appsettings*.json`/variável de ambiente do Gateway contém `Jwt:SigningKey` ou `Jwt:PrivateKeyPath` — só `Jwt:Issuer`, `Jwt:Audience`, `Jwt:PublicKeyPath` (varredura).
-- [ ] **CA-18** — Nenhum `appsettings*.json`/variável de ambiente do Tasks Service contém qualquer chave `Jwt:*` — o Tasks continua sem saber nada sobre tokens (varredura, mesmo espírito de BE-08 CA-14/CA-15).
-- [ ] **CA-19** — `IdentityTokenAuthenticationHandler` e o esquema `"IdentityToken"` não existem mais no assembly do Gateway (verificado por ausência do tipo/arquivo).
-- [ ] **CA-20** — Nenhuma chamada `ValidateToken` (via `IIdentityBackend`) acontece no caminho de uma requisição autenticada do Gateway — verificado no fake do cliente gRPC do Identity (0 invocações em um cenário de sucesso completo).
-- [ ] **CA-21** — `UserStore:Provider` no `appsettings.json` do Identity tem o valor **`Persisted`**.
+- [x] **CA-17** — Nenhum `appsettings*.json`/variável de ambiente do Gateway contém `Jwt:SigningKey` ou `Jwt:PrivateKeyPath` — só `Jwt:Issuer`, `Jwt:Audience`, `Jwt:PublicKeyPath` (varredura).
+- [x] **CA-18** — Nenhum `appsettings*.json`/variável de ambiente do Tasks Service contém qualquer chave `Jwt:*` — o Tasks continua sem saber nada sobre tokens (varredura, mesmo espírito de BE-08 CA-14/CA-15).
+- [x] **CA-19** — `IdentityTokenAuthenticationHandler` e o esquema `"IdentityToken"` não existem mais no assembly do Gateway (verificado por ausência do tipo/arquivo).
+- [x] **CA-20** — Nenhuma chamada `ValidateToken` (via `IIdentityBackend`) acontece no caminho de uma requisição autenticada do Gateway — verificado no fake do cliente gRPC do Identity (0 invocações em um cenário de sucesso completo).
+- [x] **CA-21** — `UserStore:Provider` no `appsettings.json` do Identity tem o valor **`Persisted`**.
 - [ ] **CA-25** — Na VM, o arquivo da chave privada não é legível pelo usuário `todolist` (`sudo -u todolist cat /etc/todolist/jwt/private.pem` falha), e só a unit do Identity a recebe via `LoadCredential=` — verificação manual registrada no PR.
-- [ ] **CA-22** — `InMemory` só aparece configurado em arquivos/variáveis usados pela suíte de testes (`appsettings.Testing.json`, fixtures) — nenhum `*.env`/`appsettings.json` de deploy o referencia.
+- [x] **CA-22** — `InMemory` só aparece configurado em arquivos/variáveis usados pela suíte de testes (`appsettings.Testing.json`, fixtures) — nenhum `*.env`/`appsettings.json` de deploy o referencia.
 
 ### Caminho de falha (documentado em BE-39)
 
-- [ ] **CA-23** — Com o Identity fora do ar, `POST /api/tasks` com um token RS256 válido (emitido antes da queda) devolve **503** com `Retry-After` — a chamada chega ao Tasks, que falha ao chamar `ValidateUser`.
-- [ ] **CA-24** — Com o Identity fora do ar, `POST /api/auth/login` devolve **503** com `Retry-After`.
+- [x] **CA-23** — Com o Identity fora do ar, `POST /api/tasks` com um token RS256 válido (emitido antes da queda) devolve **503** com `Retry-After` — a chamada chega ao Tasks, que falha ao chamar `ValidateUser`.
+- [x] **CA-24** — Com o Identity fora do ar, `POST /api/auth/login` devolve **503** com `Retry-After`.
 
 ## Testes obrigatórios
 
@@ -156,3 +156,14 @@ O Gateway valida o JWT **localmente**, no próprio middleware de autenticação 
 
 - **D-38** — JWT RS256; chave privada só no Identity, pública no Gateway, Tasks sem nenhuma chave. Emenda a D-31. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-39** — `Persisted` como padrão do `UserStore`; `InMemory` restrito a testes. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 24 de 25.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-07 | atendido em outro lugar | O RPC `ValidateToken` foi removido do contrato nesta mesma task (D-38). O objetivo (token RS256 emitido é validado só com a parte pública) é cumprido pelo Gateway: `Gateway.IntegrationTests/RealChainFixture` + `LogLeakageTests` usam o Identity real com chave RSA e o Gateway com a chave pública. |
+| CA-25 | em aberto (não verificável) | Permissões de `/etc/todolist/jwt/private.pem` e `LoadCredential=` na VM. O desenho atual (Docker `secrets:`, `deploy/docker-compose.prod.yml` seção de chaves JWT) só entrega a privada ao `identity`, mas as permissões reais na VM não são verificáveis aqui. |
+
+Notas: CA-19/CA-20 estão atendidos por ausência (o tipo e o RPC não existem mais; `Gateway.UnitTests/ArchitectureTests`). CA-18 é varrido por `Tasks.UnitTests/ArchitectureTests.CodigoDoTasks_NaoReferenciaJwtSigningKey`. CA-22 é garantido por `Identity.UnitTests/UserStoreProviderConfigurationTests`.
