@@ -61,7 +61,7 @@ O usuário edita título, descrição, prioridade e vencimento de uma tarefa sua
 - [ ] **CA-10** — Editar uma tarefa **concluída** funciona e ela **permanece concluída**.
 - [x] **CA-11** — O formulário **não** tem nenhum controle de estado (Pendente/Concluída).
 - [x] **CA-12** — Após salvar, a lista reflete a tarefa atualizada na posição correta da ordenação.
-- [ ] **CA-13** — O botão salvar fica desabilitado sem alterações pendentes e durante o envio; clique duplo envia **uma** requisição.
+- [x] **CA-13** — O botão salvar fica desabilitado sem alterações pendentes e durante o envio; clique duplo envia **uma** requisição. *(Atendido em 03/10/2026, issue #14: na edição o envio exige `form.dirty`, a mesma noção do `canDeactivate`; a criação não muda. Coberto por `edit-task.component.spec.ts`, inclusive o clique duplo.)*
 
 ### Validação
 

@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 
 import { toLocalDateString } from '../../../core/api/client-date.util';
 import { TaskPriority } from '../../../core/api/models/task.models';
@@ -94,6 +95,14 @@ export class TaskFormComponent {
     return this.overdueWarningEnabled() && due !== '' && due < toLocalDateString(new Date());
   });
 
+  /** A edição liga: sem alterações (`dirty`), não há o que salvar — envio desabilitado. */
+  readonly requireChanges = input(false);
+  // `form.dirty` não é signal; `valueChanges` emite a cada edição e também no `reset` (que o zera).
+  private readonly isDirty = toSignal(this.form.valueChanges.pipe(map(() => this.form.dirty)), {
+    initialValue: false,
+  });
+  protected readonly noChangesToSave = computed(() => this.requireChanges() && !this.isDirty());
+
   protected dueDateDescribedBy(): string | null {
     const ids = [
       this.hasError('dueDate') ? 'dueDate-error' : null,
@@ -147,7 +156,7 @@ export class TaskFormComponent {
   }
 
   protected submit(): void {
-    if (this.submitting()) {
+    if (this.submitting() || this.noChangesToSave()) {
       return;
     }
     if (this.form.invalid) {

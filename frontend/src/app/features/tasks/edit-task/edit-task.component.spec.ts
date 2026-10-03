@@ -181,7 +181,7 @@ describe('EditTaskComponent', () => {
     const { httpMock } = await setup();
 
     httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
-    await screen.findByLabelText(/título/i);
+    await userEvent.type(await screen.findByLabelText(/título/i), '!');
 
     await userEvent.click(screen.getByRole('button', { name: /salvar alterações/i }));
 
@@ -198,11 +198,67 @@ describe('EditTaskComponent', () => {
   ] as const)('vencimento passado com tarefa %s: aviso de atraso = %s', async (status, shown) => {
     const { httpMock } = await setup();
 
-    httpMock.expectOne((r) => r.method === 'GET').flush(makeTask({ status, dueDate: '2000-01-01' }));
+    httpMock
+      .expectOne((r) => r.method === 'GET')
+      .flush(makeTask({ status, dueDate: '2000-01-01' }));
     await screen.findByLabelText(/título/i);
 
     const warning = screen.queryByText(/esta data já passou: a tarefa ficará atrasada\./i);
     expect(warning !== null).toBe(shown);
+  });
+
+  describe('botão de envio sem alterações (FE-18 CA-13)', () => {
+    async function loaded() {
+      const utils = await setup();
+      utils.httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
+      const title = await screen.findByLabelText<HTMLInputElement>(/título/i);
+      const submit = screen.getByRole<HTMLButtonElement>('button', { name: /salvar alterações/i });
+      return { ...utils, title, submit };
+    }
+
+    it('começa desabilitado com a tarefa recém-carregada', async () => {
+      const { submit } = await loaded();
+      expect(submit.disabled).toBe(true);
+    });
+
+    it('habilita ao alterar o título e o clique dispara o PUT', async () => {
+      const { httpMock, title, submit } = await loaded();
+      await userEvent.type(title, '!');
+      expect(submit.disabled).toBe(false);
+      await userEvent.click(submit);
+      httpMock.expectOne((r) => r.method === 'PUT').flush(makeTask());
+    });
+
+    it('clique duplo envia uma única requisição', async () => {
+      const { httpMock, title, submit } = await loaded();
+      await userEvent.type(title, '!');
+      await userEvent.dblClick(submit);
+      // `expectOne` falha se houver duas requisições iguais em voo.
+      httpMock.expectOne((r) => r.method === 'PUT').flush(makeTask());
+    });
+
+    it('habilita ao alterar outro campo (prioridade)', async () => {
+      const { submit } = await loaded();
+      await userEvent.selectOptions(screen.getByLabelText(/prioridade/i), 'Low');
+      expect(submit.disabled).toBe(false);
+    });
+
+    it('Enter no título sem alterações não dispara o PUT', async () => {
+      const { httpMock, title } = await loaded();
+      await userEvent.type(title, '{Enter}');
+      httpMock.expectNone((r) => r.method === 'PUT');
+    });
+
+    it('erro 500 ao salvar deixa o botão habilitado de novo', async () => {
+      const { httpMock, title, submit } = await loaded();
+      await userEvent.type(title, '!');
+      await userEvent.click(submit);
+      httpMock
+        .expectOne((r) => r.method === 'PUT')
+        .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+      await screen.findByRole('alert');
+      expect(submit.disabled).toBe(false);
+    });
   });
 
   it('cancelar volta para /tasks sem salvar', async () => {

@@ -42,6 +42,14 @@ describe('CreateTaskComponent', () => {
     httpMock.expectNone('/api/tasks');
   });
 
+  it('o botão "Criar tarefa" começa habilitado com o formulário intocado', async () => {
+    await setup();
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: /criar tarefa/i }).disabled).toBe(
+      false,
+    );
+  });
+
   it('a prioridade já vem pré-selecionada como Média', async () => {
     await setup();
 

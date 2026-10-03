@@ -76,7 +76,7 @@
     <button
       type="submit"
       class="task-form__submit"
-      [disabled]="submitting()"
+      [disabled]="submitting() || noChangesToSave()"
       [attr.aria-busy]="submitting()"
     >
       {{ submitting() ? submittingLabel() : submitLabel() }}
