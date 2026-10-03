@@ -52,7 +52,7 @@ Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela re
 - [x] **CA-03** — A data de conclusão passa a ser exibida.
 - [ ] **CA-04** — Concluir uma tarefa **atrasada** remove o selo "Atrasada" (RN-TASK-16).
 - [x] **CA-05** — Se a chamada **falhar**, o item volta ao estado "Pendente" e uma mensagem de erro é exibida.
-- [ ] **CA-06** — Com o filtro "Pendentes" ativo, concluir remove o item da lista imediatamente; **se a chamada falhar, o item volta à posição original**.
+- [x] **CA-06** — Com o filtro "Pendentes" ativo, concluir remove o item da lista imediatamente; **se a chamada falhar, o item volta à posição original**. *(Atendido em 03/10/2026, issue #8: `TasksStore.transition` tira o item que deixa de casar com o filtro de estado ou de atraso e o reinsere no índice original em caso de falha; vale também para reabrir com o filtro "Concluídas". Coberto por `tasks.store.spec.ts`.)*
 - [x] **CA-07** — Após o sucesso, a lista reflete a ordenação do servidor (a tarefa concluída aparece depois das pendentes).
 
 ### Reabrir

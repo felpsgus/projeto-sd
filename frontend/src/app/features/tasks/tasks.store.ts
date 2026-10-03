@@ -279,12 +279,23 @@ export class TasksStore {
     });
   }
 
+  /** `true` se o item ainda pertence à visão dos filtros de estado e atraso carregados
+   * (prioridade e busca não mudam ao concluir/reabrir, por isso não entram aqui). */
+  private matchesStateFilters(task: TaskResponse): boolean {
+    const { status, overdue } = this.filtersSignal();
+    return (
+      (status === 'all' || task.status === (status === 'pending' ? 'Pending' : 'Completed')) &&
+      (overdue !== true || task.isOverdue)
+    );
+  }
+
   /**
    * Mecanismo comum de `complete`/`reopen`: aplica `optimisticPatch` de imediato (se o item
-   * estiver na página carregada), chama a API e reconcilia com a resposta; em sucesso,
-   * recarrega a página atual em silêncio (ver o comentário de classe); em erro, reverte —
-   * para 404, removendo o item; para qualquer outro erro (incluindo 409), restaurando o
-   * item exatamente como estava antes do clique.
+   * estiver na página carregada) e, se o item deixar de casar com os filtros de estado/atraso,
+   * já o tira da lista (e de `totalCount`); chama a API e reconcilia com a resposta; em
+   * sucesso, recarrega a página atual em silêncio (ver o comentário de classe); em erro,
+   * reverte — para 404, removendo o item; para qualquer outro erro (incluindo 409),
+   * restaurando o item exatamente como estava (no mesmo índice, se tinha saído).
    */
   private transition(
     id: string,
@@ -295,8 +306,17 @@ export class TasksStore {
     const index = items.findIndex((item) => item.id === id);
     const previous = index === -1 ? null : items[index];
 
+    let removedOptimistically = false;
     if (previous) {
-      this.itemsSignal.set(items.map((item) => (item.id === id ? optimisticPatch(item) : item)));
+      const patched = optimisticPatch(previous);
+      if (this.matchesStateFilters(patched)) {
+        this.itemsSignal.set(items.map((item) => (item.id === id ? patched : item)));
+      } else {
+        // O item deixou de casar com o filtro de estado/atraso: sai agora, não no reload (FE-19, CA-06).
+        this.itemsSignal.set(items.filter((item) => item.id !== id));
+        this.totalCountSignal.update((count) => Math.max(0, count - 1));
+        removedOptimistically = true;
+      }
     }
 
     return call().pipe(
@@ -309,6 +329,17 @@ export class TasksStore {
       catchError((error: AppError) => {
         if (error.status === 404) {
           this.dropItem(id);
+        } else if (
+          previous &&
+          removedOptimistically &&
+          // Um reload silencioso de outra ação pode já ter trazido o item de volta.
+          !this.itemsSignal().some((item) => item.id === id)
+        ) {
+          // `replaceItem` é um `map` e não reinsere: devolve o item ao índice original.
+          const restored = [...this.itemsSignal()];
+          restored.splice(index, 0, previous);
+          this.itemsSignal.set(restored);
+          this.totalCountSignal.update((count) => count + 1);
         } else if (previous) {
           this.replaceItem(previous);
         }

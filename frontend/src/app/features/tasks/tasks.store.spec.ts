@@ -376,6 +376,112 @@ describe('TasksStore', () => {
     expect(store.error()).toBeNull();
   });
 
+  describe('saída imediata da visão filtrada em complete/reopen (FE-19 CA-06)', () => {
+    const completedTask = (id: string): TaskResponse => ({
+      ...makeTask(id),
+      status: 'Completed',
+      completedAt: '2026-01-01T00:00:00Z',
+    });
+
+    function loadWith(
+      filters: Partial<Parameters<TasksStore['load']>[2]>,
+      items: TaskResponse[],
+    ): void {
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: '', ...filters });
+      httpMock
+        .expectOne((r) => r.url === '/api/tasks')
+        .flush({ items, page: 1, pageSize: 20, totalCount: items.length });
+    }
+
+    const threePending = () => [makeTask('1'), makeTask('2'), makeTask('3')];
+
+    it('filtro Pendentes: complete() tira o item da lista antes da resposta e decrementa totalCount', () => {
+      loadWith({ status: 'pending' }, threePending());
+
+      store.complete('2').subscribe();
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '3']);
+      expect(store.totalCount()).toBe(2);
+
+      httpMock.expectOne('/api/tasks/2/complete').flush(completedTask('2'));
+      httpMock
+        .expectOne((r) => r.url === '/api/tasks')
+        .flush({ items: [makeTask('1'), makeTask('3')], page: 1, pageSize: 20, totalCount: 2 });
+    });
+
+    it('filtro Pendentes: complete() com 500 devolve o item ao mesmo índice, no estado anterior', () => {
+      loadWith({ status: 'pending' }, threePending());
+
+      store.complete('2').subscribe({ error: () => undefined });
+      httpMock
+        .expectOne('/api/tasks/2/complete')
+        .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '2', '3']);
+      expect(store.items()[1]!.status).toBe('Pending');
+      expect(store.totalCount()).toBe(3);
+    });
+
+    it('filtro Pendentes: complete() com 404 mantém o item fora da lista', () => {
+      loadWith({ status: 'pending' }, threePending());
+
+      store.complete('2').subscribe({ error: () => undefined });
+      httpMock.expectOne('/api/tasks/2/complete').flush(null, { status: 404, statusText: 'Not Found' });
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '3']);
+      expect(store.totalCount()).toBe(2);
+    });
+
+    it('filtro Concluídas: reopen() tira o item imediatamente; com falha, volta à posição', () => {
+      loadWith({ status: 'completed' }, [completedTask('1'), completedTask('2'), completedTask('3')]);
+
+      store.reopen('2').subscribe({ error: () => undefined });
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '3']);
+      expect(store.totalCount()).toBe(2);
+
+      httpMock
+        .expectOne('/api/tasks/2/reopen')
+        .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '2', '3']);
+      expect(store.items()[1]!.status).toBe('Completed');
+      expect(store.totalCount()).toBe(3);
+    });
+
+    it('filtro de atrasadas: complete() tira o item imediatamente', () => {
+      loadWith(
+        { overdue: true },
+        threePending().map((t) => ({ ...t, isOverdue: true })),
+      );
+
+      store.complete('2').subscribe();
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '3']);
+      expect(store.totalCount()).toBe(2);
+
+      httpMock.expectOne('/api/tasks/2/complete').flush(completedTask('2'));
+      httpMock
+        .expectOne((r) => r.url === '/api/tasks')
+        .flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+    });
+
+    it('sem filtros: complete() mantém o item na lista com o estado novo', () => {
+      loadWith({}, threePending());
+
+      store.complete('2').subscribe();
+
+      expect(store.items().map((t) => t.id)).toEqual(['1', '2', '3']);
+      expect(store.items()[1]!.status).toBe('Completed');
+      expect(store.totalCount()).toBe(3);
+
+      httpMock.expectOne('/api/tasks/2/complete').flush(completedTask('2'));
+      httpMock
+        .expectOne((r) => r.url === '/api/tasks')
+        .flush({ items: threePending(), page: 1, pageSize: 20, totalCount: 3 });
+    });
+  });
+
   describe('filtros (FE-16)', () => {
     it('load() sem filtro não envia status, priority, overdue nem search', () => {
       store.load(1, 20);
