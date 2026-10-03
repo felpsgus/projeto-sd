@@ -36,3 +36,14 @@ Aceitar a limitação e documentá-la. Não há blocklist de `jti`, nem consulta
 - O teste `AccessTokenEmitidoAntesDoLogout_ContinuaAceitoAteExpirar` (Gateway, BE-11 CA-11) registra a
   expectativa: se a decisão mudar, o teste falha e a mudança é consciente.
 - Se o requisito de revogação imediata surgir, a opção 1 vira uma nova ADR que substitui esta.
+
+## Emenda (03/10/2026) — usuário excluído
+
+A mesma janela vale para o access token de um usuário que acabou de ser excluído. Até o token expirar:
+
+- `GET /api/me` responde 401 e criar tarefa é recusado, porque as duas operações consultam o Identity;
+- `GET /api/tasks` e as demais leituras respondem 200 com lista vazia: o Tasks não consulta o Identity
+  em leitura, e as tarefas já foram apagadas em cascata junto com o usuário, então nada vaza.
+
+Validar o usuário em toda operação do Tasks custaria uma chamada gRPC a mais por requisição, o mesmo
+custo recusado na alternativa 1. Fecha a issue #1 e substitui BE-16 CA-09.

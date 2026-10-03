@@ -26,8 +26,9 @@ namespace TodoList.Identity.Application.Users;
 /// <b>RN-AUTH-19 (BE-10).</b> Os refresh tokens do usuário também saem por
 /// cascata: <c>identity.refresh_tokens.user_id → identity.users(id) ON DELETE
 /// CASCADE</c>. Nenhum código extra aqui — o teste de integração de BE-10
-/// prova que a cascata acontece. <c>login_attempts</c> (BE-12) entrará do
-/// mesmo jeito.
+/// prova que a cascata acontece. <c>login_attempts</c> (BE-12) <b>não</b> sai
+/// junto: o bloqueio de login pertence ao e-mail, não ao usuário (ADR-0002),
+/// e os registros saem pelo expurgo de retenção.
 /// </para>
 /// </summary>
 public sealed class DeleteAccountHandler
