@@ -13,6 +13,9 @@ resultado e verifica (build + testes). Não escreve o código ele mesmo.
 - **Direto** = correção de uma linha, ajuste de texto, leitura, diagnóstico, resposta a pergunta.
 - Tarefas independentes entre si vão para subagentes em paralelo; tarefas dependentes vão em
   sequência, com revisão entre elas.
+- **Toda revisão usa a skill `ponytail:ponytail-review`** — do resultado de um subagente, de um
+  diff, de uma branch ou de um PR. Ela caça complexidade desnecessária e roda **além** da
+  verificação de correção (build + testes), não no lugar dela.
 - Cada briefing de subagente aponta [CONVENCOES-CODIGO.md](CONVENCOES-CODIGO.md) e o arquivo da
   task em [tarefas/](tarefas/) — o subagente começa sem contexto nenhum.
 
