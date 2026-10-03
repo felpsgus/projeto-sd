@@ -11,6 +11,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { AuthApi } from '../../../core/api/auth-api.service';
 import { AppError } from '../../../core/errors/app-error.model';
+import { ERROR_MESSAGES } from '../../../core/errors/error-messages';
 import {
   passwordPolicyValidator,
   passwordsMatchValidator,
@@ -58,6 +59,7 @@ export class RegisterComponent {
   protected readonly submitting = signal(false);
   protected readonly formError = signal<string | null>(null);
   protected readonly serverFieldErrors = signal<Readonly<Record<string, readonly string[]>>>({});
+  protected readonly emailTakenMessage = ERROR_MESSAGES['auth.email_already_registered'];
   protected readonly emailAlreadyRegistered = signal(false);
 
   protected readonly showPassword = signal(false);

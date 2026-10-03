@@ -66,8 +66,8 @@ Todo endpoint do backend tem um tipo TypeScript correspondente e um único ponto
 - [x] **CA-06** — A query string da listagem serializa corretamente: filtros ausentes **não** aparecem na URL, e `priority` repetido gera `priority=low&priority=high`.
 - [x] **CA-07** — `dueDate` trafega como `string` `yyyy-MM-dd` em request e response; nenhum `new Date()` é aplicado a ela na camada de API.
 - [ ] **CA-08** — Um `TaskResponse` com `dueDate: "2026-01-01"` exibido em um navegador configurado em `UTC-3` mostra **1 de janeiro**, não 31 de dezembro.
-- [ ] **CA-09** — O mock de API é ativável por flag e devolve os mesmos formatos de sucesso e de erro (`ProblemDetails`) do backend real.
-- [ ] **CA-10** — Com o mock ativo, a aplicação sobe e navega sem nenhuma chamada de rede real (verificado com a rede desligada).
+- [x] ~~**CA-09** — O mock de API é ativável por flag e devolve os mesmos formatos de sucesso e de erro (`ProblemDetails`) do backend real.~~ **Substituído (03/10/2026, issue #15):** não há mock de API no aplicativo. A stack inteira sobe com `docker compose --profile full up -d`, e um modo de dados simulados no frontend contraria o requisito do T2 de não usar mocks (D-39). Mocks existem só nos specs, via `HttpTestingController`.
+- [x] ~~**CA-10** — Com o mock ativo, a aplicação sobe e navega sem nenhuma chamada de rede real (verificado com a rede desligada).~~ **Substituído (03/10/2026, issue #15):** sem mock por flag (ver CA-09).
 - [ ] **CA-11** — Um teste de contrato verifica os tipos contra os exemplos de payload documentados nas tasks BE — se o backend mudar o contrato, o teste quebra. Os payloads de exemplo ficam versionados em `src/testing/fixtures/`.
 - [x] **CA-12** — Nenhum código sensível (senha, token) é logado pela camada HTTP.
 

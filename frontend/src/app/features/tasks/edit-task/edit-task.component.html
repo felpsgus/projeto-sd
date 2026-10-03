@@ -11,7 +11,7 @@
       </div>
     }
     @case ('error') {
-      <app-error-state message="Não foi possível carregar a tarefa." (retry)="retry()" />
+      <app-error-state [message]="taskLoadError" (retry)="retry()" />
     }
     @default {
       @if (task(); as current) {

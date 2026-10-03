@@ -18,7 +18,7 @@ import { SessionStore } from '../../../core/auth/session-store';
 import { SessionEndReason } from '../../../core/auth/session.model';
 import { resolveReturnUrl } from '../../../core/auth/return-url.util';
 import { AppError } from '../../../core/errors/app-error.model';
-import { tooManyAttemptsMessage } from '../../../core/errors/error-messages';
+import { ERROR_MESSAGES, tooManyAttemptsMessage } from '../../../core/errors/error-messages';
 
 /**
  * Tela de login (FE-09). O 429 do bloqueio por tentativas (RN-AUTH-13) chega já
@@ -101,7 +101,7 @@ export class LoginComponent implements OnInit {
   private messageForEndReason(reason: SessionEndReason): string {
     switch (reason) {
       case 'session_expired':
-        return 'Sua sessão expirou. Entre novamente.';
+        return ERROR_MESSAGES['auth.unauthorized'];
       case 'session_revoked':
         return 'Sua sessão foi encerrada. Entre novamente.';
       case 'password_changed':

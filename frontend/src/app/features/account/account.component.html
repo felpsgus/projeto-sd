@@ -6,10 +6,7 @@
       <app-loading label="Carregando perfil…" />
     }
     @case ('error') {
-      <app-error-state
-        [message]="loadErrorMessage() ?? 'Não foi possível carregar seu perfil.'"
-        (retry)="retry()"
-      />
+      <app-error-state [message]="loadErrorMessage() ?? profileLoadError" (retry)="retry()" />
     }
     @default {
       @if (profile(); as current) {

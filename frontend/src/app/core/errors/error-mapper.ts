@@ -8,6 +8,7 @@ import {
   NOT_FOUND_MESSAGE,
   SERVICE_UNAVAILABLE_MESSAGE,
   tooManyAttemptsMessage,
+  VALIDATION_SUMMARY_MESSAGE,
 } from './error-messages';
 
 const KNOWN_CODES: readonly AppErrorCode[] = [
@@ -51,7 +52,7 @@ export function mapHttpErrorToAppError(error: HttpErrorResponse): AppError {
   if (error.status === 400 && body?.errors) {
     return {
       code: 'unknown',
-      message: 'Verifique os campos destacados.',
+      message: VALIDATION_SUMMARY_MESSAGE,
       status: 400,
       fieldErrors: body.errors,
       traceId,

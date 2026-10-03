@@ -17,6 +17,7 @@ import { ErrorStateComponent } from '../../../shared/ui/error-state/error-state.
 import { STATUS_LABELS } from '../task-labels';
 import { TaskResponse } from '../../../core/api/models/task.models';
 import { AppError } from '../../../core/errors/app-error.model';
+import { TASK_LOAD_ERROR_MESSAGE } from '../../../core/errors/error-messages';
 import { CanComponentDeactivate } from './unsaved-changes.guard';
 
 type EditTaskStatus = 'loading' | 'ready' | 'not-found' | 'error';
@@ -53,6 +54,7 @@ export class EditTaskComponent implements OnInit, CanComponentDeactivate {
 
   @ViewChild(TaskFormComponent) private readonly taskForm?: TaskFormComponent;
 
+  protected readonly taskLoadError = TASK_LOAD_ERROR_MESSAGE;
   protected readonly status = signal<EditTaskStatus>('loading');
   protected readonly task = signal<TaskResponse | null>(null);
   protected readonly statusLabels = STATUS_LABELS;

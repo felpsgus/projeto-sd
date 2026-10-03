@@ -67,10 +67,10 @@ Todo erro vindo da API vira uma mensagem em português compreensível, exibida d
 - [x] **CA-05** — Uma resposta 500 **nunca** exibe stack trace, nome de exceção ou detalhe interno — mesmo que o corpo os contivesse.
 - [x] **CA-06** — Uma resposta que não é JSON válido é tratada sem lançar exceção não capturada.
 - [ ] **CA-07** — O `traceId` é preservado no `AppError` e aparece na mensagem de erro genérica.
-- [ ] **CA-08** — O toast de erro é anunciado por leitor de tela (`aria-live="assertive"`); o de sucesso usa `aria-live="polite"`.
-- [ ] **CA-09** — O toast pode ser fechado pelo teclado e não some rápido demais para ser lido (mínimo configurável, ≥ 5 s para erro).
+- [x] ~~**CA-08** — O toast de erro é anunciado por leitor de tela (`aria-live="assertive"`); o de sucesso usa `aria-live="polite"`.~~ **Substituído (03/10/2026, issue #15):** não há toast. O desenho definitivo é o erro junto do formulário ou do item (`role="alert"`), o aviso de página da listagem e a região `aria-live="polite"` de anúncios; um toast duplicaria esses mecanismos.
+- [x] ~~**CA-09** — O toast pode ser fechado pelo teclado e não some rápido demais para ser lido (mínimo configurável, ≥ 5 s para erro).~~ **Substituído (03/10/2026, issue #15):** sem toast (ver CA-08); as mensagens ficam na tela até a próxima ação, sem tempo para expirar.
 - [x] **CA-10** — `<app-error-state>` oferece "tentar novamente" e o clique reexecuta a operação que falhou.
-- [ ] **CA-11** — Nenhuma string de mensagem de erro existe fora do arquivo central (verificado por busca no código).
+- [x] **CA-11** — Nenhuma string de mensagem de erro existe fora do arquivo central (verificado por busca no código). *(Atendido em 03/10/2026, issue #15: cinco mensagens movidas ou desduplicadas; a busca virou teste em `error-messages.catalog.spec.ts`. Mensagens de validação de campo no cliente continuam nos componentes — não são do catálogo de erros.)*
 - [x] **CA-12** — A ordem dos interceptors está declarada explicitamente e coberta por um teste que confirma o encadeamento.
 - [x] **CA-13** — Mensagens com parâmetro usam o valor vindo da API, não um número fixo no frontend.
 - [x] **CA-14** — Nenhum erro é enviado ao `console` em produção com dado sensível; o build de produção não faz `console.log` de payload de request.

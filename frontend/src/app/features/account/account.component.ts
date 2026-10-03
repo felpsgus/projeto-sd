@@ -16,6 +16,7 @@ import { ProfileResponse } from '../../core/api/models/user.models';
 import { LogoutService } from '../../core/auth/logout.service';
 import { SessionStore } from '../../core/auth/session-store';
 import { AppError } from '../../core/errors/app-error.model';
+import { PROFILE_LOAD_ERROR_MESSAGE } from '../../core/errors/error-messages';
 import { TasksStore } from '../tasks/tasks.store';
 import { LoadingComponent } from '../../shared/ui/loading/loading.component';
 import { ErrorStateComponent } from '../../shared/ui/error-state/error-state.component';
@@ -70,6 +71,7 @@ export class AccountComponent implements OnInit {
 
   protected readonly status = signal<AccountStatus>('loading');
   protected readonly profile = signal<ProfileResponse | null>(null);
+  protected readonly profileLoadError = PROFILE_LOAD_ERROR_MESSAGE;
   protected readonly loadErrorMessage = signal<string | null>(null);
 
   protected readonly submitting = signal(false);

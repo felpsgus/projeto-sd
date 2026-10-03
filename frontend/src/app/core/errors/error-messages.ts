@@ -61,3 +61,12 @@ export const NOT_FOUND_MESSAGE = 'Tarefa não encontrada.';
 /** FE-07 CA-13: o chunk de uma rota lazy não baixou (rede caiu); a tela oferece tentar de novo. */
 export const ROUTE_LOAD_ERROR_MESSAGE =
   'Não foi possível carregar esta página. Verifique sua conexão e tente novamente.';
+
+/** 400 com `errors` por campo: o texto de cada campo fica junto dele; este é o resumo geral (FE-03). */
+export const VALIDATION_SUMMARY_MESSAGE = 'Verifique os campos destacados.';
+
+/** Falha ao carregar o perfil em "Minha conta" (FE-11), quando o erro não traz mensagem própria. */
+export const PROFILE_LOAD_ERROR_MESSAGE = 'Não foi possível carregar seu perfil.';
+
+/** Falha ao carregar a Tarefa na edição (FE-18); a tela oferece tentar de novo. */
+export const TASK_LOAD_ERROR_MESSAGE = 'Não foi possível carregar a tarefa.';
