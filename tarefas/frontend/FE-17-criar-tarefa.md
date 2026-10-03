@@ -69,7 +69,7 @@ O usuário cria uma tarefa informando apenas o título, com os demais campos opc
 - [ ] **CA-08** — Título com 201 caracteres é rejeitado; com 1 e com 200 é aceito.
 - [ ] **CA-09** — Descrição com 2001 caracteres é rejeitada; com 2000 é aceita (RN-TASK-03).
 - [ ] **CA-10** — O contador de caracteres aparece ao se aproximar do limite e reflete o valor real.
-- [ ] **CA-11** — Vencimento no passado é **aceito** e exibe aviso não-bloqueante de que a tarefa ficará atrasada (RN-TASK-05).
+- [x] **CA-11** — Vencimento no passado é **aceito** e exibe aviso não-bloqueante de que a tarefa ficará atrasada (RN-TASK-05). *(Atendido em 03/10/2026, issue #7: aviso no `TaskFormComponent`, com "hoje" vindo do mesmo utilitário do `X-Client-Date`; desligado na edição de tarefa Concluída. Coberto por `create-task.component.spec.ts` e `edit-task.component.spec.ts`.)*
 - [x] **CA-12** — O seletor de data **não** impede escolher datas passadas.
 - [ ] **CA-13** — A data enviada é `yyyy-MM-dd` e corresponde ao dia escolhido, mesmo em fuso `UTC-3`.
 

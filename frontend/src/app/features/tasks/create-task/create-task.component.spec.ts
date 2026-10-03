@@ -1,10 +1,11 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { fireEvent, render, screen, waitFor } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import { CreateTaskComponent } from './create-task.component';
+import { toLocalDateString } from '../../../core/api/client-date.util';
 import { errorInterceptor } from '../../../core/errors/error.interceptor';
 import { routes } from '../../../app.routes';
 import { unsavedChangesGuard } from '../edit-task/unsaved-changes.guard';
@@ -116,6 +117,58 @@ describe('CreateTaskComponent', () => {
 
     httpMock.expectNone('/api/tasks');
     expect(navigateSpy).toHaveBeenCalledWith('/tasks');
+  });
+
+  describe('aviso de vencimento no passado (CA-11, RN-TASK-05)', () => {
+    const WARNING = /esta data já passou: a tarefa ficará atrasada\./i;
+    const daysFromToday = (n: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      return toLocalDateString(d);
+    };
+
+    it('data de ontem avisa, não invalida o campo e ainda permite enviar', async () => {
+      const { httpMock } = await setup();
+
+      await userEvent.type(screen.getByLabelText(/título/i), 'Estudar');
+      fireEvent.input(screen.getByLabelText(/vencimento/i), {
+        target: { value: daysFromToday(-1) },
+      });
+
+      expect(await screen.findByText(WARNING)).toBeTruthy();
+      expect(screen.getByLabelText(/vencimento/i)).toHaveAttribute('aria-invalid', 'false');
+
+      await userEvent.click(screen.getByRole('button', { name: /criar tarefa/i }));
+      const req = httpMock.expectOne('/api/tasks');
+      expect(req.request.body.dueDate).toBe(daysFromToday(-1));
+    });
+
+    it.each([0, 1])('data em hoje%s dias não avisa', async (offset) => {
+      await setup();
+
+      fireEvent.input(screen.getByLabelText(/vencimento/i), {
+        target: { value: daysFromToday(offset) },
+      });
+
+      expect(screen.queryByText(WARNING)).toBeNull();
+    });
+
+    it('campo vazio não avisa', async () => {
+      await setup();
+
+      expect(screen.queryByText(WARNING)).toBeNull();
+    });
+
+    it('trocar de ontem para amanhã faz o aviso sumir', async () => {
+      await setup();
+      const input = screen.getByLabelText(/vencimento/i);
+
+      fireEvent.input(input, { target: { value: daysFromToday(-1) } });
+      expect(await screen.findByText(WARNING)).toBeTruthy();
+
+      fireEvent.input(input, { target: { value: daysFromToday(1) } });
+      await waitFor(() => expect(screen.queryByText(WARNING)).toBeNull());
+    });
   });
 
   describe('canDeactivate (CA-18, CA-19)', () => {

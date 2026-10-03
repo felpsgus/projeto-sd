@@ -3,6 +3,7 @@ import {
   Component,
   ElementRef,
   ViewChild,
+  computed,
   effect,
   inject,
   input,
@@ -10,8 +11,9 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
+import { toLocalDateString } from '../../../core/api/client-date.util';
 import { TaskPriority } from '../../../core/api/models/task.models';
 import { AppError } from '../../../core/errors/app-error.model';
 import { FormFieldErrorComponent } from '../../../shared/ui/form-field-error/form-field-error.component';
@@ -79,6 +81,26 @@ export class TaskFormComponent {
     priority: ['Medium' as TaskPriority, [Validators.required]],
     dueDate: [''],
   });
+
+  /** Desligado pela edição quando a tarefa está Concluída (concluída não fica atrasada). */
+  readonly overdueWarningEnabled = input(true);
+
+  private readonly dueDateValue = toSignal(this.form.controls.dueDate.valueChanges, {
+    initialValue: this.form.controls.dueDate.value,
+  });
+  /** Dica não bloqueante (RN-TASK-05): datas `yyyy-MM-dd` comparam-se como string. */
+  protected readonly dueDateInPast = computed(() => {
+    const due = this.dueDateValue();
+    return this.overdueWarningEnabled() && due !== '' && due < toLocalDateString(new Date());
+  });
+
+  protected dueDateDescribedBy(): string | null {
+    const ids = [
+      this.hasError('dueDate') ? 'dueDate-error' : null,
+      this.dueDateInPast() ? 'dueDate-warning' : null,
+    ].filter((id) => id !== null);
+    return ids.length > 0 ? ids.join(' ') : null;
+  }
 
   constructor() {
     // Um 400 anterior deixa de valer assim que o usuário volta a editar o formulário

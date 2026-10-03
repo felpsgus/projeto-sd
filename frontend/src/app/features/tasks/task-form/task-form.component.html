@@ -53,9 +53,14 @@
       type="date"
       formControlName="dueDate"
       [attr.aria-invalid]="hasError('dueDate')"
-      [attr.aria-describedby]="hasError('dueDate') ? 'dueDate-error' : null"
+      [attr.aria-describedby]="dueDateDescribedBy()"
     />
     <app-form-field-error fieldId="dueDate-error" [messages]="fieldMessages('dueDate')" />
+    @if (dueDateInPast()) {
+      <p id="dueDate-warning" class="task-form__hint" role="status">
+        Esta data já passou: a tarefa ficará atrasada.
+      </p>
+    }
   </div>
 
   @if (formError(); as message) {

@@ -192,6 +192,19 @@ describe('EditTaskComponent', () => {
     expect(await screen.findByText(/tarefa não encontrada/i)).toBeTruthy();
   });
 
+  it.each([
+    ['Pending', true],
+    ['Completed', false],
+  ] as const)('vencimento passado com tarefa %s: aviso de atraso = %s', async (status, shown) => {
+    const { httpMock } = await setup();
+
+    httpMock.expectOne((r) => r.method === 'GET').flush(makeTask({ status, dueDate: '2000-01-01' }));
+    await screen.findByLabelText(/título/i);
+
+    const warning = screen.queryByText(/esta data já passou: a tarefa ficará atrasada\./i);
+    expect(warning !== null).toBe(shown);
+  });
+
   it('cancelar volta para /tasks sem salvar', async () => {
     const { httpMock, router } = await setup();
     const navigateSpy = vi.spyOn(router, 'navigateByUrl');

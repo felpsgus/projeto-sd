@@ -30,6 +30,7 @@
 
         <app-task-form
           [initialValue]="initialValue()"
+          [overdueWarningEnabled]="current.status === 'Pending'"
           submitLabel="Salvar alterações"
           submittingLabel="Salvando…"
           (save)="onSave($event)"
