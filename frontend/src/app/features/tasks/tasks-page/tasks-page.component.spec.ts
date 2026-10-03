@@ -892,4 +892,83 @@ describe('TasksPageComponent', () => {
       expect(isTarget()).toBe(false);
     });
   });
+
+  describe('acessibilidade: link Editar e anúncio da remoção (issue #11)', () => {
+    async function loadTwo() {
+      const ctx = await setup();
+      firstListRequest(ctx.httpMock).flush({
+        items: [makeTask({ id: '1' }), makeTask({ id: '2', title: 'Segunda' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 2,
+      });
+      await screen.findByText('Segunda');
+      return ctx;
+    }
+
+    const region = () => document.querySelector('.tasks-page__announcement') as HTMLElement | null;
+
+    async function confirmRemove(title: string) {
+      await userEvent.click(screen.getByRole('button', { name: `Remover: ${title}` }));
+      await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+    }
+
+    it('cada link Editar tem nome acessível distinto', async () => {
+      const { httpMock } = await loadTwo();
+
+      expect(screen.getByRole('link', { name: /editar: .*estudar para a prova/i })).toBeTruthy();
+      expect(screen.getByRole('link', { name: /editar: .*segunda/i })).toBeTruthy();
+      httpMock.verify();
+    });
+
+    it('a região viva da página existe vazia antes de qualquer remoção', async () => {
+      const { httpMock } = await loadTwo();
+
+      expect(region()).not.toBeNull();
+      expect(region()?.getAttribute('aria-live')).toBe('polite');
+      expect(region()?.textContent?.trim()).toBe('');
+      httpMock.verify();
+    });
+
+    it('remoção com sucesso anuncia a tarefa removida, mesmo com a lista vazia', async () => {
+      const ctx = await setup();
+      firstListRequest(ctx.httpMock).flush({
+        items: [makeTask({ id: '1' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+      await screen.findByText('Estudar para a prova');
+      await confirmRemove('Estudar para a prova');
+      ctx.httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
+
+      await waitFor(() => expect(region()?.textContent).toMatch(/removida/i));
+      expect(region()?.textContent).toContain('Estudar para a prova');
+      expect(screen.getByText('Você ainda não tem tarefas.')).toBeTruthy();
+    });
+
+    it.each([
+      [500, 'Server Error'],
+      [404, 'Not Found'],
+    ])('remoção com erro %i não anuncia "removida"', async (status, statusText) => {
+      const { httpMock } = await loadTwo();
+      await confirmRemove('Estudar para a prova');
+      httpMock.expectOne('/api/tasks/1').flush({}, { status, statusText });
+
+      await screen.findAllByRole('alert');
+      expect(region()?.textContent ?? '').not.toMatch(/removida/i);
+    });
+
+    it('iniciar outra ação limpa o anúncio', async () => {
+      const { httpMock } = await loadTwo();
+      await confirmRemove('Estudar para a prova');
+      httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
+      await waitFor(() => expect(region()?.textContent).toMatch(/removida/i));
+
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Segunda' }));
+      httpMock.expectOne('/api/tasks/2/complete').flush(makeTask({ id: '2', status: 'Completed' }));
+
+      await waitFor(() => expect(region()?.textContent?.trim()).toBe(''));
+    });
+  });
 });

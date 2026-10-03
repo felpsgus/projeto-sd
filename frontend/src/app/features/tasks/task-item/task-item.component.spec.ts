@@ -131,6 +131,14 @@ describe('TaskItemComponent', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/já foi concluída em outro lugar/i);
   });
 
+  it('o link de edição tem nome acessível com o título da tarefa (FE-15 CA-23)', async () => {
+    await setup();
+
+    const link = screen.getByRole('link', { name: /editar: .*comprar pão/i });
+    expect(link).toHaveAttribute('href', '/tasks/1/edit');
+    expect(link.textContent?.trim()).toBe('Editar');
+  });
+
   it('oferece um link para editar', async () => {
     await setup();
 

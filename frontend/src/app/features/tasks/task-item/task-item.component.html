@@ -78,7 +78,12 @@
         <span aria-hidden="true">{{ toggleLabel() }}</span>
       </label>
 
-      <a class="task-item__edit" [routerLink]="['/tasks', task().id, 'edit']">Editar</a>
+      <a
+        class="task-item__edit"
+        [routerLink]="['/tasks', task().id, 'edit']"
+        [attr.aria-label]="editAriaLabel()"
+        >Editar</a
+      >
 
       <button
         type="button"

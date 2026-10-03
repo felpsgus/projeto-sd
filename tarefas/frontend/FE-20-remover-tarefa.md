@@ -74,7 +74,7 @@ O usuário remove uma tarefa sua com uma confirmação no caminho, e ela desapar
 
 - [x] **CA-19** — A ação tem rótulo acessível identificando a tarefa (ex.: "Remover: Comprar pão").
 - [x] **CA-20** — Após a remoção, o foco vai para um destino previsível (item seguinte ou cabeçalho da lista), não se perde no `<body>`. *(Atendido em 03/10/2026, issue #10: foco no título do item que ocupou o índice, senão no anterior, senão no `<h1>`. Coberto por `tasks-page.component.spec.ts` em jsdom; não exercitado em navegador real.)*
-- [ ] **CA-21** — A remoção é anunciada a leitor de tela.
+- [x] **CA-21** — A remoção é anunciada a leitor de tela. *(Atendido em 03/10/2026, issue #11: região `aria-live="polite"` da página anuncia `Tarefa "<título>" removida.`. Coberto por `tasks-page.component.spec.ts`; não ouvido num leitor de tela real.)*
 - [x] **CA-22** — Operável só pelo teclado; usável em 360 px.
 
 ## Testes obrigatórios

@@ -85,7 +85,7 @@ A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, pa
 - [x] **CA-20** — Usuário sem nenhuma tarefa vê estado vazio com chamada para criar a primeira.
 - [x] **CA-21** — Erro de carregamento exibe mensagem com "tentar novamente", e o botão refaz a chamada.
 - [x] **CA-22** — A lista tem semântica de lista, e a quantidade de itens é anunciada por leitor de tela.
-- [ ] **CA-23** — Todas as ações de cada item são alcançáveis pelo teclado, com rótulo acessível que identifica **qual** tarefa (não apenas "Editar").
+- [x] **CA-23** — Todas as ações de cada item são alcançáveis pelo teclado, com rótulo acessível que identifica **qual** tarefa (não apenas "Editar"). *(Atendido em 03/10/2026, issue #11: o link ganhou `aria-label` `Editar: <título>`, no mesmo formato de concluir, reabrir e remover.)*
 - [x] **CA-24** — A tela é usável em 360 px: os itens se adaptam sem rolagem horizontal.
 - [x] **CA-25** — `<app-task-item>` é de apresentação pura: recebe por `input()`, emite por `output()`, não injeta o store.
 

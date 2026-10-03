@@ -77,6 +77,8 @@
     <p class="tasks-page__notice" role="alert">{{ notice }}</p>
   }
 
+  <p class="visually-hidden tasks-page__announcement" aria-live="polite">{{ announcement() }}</p>
+
   @switch (store.status()) {
     @case ('loading') {
       <app-loading label="Carregando tarefas…" />

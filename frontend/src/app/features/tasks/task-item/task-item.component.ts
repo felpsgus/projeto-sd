@@ -96,6 +96,10 @@ export class TaskItemComponent {
     return `${prefix}: ${this.task().title}`;
   }
 
+  protected editAriaLabel(): string {
+    return `Editar: ${this.task().title}`;
+  }
+
   protected removeAriaLabel(): string {
     return `Remover: ${this.task().title}`;
   }

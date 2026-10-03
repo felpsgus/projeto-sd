@@ -114,6 +114,8 @@ export class TasksPageComponent {
   /** Aviso de 404 (item já sumiu da lista): fica na página, não no item removido. */
   private readonly pageNoticeSignal = signal<string | null>(null);
   protected readonly pageNotice = this.pageNoticeSignal.asReadonly();
+  /** Anúncio a leitor de tela (região viva da página, sempre no DOM): sobrevive à remoção do item. */
+  protected readonly announcement = signal('');
 
   constructor() {
     // Carrega a lista sempre que página/filtros da URL mudarem — deep link, F5, "voltar" e
@@ -121,6 +123,7 @@ export class TasksPageComponent {
     effect(() => {
       const state = this.queryState();
       this.pageNoticeSignal.set(null);
+      this.announcement.set('');
       this.store.load(state.page, this.store.pageSize(), state.filters);
     });
 
@@ -239,7 +242,10 @@ export class TasksPageComponent {
     this.runItemAction(
       task.id,
       () => this.store.remove(task.id),
-      () => this.afterRemove(),
+      () => {
+        this.announcement.set(`Tarefa "${task.title}" removida.`);
+        this.afterRemove();
+      },
     );
   }
 
@@ -259,6 +265,7 @@ export class TasksPageComponent {
     this.setPending(taskId, true);
     this.clearError(taskId);
     this.pageNoticeSignal.set(null);
+    this.announcement.set('');
 
     // Índice capturado ANTES de chamar o store: concluir/reabrir com filtro ativo tira o item
     // da lista de forma síncrona (patch otimista). Quando o item sai, o foco vai para quem
