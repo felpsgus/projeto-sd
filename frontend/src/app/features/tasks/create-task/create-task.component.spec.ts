@@ -6,6 +6,8 @@ import userEvent from '@testing-library/user-event';
 
 import { CreateTaskComponent } from './create-task.component';
 import { errorInterceptor } from '../../../core/errors/error.interceptor';
+import { routes } from '../../../app.routes';
+import { unsavedChangesGuard } from '../edit-task/unsaved-changes.guard';
 
 async function setup() {
   const utils = await render(CreateTaskComponent, {
@@ -114,5 +116,46 @@ describe('CreateTaskComponent', () => {
 
     httpMock.expectNone('/api/tasks');
     expect(navigateSpy).toHaveBeenCalledWith('/tasks');
+  });
+
+  describe('canDeactivate (CA-18, CA-19)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it.each([true, false])('com alterações pergunta e devolve a resposta (%s)', async (answer) => {
+      const { fixture } = await setup();
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(answer);
+
+      await userEvent.type(screen.getByLabelText(/título/i), 'Rascunho');
+
+      expect(fixture.componentInstance.canDeactivate()).toBe(answer);
+      expect(confirmSpy).toHaveBeenCalledOnce();
+    });
+
+    it('sem alterações sai sem perguntar', async () => {
+      const { fixture } = await setup();
+      const confirmSpy = vi.spyOn(window, 'confirm');
+
+      expect(fixture.componentInstance.canDeactivate()).toBe(true);
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+
+    it('depois de salvar com sucesso sai sem perguntar', async () => {
+      const { fixture, httpMock } = await setup();
+      const confirmSpy = vi.spyOn(window, 'confirm');
+
+      await userEvent.type(screen.getByLabelText(/título/i), 'Estudar');
+      await userEvent.click(screen.getByRole('button', { name: /criar tarefa/i }));
+      httpMock.expectOne('/api/tasks').flush({ id: '1', title: 'Estudar' });
+
+      expect(fixture.componentInstance.canDeactivate()).toBe(true);
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+
+    it('a rota tasks/new declara a unsavedChangesGuard', () => {
+      const tasks = routes.find((r) => r.path === 'tasks');
+      const newRoute = tasks?.children?.find((r) => r.path === 'new');
+
+      expect(newRoute?.canDeactivate).toContain(unsavedChangesGuard);
+    });
   });
 });

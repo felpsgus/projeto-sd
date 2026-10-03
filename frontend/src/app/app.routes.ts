@@ -84,6 +84,7 @@ export const routes: Routes = [
       },
       {
         path: 'new',
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () =>
           import('./features/tasks/create-task/create-task.component').then(
             (m) => m.CreateTaskComponent,

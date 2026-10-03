@@ -7,8 +7,9 @@ export interface CanComponentDeactivate {
 
 /**
  * Guarda genérica de saída (FE-18) — delega a decisão ao próprio componente, que sabe se
- * o formulário tem alterações não salvas. Hoje usada só por `EditTaskComponent`, mas não
- * depende dele: qualquer container que implemente `CanComponentDeactivate` pode reutilizá-la.
+ * o formulário tem alterações não salvas. Usada por `EditTaskComponent` e
+ * `CreateTaskComponent`, mas não depende deles: qualquer container que implemente
+ * `CanComponentDeactivate` pode reutilizá-la.
  */
 export const unsavedChangesGuard: CanDeactivateFn<CanComponentDeactivate> = (component) =>
   component.canDeactivate();

@@ -82,8 +82,8 @@ O usuário cria uma tarefa informando apenas o título, com os demais campos opc
 
 ### Navegação e erros
 
-- [ ] **CA-18** — Sair da tela com alterações não salvas exibe aviso e permite cancelar a saída.
-- [ ] **CA-19** — Sair sem alterações não exibe aviso.
+- [x] **CA-18** — Sair da tela com alterações não salvas exibe aviso e permite cancelar a saída. *(Atendido em 03/10/2026, issue #5: `/tasks/new` usa a `unsavedChangesGuard`; coberto por `create-task.component.spec.ts`.)*
+- [x] **CA-19** — Sair sem alterações não exibe aviso. *(Atendido em 03/10/2026, issue #5.)*
 - [x] **CA-20** — Erro 400 do backend é exibido nos campos correspondentes.
 - [x] **CA-21** — Erro de rede exibe mensagem e **preserva** o que foi digitado.
 - [x] **CA-22** — Cancelar volta à lista sem criar nada.
