@@ -46,6 +46,20 @@ describe('mapHttpErrorToAppError', () => {
     expect(result.message).toBe('Muitas tentativas. Tente novamente em 2 minutos.');
   });
 
+  it('429 expõe retryAfterSeconds quando há Retry-After e undefined quando não há', () => {
+    const withHeader = mapHttpErrorToAppError(
+      new HttpErrorResponse({
+        status: 429,
+        error: { errorCode: 'auth.too_many_attempts' },
+        headers: new HttpHeaders({ 'Retry-After': '540' }),
+      }),
+    );
+    const without = mapHttpErrorToAppError(httpError(429, { errorCode: 'auth.too_many_attempts' }));
+
+    expect(withHeader.retryAfterSeconds).toBe(540);
+    expect(without.retryAfterSeconds).toBeUndefined();
+  });
+
   it('429 sem Retry-After cai numa mensagem sem número', () => {
     const result = mapHttpErrorToAppError(httpError(429, { errorCode: 'auth.too_many_attempts' }));
 

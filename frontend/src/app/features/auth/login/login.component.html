@@ -33,7 +33,7 @@
     }
   </div>
 
-  @if (formError(); as message) {
+  @if (message(); as message) {
     <p class="login__error" role="alert" aria-live="assertive" tabindex="-1" #formError>
       {{ message }}
     </p>
@@ -42,7 +42,7 @@
   <button
     type="submit"
     class="login__submit"
-    [disabled]="submitting()"
+    [disabled]="submitting() || locked()"
     [attr.aria-busy]="submitting()"
   >
     {{ submitting() ? 'Entrando…' : 'Entrar' }}

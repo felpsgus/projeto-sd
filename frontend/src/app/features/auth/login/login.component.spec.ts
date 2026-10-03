@@ -153,24 +153,107 @@ describe('LoginComponent', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('429 do bloqueio por tentativas mostra o tempo de espera em minutos a partir de Retry-After (RN-AUTH-13)', async () => {
-    const { httpMock } = await setup();
+  // Bloqueio de login (RN-AUTH-13, FE-09 CA-12/CA-13): o bloqueio é do E-MAIL, não do navegador.
+  // O botão fica desabilitado só enquanto o campo contém o e-mail bloqueado E o tempo não
+  // acabou; a mensagem é recontada por minuto. Sem Retry-After não há como saber quando
+  // reabilitar, então o botão segue habilitado (CA-14).
+  describe('bloqueio por tentativas (429)', () => {
+    afterEach(() => vi.useRealTimers());
 
-    await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
-    await userEvent.type(screen.getByLabelText(/senha/i), 'secret123');
-    await userEvent.click(screen.getByRole('button', { name: /entrar/i }));
-
-    httpMock
-      .expectOne('/api/auth/login')
-      .flush(
+    async function setupBlocked(retryAfter: string | null = '540') {
+      vi.useFakeTimers();
+      const utils = await setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) });
+      await user.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
+      await user.type(screen.getByLabelText(/senha/i), 'secret123');
+      await user.click(screen.getByRole('button', { name: /entrar/i }));
+      utils.httpMock.expectOne('/api/auth/login').flush(
         { errorCode: 'auth.too_many_attempts' },
-        { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '540' } },
+        {
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: retryAfter ? { 'Retry-After': retryAfter } : {},
+        },
       );
+      utils.fixture.detectChanges();
+      return { ...utils, user };
+    }
 
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Muitas tentativas. Tente novamente em 9 minutos.');
-    // O botão volta a ficar utilizável: o bloqueio é do servidor, a tela não trava.
-    expect(screen.getByRole('button', { name: /entrar/i })).not.toBeDisabled();
+    async function tick(seconds: number, fixture: { detectChanges(): void }) {
+      await vi.advanceTimersByTimeAsync(seconds * 1000);
+      fixture.detectChanges();
+    }
+
+    const button = () => screen.getByRole('button', { name: /entrar/i });
+
+    it('desabilita o botão e mostra o tempo em minutos', async () => {
+      await setupBlocked();
+
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Muitas tentativas. Tente novamente em 9 minutos.',
+      );
+      expect(button()).toBeDisabled();
+    });
+
+    it('conta regressiva por minuto, sem reabilitar antes do fim', async () => {
+      const { fixture } = await setupBlocked();
+
+      await tick(60, fixture);
+
+      expect(screen.getByRole('alert').textContent).toContain('em 8 minutos');
+      expect(button()).toBeDisabled();
+    });
+
+    it('ao fim do tempo reabilita o botão e a mensagem some', async () => {
+      const { fixture } = await setupBlocked();
+
+      await tick(540, fixture);
+
+      expect(button()).not.toBeDisabled();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('trocar o e-mail reabilita; voltar ao e-mail bloqueado (normalizado) desabilita', async () => {
+      const { fixture, user } = await setupBlocked();
+      const email = screen.getByLabelText(/e-mail/i);
+
+      await user.clear(email);
+      await user.type(email, 'outro@example.com');
+      fixture.detectChanges();
+      expect(button()).not.toBeDisabled();
+
+      await user.clear(email);
+      await user.type(email, 'USER@example.com ');
+      fixture.detectChanges();
+      expect(button()).toBeDisabled();
+    });
+
+    it('sem Retry-After: mensagem sem número e botão habilitado', async () => {
+      await setupBlocked(null);
+
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Muitas tentativas. Tente novamente em alguns minutos.',
+      );
+      expect(button()).not.toBeDisabled();
+    });
+
+    it('Enter durante o bloqueio não dispara requisição', async () => {
+      const { httpMock, user } = await setupBlocked();
+
+      await user.type(screen.getByLabelText(/senha/i), '{Enter}');
+
+      httpMock.expectNone('/api/auth/login');
+    });
+
+    it('destruir o componente não deixa timer pendente', async () => {
+      const { fixture } = await setupBlocked();
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      fixture.destroy();
+      await vi.advanceTimersByTimeAsync(0); // deixa o agendador do Angular esvaziar o que é dele
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   it('exibe mensagem de conta excluída quando a sessão foi encerrada por "account_deleted" (FE-13, CA-11)', async () => {

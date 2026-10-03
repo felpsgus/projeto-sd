@@ -68,8 +68,8 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 ### RN-AUTH-13 — bloqueio
 
 - [x] **CA-11** — Resposta **429** exibe mensagem de excesso de tentativas, distinta da mensagem de credencial inválida.
-- [ ] **CA-12** — A mensagem informa o tempo de espera com base no `Retry-After`, com contagem regressiva.
-- [ ] **CA-13** — O botão de envio fica desabilitado enquanto o bloqueio dura e é reabilitado ao terminar, sem recarregar a página.
+- [x] **CA-12** — A mensagem informa o tempo de espera com base no `Retry-After`, com contagem regressiva. *(Atendido em 03/10/2026, issue #12: a mensagem é recontada por minuto, não por segundo, para não fazer o leitor de tela anunciar sem parar.)*
+- [x] **CA-13** — O botão de envio fica desabilitado enquanto o bloqueio dura e é reabilitado ao terminar, sem recarregar a página. *(Atendido em 03/10/2026, issue #12, com um refinamento: o bloqueio é do e-mail (ADR-0002), então o botão só fica desabilitado enquanto o campo contém o e-mail bloqueado; trocar o e-mail reabilita. Sem `Retry-After` o botão fica habilitado, por não haver como saber quando reabilitar.)*
 - [x] **CA-14** — `Retry-After` ausente exibe a mensagem sem tempo específico, sem valor inventado.
 - [x] **CA-15** — O tempo exibido vem da resposta, não de uma constante `15` no código do frontend.
 

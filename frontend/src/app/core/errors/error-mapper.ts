@@ -76,6 +76,7 @@ export function mapHttpErrorToAppError(error: HttpErrorResponse): AppError {
       message: tooManyAttemptsMessage(retryAfterSeconds),
       status: 429,
       traceId,
+      retryAfterSeconds,
     };
   }
   if (rawCode === 'task.active_limit_reached') {

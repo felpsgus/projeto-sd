@@ -13,4 +13,6 @@ export interface AppError {
   readonly status: number;
   readonly fieldErrors?: Readonly<Record<string, readonly string[]>>;
   readonly traceId?: string;
+  /** Só em `auth.too_many_attempts` com `Retry-After`: segundos até o bloqueio acabar. */
+  readonly retryAfterSeconds?: number;
 }
