@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ProblemDetails } from '../api/models/problem-details';
 import { AppError, AppErrorCode } from './app-error.model';
 import {
+  activeLimitMessage,
   ERROR_MESSAGES,
   NOT_FOUND_MESSAGE,
   SERVICE_UNAVAILABLE_MESSAGE,
@@ -74,6 +75,16 @@ export function mapHttpErrorToAppError(error: HttpErrorResponse): AppError {
       code: rawCode,
       message: tooManyAttemptsMessage(retryAfterSeconds),
       status: 429,
+      traceId,
+    };
+  }
+  if (rawCode === 'task.active_limit_reached') {
+    // ponytail: limite = 1º inteiro do texto de `detail`; se o backend enviar um campo estruturado, ler dele.
+    const limit = Number(/\d+/.exec(body?.detail ?? '')?.[0]);
+    return {
+      code: rawCode,
+      message: activeLimitMessage(limit > 0 ? limit : undefined),
+      status: error.status,
       traceId,
     };
   }

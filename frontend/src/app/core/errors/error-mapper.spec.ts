@@ -118,4 +118,37 @@ describe('mapHttpErrorToAppError', () => {
     expect(result.code).toBe('task.active_limit_reached');
     expect(result.message).toMatch(/limite/i);
   });
+
+  describe('409 task.active_limit_reached com o limite (RN-TASK-15)', () => {
+    const detail = (limit: number): string =>
+      `Você atingiu o limite de ${limit} tarefas ativas. Conclua ou remova alguma tarefa antes de criar uma nova.`;
+
+    it.each([500, 3])('mostra o limite %i vindo do detail', (limit) => {
+      const result = mapHttpErrorToAppError(
+        httpError(409, { errorCode: 'task.active_limit_reached', detail: detail(limit) }),
+      );
+
+      expect(result.message).toContain(String(limit));
+      expect(result.message).toMatch(/pendentes/);
+      expect(result.message).not.toContain('criar uma nova');
+    });
+
+    it('sem detail usa a mensagem do catálogo, sem número', () => {
+      const result = mapHttpErrorToAppError(
+        httpError(409, { errorCode: 'task.active_limit_reached' }),
+      );
+
+      expect(result.message).toMatch(/pendentes/);
+      expect(result.message).not.toMatch(/\d/);
+    });
+
+    it('detail sem número usa a mensagem do catálogo', () => {
+      const result = mapHttpErrorToAppError(
+        httpError(409, { errorCode: 'task.active_limit_reached', detail: 'Limite atingido.' }),
+      );
+
+      expect(result.message).toMatch(/pendentes/);
+      expect(result.message).not.toMatch(/\d/);
+    });
+  });
 });

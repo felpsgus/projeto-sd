@@ -57,7 +57,3 @@ concluir/reabrir e remover tarefas. FE-16 (filtros, busca e sincronia com URL) e
   reordena o que o servidor devolve, com ou sem filtro.
 - Filtros salvos, visões nomeadas, favoritos, busca com destaque do termo (FE-16, "não
   inclui").
-- Limite de tarefas ativas na tela de criação (409 `task.active_limit_reached`) — o código
-  de erro já existe no catálogo do cliente (`core/errors`) porque `reopen` também pode
-  recebê-lo (decisão de 23/09/2026), mas a UI de "você atingiu o limite" na criação em si
-  não foi revisitada nesta onda.

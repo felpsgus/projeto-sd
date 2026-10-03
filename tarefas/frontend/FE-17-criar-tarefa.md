@@ -75,7 +75,7 @@ O usuário cria uma tarefa informando apenas o título, com os demais campos opc
 
 ### Limite
 
-- [ ] **CA-14** — Resposta **409** exibe mensagem clara informando o limite, com o número **vindo da resposta da API** (RN-TASK-15).
+- [x] **CA-14** — Resposta **409** exibe mensagem clara informando o limite, com o número **vindo da resposta da API** (RN-TASK-15). *(Atendido em 03/10/2026, issue #6: o número é extraído do `detail` do `ProblemDetails` em `error-mapper.ts`; sem número, cai na mensagem do catálogo. Coberto por `error-mapper.spec.ts`.)*
 - [x] **CA-15** — A mensagem orienta o que fazer (concluir ou remover tarefas) e não é um erro técnico genérico.
 - [x] **CA-16** — Nesse caso o formulário permanece preenchido, permitindo tentar de novo após liberar espaço.
 - [x] **CA-17** — Nenhuma constante `500` existe no código do frontend relacionada a esse limite.

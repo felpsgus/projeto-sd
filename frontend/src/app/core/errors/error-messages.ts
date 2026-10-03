@@ -25,7 +25,7 @@ export const ERROR_MESSAGES: Readonly<Record<AppErrorCode, string>> = {
   'task.not_completed': 'Esta tarefa não está mais concluída — foi reaberta em outro lugar.',
   // FE-19 (reabrir) e FE-17 (criar): mesmo código, RN-TASK-15.
   'task.active_limit_reached':
-    'Você atingiu o limite de tarefas ativas. Conclua ou remova alguma tarefa antes de continuar.',
+    'Você atingiu o limite de tarefas pendentes. Conclua ou remova alguma tarefa antes de continuar.',
   network: 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
   unknown: 'Não foi possível concluir a operação. Tente novamente.',
 };
@@ -37,6 +37,14 @@ export function tooManyAttemptsMessage(retryAfterSeconds?: number): string {
   }
   const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
   return `Muitas tentativas. Tente novamente em ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`;
+}
+
+/** Mensagem do 409 de limite de tarefas pendentes (RN-TASK-15); com o número do limite quando conhecido. */
+export function activeLimitMessage(limit?: number): string {
+  if (limit === undefined) {
+    return ERROR_MESSAGES['task.active_limit_reached'];
+  }
+  return `Você atingiu o limite de ${limit} tarefas pendentes. Conclua ou remova alguma tarefa antes de continuar.`;
 }
 
 /** Mensagem específica de indisponibilidade temporária (503) — não é um `ApiErrorCode` porque o backend não anexa um. */
