@@ -53,7 +53,7 @@ public class RegisterGrpcTests : IAsyncLifetime
 
     [Fact] // CA-01, CA-02, CA-03
     [Trait("Category", "Docker")]
-    public async Task Register_DadosValidos_CriaUsuarioAtivoComHashDiferenteDaSenha()
+    public async Task Register_DadosValidos_CriaUsuarioComHashDiferenteDaSenha()
     {
         using var client = CreateClient();
 
@@ -64,7 +64,6 @@ public class RegisterGrpcTests : IAsyncLifetime
 
         await using var context = CreateProbeContext();
         var user = await context.Users.SingleAsync(u => u.Id == Guid.Parse(response.Id));
-        user.IsActive.Should().BeTrue();
         user.PasswordHash.Should().NotBe("senha123").And.NotBeNullOrEmpty();
     }
 

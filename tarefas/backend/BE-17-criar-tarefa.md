@@ -124,3 +124,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 24 de 24.
 |---|---|---|
 | CA-22 | atendido em outro lugar | `tasks.proto` `CreateTaskRequest` e `CreateTaskHttpRequest` não têm campo de dono; o dono vem só da metadata `x-user-id` (D-34), provado por `CreateTaskGrpcTests.CreateTask_TarefaCriada_TemOwnerIdIgualAoUsuarioCorrente` (e `CreateTaskTests.CreateTask_MetadataDeSaida_TemUserIdDoClaimSub...` no Gateway). Não há teste que envie `ownerId` no corpo HTTP; o binder simplesmente o ignora. |
 | CA-01/CA-02/CA-11 e demais | atendidos em outro lugar | A rota HTTP vive no Gateway (D-32); o comportamento de negócio é testado no Tasks via gRPC (`CreateTaskGrpcTests`, `CreateTaskActiveLimitTests`) e a tradução HTTP (201, `Location`, 400/404/409/503) em `CreateTaskTests` do Gateway. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A justificativa da validação do dono por rede deixa de citar "usuário ativo" (RN-USER-04 removida, issue #16): a chamada confirma que o dono existe e foi mantida porque só o Identity sabe se ele foi excluído há instantes. `ValidateUser` não devolve mais `active` e o erro `task.owner_inactive` não existe.

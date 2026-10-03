@@ -37,36 +37,31 @@ public class LoginHandlerTests : IDisposable
     private readonly List<(string Plain, string Hash)> _verifyCalls = [];
     private readonly DummyPasswordHash _dummyPasswordHash;
     private LockoutOptions _lockout = new();
-    private readonly User _activeUser;
-    private readonly User _inactiveUser;
+    private readonly User _user;
 
     public LoginHandlerTests()
     {
         _dummyPasswordHash = new DummyPasswordHash(_passwordHasher);
-        _activeUser = User.Create(
+        _user = User.Create(
             Email.Create(RegisteredEmail).Value, "Ada Lovelace", _passwordHasher.Hash(CorrectPassword), _timeProvider).Value;
-
-        _inactiveUser = User.Create(
-            Email.Create("charles@exemplo.com").Value, "Charles Babbage", _passwordHasher.Hash(CorrectPassword), _timeProvider).Value;
-        _inactiveUser.Deactivate(_timeProvider);
     }
 
     [Fact] // sucesso — controle, para contraste com os cenários de falha abaixo
-    public async Task HandleAsync_CredenciaisCorretasUsuarioAtivo_RetornaSucessoComAccessToken()
+    public async Task HandleAsync_CredenciaisCorretas_RetornaSucessoComAccessToken()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.UserId.Should().Be(_activeUser.Id);
+        result.Value.UserId.Should().Be(_user.Id);
         result.Value.AccessToken.Token.Should().NotBeNullOrEmpty();
     }
 
     [Fact] // BE-09 CA-03 — e-mail em qualquer combinação de maiúsculas/minúsculas
     public async Task HandleAsync_EmailComOutraCaixa_Autentica()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync("  ADA@Exemplo.COM ", CorrectPassword, CancellationToken.None);
 
@@ -76,7 +71,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-09 CA-10 / BE-10 — cada login abre uma sessão nova, com refresh token próprio
     public async Task HandleAsync_DoisLogins_TemSessoesERefreshTokensDiferentes()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var first = await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None);
         var second = await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None);
@@ -88,7 +83,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-09 CA-10b (camada de aplicação): falha não emite refresh token — não há o que emitir
     public async Task HandleAsync_Falha_NaoPersisteRefreshToken()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync(RegisteredEmail, "senha-errada", CancellationToken.None);
 
@@ -99,7 +94,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // CA-02
     public async Task HandleAsync_SenhaErrada_RetornaInvalidCredentials()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync(RegisteredEmail, "senha-errada", CancellationToken.None);
 
@@ -110,20 +105,9 @@ public class LoginHandlerTests : IDisposable
     [Fact] // CA-03
     public async Task HandleAsync_EmailInexistente_RetornaInvalidCredentials()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync("ninguem@exemplo.com", CorrectPassword, CancellationToken.None);
-
-        result.IsFailure.Should().BeTrue();
-        result.Error.Should().Be(AuthErrors.InvalidCredentials);
-    }
-
-    [Fact] // CA-04
-    public async Task HandleAsync_UsuarioInativoComSenhaCorreta_RetornaInvalidCredentials()
-    {
-        var sut = CreateHandler(_inactiveUser);
-
-        var result = await sut.HandleAsync(_inactiveUser.Email.Value, CorrectPassword, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(AuthErrors.InvalidCredentials);
@@ -132,7 +116,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // e-mail malformado — mesmo caminho único de falha
     public async Task HandleAsync_EmailMalformado_RetornaInvalidCredentials()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync("isto-nao-e-um-email", CorrectPassword, CancellationToken.None);
 
@@ -143,7 +127,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // senha vazia — mesmo caminho único de falha
     public async Task HandleAsync_SenhaVazia_RetornaInvalidCredentials()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         var result = await sut.HandleAsync(RegisteredEmail, string.Empty, CancellationToken.None);
 
@@ -151,18 +135,17 @@ public class LoginHandlerTests : IDisposable
         result.Error.Should().Be(AuthErrors.InvalidCredentials);
     }
 
-    [Fact] // CA-02 a CA-04 — todas as causas de falha produzem exatamente o mesmo Error
+    [Fact] // CA-02 e CA-03 — todas as causas de falha produzem exatamente o mesmo Error
     public async Task HandleAsync_TodasAsCausasDeFalha_ProduzemOMesmoError()
     {
-        var sut = CreateHandler(_activeUser, _inactiveUser);
+        var sut = CreateHandler(_user);
 
         var senhaErrada = await sut.HandleAsync(RegisteredEmail, "senha-errada", CancellationToken.None);
         var emailInexistente = await sut.HandleAsync("ninguem@exemplo.com", CorrectPassword, CancellationToken.None);
-        var usuarioInativo = await sut.HandleAsync(_inactiveUser.Email.Value, CorrectPassword, CancellationToken.None);
         var emailMalformado = await sut.HandleAsync("nao-e-email", CorrectPassword, CancellationToken.None);
         var senhaVazia = await sut.HandleAsync(RegisteredEmail, string.Empty, CancellationToken.None);
 
-        var erros = new[] { senhaErrada.Error, emailInexistente.Error, usuarioInativo.Error, emailMalformado.Error, senhaVazia.Error };
+        var erros = new[] { senhaErrada.Error, emailInexistente.Error, emailMalformado.Error, senhaVazia.Error };
         erros.Should().AllBeEquivalentTo(AuthErrors.InvalidCredentials);
     }
 
@@ -171,7 +154,7 @@ public class LoginHandlerTests : IDisposable
     {
         // Determinístico: em vez de comparar tempos de parede (frágil sob carga), afirma que o
         // verificador de hash FOI chamado em ambos os caminhos, exatamente uma vez cada.
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         await sut.HandleAsync(RegisteredEmail, "senha-errada", CancellationToken.None);
         var chamadasSenhaErrada = _verifyCalls.ToArray();
@@ -179,7 +162,7 @@ public class LoginHandlerTests : IDisposable
         await sut.HandleAsync("ninguem@exemplo.com", CorrectPassword, CancellationToken.None);
         var chamadasEmailInexistente = _verifyCalls.ToArray();
 
-        chamadasSenhaErrada.Should().ContainSingle().Which.Hash.Should().Be(_activeUser.PasswordHash);
+        chamadasSenhaErrada.Should().ContainSingle().Which.Hash.Should().Be(_user.PasswordHash);
         chamadasEmailInexistente.Should().ContainSingle()
             .Which.Hash.Should().Be(_dummyPasswordHash.Value, "e-mail inexistente verifica contra o hash dummy (CA-05 de BE-33)");
     }
@@ -197,7 +180,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-01
     public async Task HandleAsync_QuintaFalha_AindaEProcessadaComoCredencialInvalida()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         await FailAsync(sut, 5);
     }
@@ -205,7 +188,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-02 — mesmo com a senha correta, e sem verificar a senha
     public async Task HandleAsync_SextaTentativaAposCincoFalhas_BloqueiaMesmoComSenhaCorreta()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 5);
 
         var result = await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None);
@@ -220,7 +203,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-03 (tempo restante diminui com o relógio)
     public async Task HandleAsync_Bloqueado_RetryAfterDiminuiComORelogio()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 5);
         _timeProvider.Advance(TimeSpan.FromMinutes(10));
 
@@ -232,7 +215,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-04
     public async Task HandleAsync_PassadoOBloqueio_LoginComSenhaCorretaSucede()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 5);
         _timeProvider.Advance(TimeSpan.FromMinutes(15));
 
@@ -244,7 +227,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-05
     public async Task HandleAsync_SucessoZeraContador_SaoNecessariasCincoNovasFalhas()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 4);
         (await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None)).IsSuccess.Should().BeTrue();
 
@@ -257,7 +240,7 @@ public class LoginHandlerTests : IDisposable
     public async Task HandleAsync_BloqueioEPorEmail_OutroEmailNaoEAfetado()
     {
         var other = User.Create(Email.Create("grace@exemplo.com").Value, "Grace", _passwordHasher.Hash(CorrectPassword), _timeProvider).Value;
-        var sut = CreateHandler(_activeUser, other);
+        var sut = CreateHandler(_user, other);
         await FailAsync(sut, 5);
 
         var result = await sut.HandleAsync("grace@exemplo.com", CorrectPassword, CancellationToken.None);
@@ -268,7 +251,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-07
     public async Task HandleAsync_CaixaDiferenteSomaNoMesmoContador()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 3, "ADA@exemplo.com");
         await FailAsync(sut, 2, " ada@Exemplo.com ");
 
@@ -280,7 +263,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-08 / ADR 0002 — e-mail inexistente bloqueia igual
     public async Task HandleAsync_EmailInexistenteComCincoTentativas_Bloqueia()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 5, "ninguem@exemplo.com");
 
         var result = await sut.HandleAsync("ninguem@exemplo.com", CorrectPassword, CancellationToken.None);
@@ -291,7 +274,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // ADR 0002 — e-mail malformado não gera linha no contador
     public async Task HandleAsync_EmailMalformado_NaoContaTentativa()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
 
         await FailAsync(sut, 8, "nao-e-email");
 
@@ -301,7 +284,7 @@ public class LoginHandlerTests : IDisposable
     [Fact] // BE-12 CA-09
     public async Task HandleAsync_TentativasEspacadasAlemDaJanela_NaoAcumulam()
     {
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 4);
         _timeProvider.Advance(TimeSpan.FromMinutes(20));
         await FailAsync(sut, 2);
@@ -315,7 +298,7 @@ public class LoginHandlerTests : IDisposable
     public async Task HandleAsync_LockoutDesabilitado_NuncaBloqueia()
     {
         _lockout = new LockoutOptions { Enabled = false };
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 10);
 
         var result = await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None);
@@ -328,7 +311,7 @@ public class LoginHandlerTests : IDisposable
     public async Task HandleAsync_MaxAttemptsTres_BloqueiaNaQuartaTentativa()
     {
         _lockout = new LockoutOptions { MaxAttempts = 3 };
-        var sut = CreateHandler(_activeUser);
+        var sut = CreateHandler(_user);
         await FailAsync(sut, 3);
 
         var result = await sut.HandleAsync(RegisteredEmail, CorrectPassword, CancellationToken.None);

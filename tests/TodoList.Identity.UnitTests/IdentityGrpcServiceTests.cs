@@ -27,8 +27,7 @@ namespace TodoList.Identity.UnitTests;
 /// </summary>
 public class IdentityGrpcServiceTests : IDisposable
 {
-    private static readonly Guid _activeUserId = Guid.Parse("30000000-0000-0000-0000-000000000001");
-    private static readonly Guid _inactiveUserId = Guid.Parse("30000000-0000-0000-0000-000000000002");
+    private static readonly Guid _existingUserId = Guid.Parse("30000000-0000-0000-0000-000000000001");
     private static readonly Guid _unknownUserId = Guid.Parse("30000000-0000-0000-0000-000000000003");
 
     private const string CorrectPassword = "senha-correta-123";
@@ -44,12 +43,8 @@ public class IdentityGrpcServiceTests : IDisposable
     public IdentityGrpcServiceTests()
     {
         _userLookup
-            .FindByIdAsync(_activeUserId, Arg.Any<CancellationToken>())
-            .Returns(new UserLookupResult(Active: true, DisplayName: "Ada Lovelace"));
-
-        _userLookup
-            .FindByIdAsync(_inactiveUserId, Arg.Any<CancellationToken>())
-            .Returns(new UserLookupResult(Active: false, DisplayName: "Charles Babbage"));
+            .FindByIdAsync(_existingUserId, Arg.Any<CancellationToken>())
+            .Returns(new UserLookupResult(DisplayName: "Ada Lovelace"));
 
         _userLookup
             .FindByIdAsync(_unknownUserId, Arg.Any<CancellationToken>())
@@ -68,29 +63,15 @@ public class IdentityGrpcServiceTests : IDisposable
     }
 
     [Fact] // CA-05
-    public async Task ValidateUser_UsuarioExistenteEAtivo_RetornaExistsEActiveTrue()
+    public async Task ValidateUser_UsuarioExistente_RetornaExistsTrue()
     {
         var sut = CreateService();
-        var request = new ValidateUserRequest { UserId = _activeUserId.ToString() };
+        var request = new ValidateUserRequest { UserId = _existingUserId.ToString() };
 
         var response = await sut.ValidateUser(request, new FakeServerCallContext());
 
         response.Exists.Should().BeTrue();
-        response.Active.Should().BeTrue();
         response.DisplayName.Should().Be("Ada Lovelace");
-    }
-
-    [Fact] // CA-06
-    public async Task ValidateUser_UsuarioExistenteEInativo_RetornaActiveFalse()
-    {
-        var sut = CreateService();
-        var request = new ValidateUserRequest { UserId = _inactiveUserId.ToString() };
-
-        var response = await sut.ValidateUser(request, new FakeServerCallContext());
-
-        response.Exists.Should().BeTrue();
-        response.Active.Should().BeFalse();
-        response.DisplayName.Should().Be("Charles Babbage");
     }
 
     [Fact] // CA-07
@@ -102,7 +83,6 @@ public class IdentityGrpcServiceTests : IDisposable
         var response = await sut.ValidateUser(request, new FakeServerCallContext());
 
         response.Exists.Should().BeFalse();
-        response.Active.Should().BeFalse();
         response.DisplayName.Should().Be(string.Empty);
     }
 
@@ -119,20 +99,19 @@ public class IdentityGrpcServiceTests : IDisposable
 
         var response = await act.Should().NotThrowAsync();
         response.Subject.Exists.Should().BeFalse();
-        response.Subject.Active.Should().BeFalse();
         response.Subject.DisplayName.Should().Be(string.Empty);
     }
 
     [Fact] // CA-09
-    public async Task ValidateUser_Resposta_NaoContemCampoAlemDosTresDoContrato()
+    public async Task ValidateUser_Resposta_NaoContemCampoAlemDosDoisDoContrato()
     {
         var sut = CreateService();
-        var request = new ValidateUserRequest { UserId = _activeUserId.ToString() };
+        var request = new ValidateUserRequest { UserId = _existingUserId.ToString() };
 
         var response = await sut.ValidateUser(request, new FakeServerCallContext());
 
         var descriptorFields = ValidateUserResponse.Descriptor.Fields.InFieldNumberOrder();
-        descriptorFields.Select(field => field.Name).Should().BeEquivalentTo("exists", "active", "display_name");
+        descriptorFields.Select(field => field.Name).Should().BeEquivalentTo("exists", "display_name");
     }
 
     [Fact] // BE-33, CA-01 — login com credenciais corretas

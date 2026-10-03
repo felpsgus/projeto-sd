@@ -125,6 +125,8 @@ ligue isto em produção" que hoje mora no `identity.env.example`.
 do usuário inativo (RN-AUTH-09) que o seed cobria passou a ser um cadastro comum seguido de um `UPDATE`
 direto no banco — ver `deploy/README.md`, seção 8, e `tarefas/backend/BE-39-verificacao-t2.md`.
 
+> **Emenda (03/10/2026, issue #16):** o usuário inativo foi removido do domínio; o `UPDATE` por SQL e o passo correspondente do `smoke.sh` deixaram de existir.
+
 **Não depende de decisão nenhuma.** A "decisão 2" que esta linha citava não existia — ver a correção
 acima: a exclusão de conta sai de graça pela cascata da FK.
 

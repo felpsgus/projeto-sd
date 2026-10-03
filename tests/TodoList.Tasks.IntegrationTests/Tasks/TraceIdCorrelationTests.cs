@@ -22,7 +22,7 @@ namespace TodoList.Tasks.IntegrationTests.Tasks;
 /// <c>traceId</c>: a do Tasks registrando a chamada recebida
 /// (<c>CreateTask</c>, <c>ownerId</c>, <c>statusCode</c>, <c>durationMs</c>) e
 /// a do Identity registrando a chamada de <c>ValidateUser</c> recebida com o
-/// resultado (<c>exists</c>, <c>active</c>).
+/// resultado (<c>exists</c>).
 /// </summary>
 public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
 {
@@ -46,7 +46,7 @@ public sealed class TraceIdCorrelationTests : IAsyncLifetime, IDisposable
     [Fact] // CA-16 — caminho de sucesso
     public async Task CreateTask_CaminhoDeSucesso_LogDosDoisServicosTemOMesmoTraceId()
     {
-        var (statusCode, traceIdDoTasks, traceIdDoIdentity) = await CallAsync(InMemoryUserLookup.ActiveUserId);
+        var (statusCode, traceIdDoTasks, traceIdDoIdentity) = await CallAsync(InMemoryUserLookup.SeedUserId);
 
         statusCode.Should().Be(StatusCode.OK);
         AssertCorrelacionados(traceIdDoTasks, traceIdDoIdentity);

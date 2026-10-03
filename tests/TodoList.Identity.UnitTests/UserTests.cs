@@ -42,15 +42,6 @@ public class UserTests
         result.Value.DisplayName.Should().Be("Ada Lovelace");
     }
 
-    [Fact] // CA-06
-    public void Create_UsuarioRecemCriado_TemIsActiveTrue()
-    {
-        var result = User.Create(_validEmail, "Ada Lovelace", "hash", CreateTimeProvider());
-
-        result.IsSuccess.Should().BeTrue();
-        result.Value.IsActive.Should().BeTrue();
-    }
-
     [Fact]
     public void Create_PreencheCreatedAtEUpdatedAtComOTimeProviderInjetado()
     {
@@ -136,19 +127,6 @@ public class UserTests
 
         result.IsFailure.Should().BeTrue();
         user.UpdatedAt.Should().Be(updatedAtOriginal, "uma alteração rejeitada não deve tocar UpdatedAt");
-    }
-
-    [Fact]
-    public void Deactivate_MarcaIsActiveFalseEAtualizaUpdatedAt()
-    {
-        var timeProvider = CreateTimeProvider();
-        var user = CreateValidUser(timeProvider);
-
-        timeProvider.Advance(TimeSpan.FromMinutes(1));
-        user.Deactivate(timeProvider);
-
-        user.IsActive.Should().BeFalse();
-        user.UpdatedAt.Should().Be(timeProvider.GetUtcNow().UtcDateTime);
     }
 
     [Fact]

@@ -121,7 +121,7 @@ O frontend cobre as regras pelo **lado do usuário**: o que ele vê, informa e c
 | RN-USER-01 | Dados do usuário | [FE-11](FE-11-perfil-usuario.md) |
 | RN-USER-02 | Editar nome de exibição | [FE-11](FE-11-perfil-usuario.md) |
 | RN-USER-03 | E-mail não editável | [FE-11](FE-11-perfil-usuario.md) |
-| RN-USER-04 | Inativo não autentica | [FE-09](FE-09-tela-login.md) |
+| ~~RN-USER-04~~ | Removida em 03/10/2026 (issue #16): o usuário não tem estado | [FE-09](FE-09-tela-login.md) |
 | RN-USER-05 | Excluir a própria conta | [FE-13](FE-13-exclusao-conta.md) |
 | RN-TASK-01 a RN-TASK-05 | Campos e validações da tarefa | [FE-17](FE-17-criar-tarefa.md), [FE-18](FE-18-editar-tarefa.md) |
 | RN-TASK-06 a RN-TASK-09 | Estados, concluir, reabrir | [FE-19](FE-19-concluir-reabrir.md) |

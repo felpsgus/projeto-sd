@@ -42,7 +42,7 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
 
         _identityFactory = new WebApplicationFactory<IdentityProgram>()
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-                services.AddSingleton<IUserLookup>(new AnyGuidIsActiveUserLookup())));
+                services.AddSingleton<IUserLookup>(new AnyGuidExistsUserLookup())));
 
         _factory = new TasksApiFactory(
             _connection,
@@ -219,9 +219,9 @@ public sealed class CreateTaskActiveLimitTests : IAsyncLifetime, IDisposable
     }
 
     /// <summary>Trata qualquer <see cref="Guid"/> como usuário existente e ativo — só para os testes de limite (CA-18 precisa de donos arbitrários).</summary>
-    private sealed class AnyGuidIsActiveUserLookup : IUserLookup
+    private sealed class AnyGuidExistsUserLookup : IUserLookup
     {
         public Task<UserLookupResult?> FindByIdAsync(Guid userId, CancellationToken cancellationToken) =>
-            Task.FromResult<UserLookupResult?>(new UserLookupResult(Active: true, DisplayName: "Usuário de teste"));
+            Task.FromResult<UserLookupResult?>(new UserLookupResult(DisplayName: "Usuário de teste"));
     }
 }

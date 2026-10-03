@@ -134,11 +134,11 @@ public class CreateTaskTests : IClassFixture<GatewayApiFactory>
         body.Should().Contain("owner.not_found");
     }
 
-    [Theory] // CA-17
-    [InlineData("owner_inactive")]
-    [InlineData("active_limit_reached")]
-    public async Task CreateTask_TasksDevolveFailedPrecondition_Retorna409ComErrorCodeDistinguindoOsCasos(string errorCode)
+    [Fact] // CA-17
+    public async Task CreateTask_TasksDevolveFailedPrecondition_Retorna409ComErrorCode()
     {
+        const string errorCode = "active_limit_reached";
+
         _factory.Tasks.CreateTaskHandler = _ =>
         {
             var trailers = new Metadata { { "error-code", errorCode } };

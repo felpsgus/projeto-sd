@@ -60,9 +60,9 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 
 ### `ValidateUser`
 
-- [x] **CA-05** — Usuário existente e **ativo** → `exists=true`, `active=true`, `display_name` preenchido (RN-USER-01, RN-AUTH-07).
-- [x] **CA-06** — Usuário existente e **inativo** → `exists=true`, `active=false` (RN-USER-04).
-- [x] **CA-07** — Usuário inexistente → `exists=false`, `active=false`, `display_name=""` (string vazia, não `null`).
+- [x] **CA-05** — Usuário existente → `exists=true`, `display_name` preenchido (RN-USER-01, RN-AUTH-07). *(emendado em 03/10/2026, issue #16)*
+- [x] ~~**CA-06** — Usuário existente e **inativo** → `exists=true`, `active=false` (RN-USER-04).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
+- [x] **CA-07** — Usuário inexistente → `exists=false`, `display_name=""` (string vazia, não `null`). *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-08** — `user_id` malformado (`"abc"`, string vazia) → mesma resposta negativa do CA-07, **status gRPC `OK`**, sem exceção e sem 500.
 - [x] **CA-09** — A resposta não contém e-mail, hash de senha nem qualquer campo de usuário além dos três do contrato.
 - [x] **CA-10** — A chamada gera uma entrada de log estruturado com `userId`, `exists`, `active` e duração — **sem** dado sensível.
@@ -74,8 +74,8 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 
 ### Store de usuários
 
-- [x] **CA-13** — Com a persistência ligada, `ValidateUser` reflete o estado real do banco: desativar um usuário muda a resposta de `active=true` para `active=false` sem reiniciar o serviço.
-- [x] **CA-14** — Com o seed em memória, existem exatamente dois usuários (um ativo, um inativo), com ids fixos e documentados no README.
+- [x] **CA-13** — Com a persistência ligada, `ValidateUser` reflete o estado real do banco: excluir um usuário muda a resposta de `exists=true` para `exists=false` sem reiniciar o serviço. *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-14** — Com o seed em memória, existe exatamente um usuário, com id fixo e documentado no README. *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-15** — Subir com o seed em memória emite log de **aviso** na inicialização deixando explícito que o store persistido não está em uso.
 
 ## Testes obrigatórios
@@ -96,3 +96,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 11 de 15.
 | CA-03 | atendido por cliente de teste | `ValidateUserGrpcTests` invoca `ValidateUser` pelo pipeline real do host (`MapGrpcService<IdentityGrpcService>`); não há `grpcurl`/rede real. |
 | CA-11 | em aberto — superado por BE-34/D-38 | O stub não existe mais: o RPC `ValidateToken` foi removido do contrato; o Gateway valida JWT localmente (RS256). |
 | CA-12 | em aberto — superado por BE-34/D-38 | Idem: não há mais stub de `ValidateToken` para revisar. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+Deixa de valer tudo que distingue usuário ativo de inativo: o campo `active`, a coluna `is_active` e a RN-USER-04 (issue #16). `ValidateUser` responde só `exists` e `display_name`. CA-06 substituído; CA-05, CA-07, CA-13 e CA-14 emendados. A "razão de `exists` e `active` separados" (seção de decisões) não se aplica mais.

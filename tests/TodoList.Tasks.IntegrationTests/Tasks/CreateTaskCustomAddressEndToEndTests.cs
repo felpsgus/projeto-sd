@@ -68,7 +68,7 @@ public sealed class CreateTaskCustomAddressEndToEndTests : IAsyncLifetime, IDisp
 
         var reply = await client.CreateTaskAsync(
             new ProtoCreateTaskRequest { Title = "Criada com Identity em endereço não padrão" },
-            TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.ActiveUserId.ToString()));
+            TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.SeedUserId.ToString()));
 
         reply.Id.Should().NotBeNullOrEmpty("o Identity respondeu num endereço não padrão e mesmo assim a criação foi completada");
     }

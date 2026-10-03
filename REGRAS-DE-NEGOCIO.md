@@ -37,7 +37,7 @@ Nesta versão **não há** papel de administrador.
 - **RN-AUTH-03** — O e-mail **DEVE** ter formato válido.
 - **RN-AUTH-04** — A senha **DEVE** ter no mínimo **8 caracteres**, contendo ao menos **uma letra** e **um número**.
 - **RN-AUTH-05** — A senha **NÃO DEVE** ser armazenada em texto puro; é sempre guardada de forma irreversível (hash). Nunca é retornada em nenhuma resposta do sistema.
-- **RN-AUTH-06** — Ao concluir o cadastro com sucesso, o usuário é considerado **ativo** e apto a autenticar.
+- **RN-AUTH-06** — Ao concluir o cadastro com sucesso, o usuário está apto a autenticar.
 - **RN-AUTH-07** — O nome de exibição **PODE** ser informado no cadastro; se ausente, o sistema usa a parte do e-mail antes do `@` como nome padrão.
 
 ### Login e sessão
@@ -56,7 +56,7 @@ Nesta versão **não há** papel de administrador.
 - **RN-AUTH-16** — A cada renovação, o sistema **DEVE** emitir um **novo refresh token** e invalidar o anterior (*rotação de refresh token*). Um refresh token só pode ser usado uma única vez. ⚠️ *(rotação — ver D-11)*
 - **RN-AUTH-17** — Se um refresh token já utilizado (ou inválido/expirado) for apresentado, a renovação **DEVE** ser negada e a sessão correspondente **DEVE** ser encerrada, exigindo novo login.
 - **RN-AUTH-18** — Expirado o refresh token, o usuário **DEVE** se autenticar novamente com e-mail e senha para iniciar nova sessão.
-- **RN-AUTH-19** — Refresh tokens **DEVEM** ser revogáveis. No logout (RN-AUTH-12), na troca de senha (RN-AUTH-21) e na desativação/exclusão da conta, os refresh tokens ativos do usuário **DEVEM** ser invalidados.
+- **RN-AUTH-19** — Refresh tokens **DEVEM** ser revogáveis. No logout (RN-AUTH-12), na troca de senha (RN-AUTH-21) e na exclusão do usuário, os refresh tokens ativos do usuário **DEVEM** ser invalidados.
 - **RN-AUTH-20** — Refresh tokens **NÃO DEVEM** ser expostos a código de frontend com acesso amplo nem trafegar/armazenar-se de forma insegura; recebem tratamento mais restrito que o access token. *(Detalhe de armazenamento é decidido na implementação.)*
 
 ### Recuperação e alteração
@@ -68,10 +68,10 @@ Nesta versão **não há** papel de administrador.
 
 ## 4. Usuário
 
-- **RN-USER-01** — Todo usuário possui: identificador único, e-mail, nome de exibição, senha (hash), data de criação e estado (**ativo**/**inativo**).
+- **RN-USER-01** — Todo usuário possui: identificador único, e-mail, nome de exibição, senha (hash) e data de criação.
 - **RN-USER-02** — O usuário **PODE** editar o próprio nome de exibição.
 - **RN-USER-03** — O e-mail de um usuário **NÃO DEVE** ser alterável nesta versão (é a identidade de login).
-- **RN-USER-04** — Um usuário **inativo** **NÃO DEVE** conseguir autenticar-se.
+- ~~**RN-USER-04**~~ — **Removida (03/10/2026):** o usuário não tem estado; existe ou foi excluído. Ver issue #16.
 - **RN-USER-05** — Um usuário **PODE** solicitar a exclusão da própria conta. Ao excluir, **todas as suas tarefas DEVEM** ser removidas junto. ⚠️ *(exclusão física vs. anonimização — ver D-05)*
 
 ---

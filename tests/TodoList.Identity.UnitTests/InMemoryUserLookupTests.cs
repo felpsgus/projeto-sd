@@ -7,39 +7,19 @@ using Xunit;
 namespace TodoList.Identity.UnitTests;
 
 /// <summary>
-/// Seed em memória do Identity — BE-26 CA-14 (exatamente dois usuários fixos,
-/// um ativo e um inativo) e CA-15 (aviso de inicialização).
+/// Seed em memória do Identity — BE-26 CA-14 (exatamente um usuário fixo) e CA-15 (aviso de inicialização).
 /// </summary>
 public class InMemoryUserLookupTests
 {
     [Fact] // CA-14
-    public async Task FindByIdAsync_UsuarioAtivoFixo_RetornaActiveTrue()
+    public async Task FindByIdAsync_UsuarioFixo_RetornaDisplayName()
     {
         var sut = new InMemoryUserLookup(Substitute.For<ILogger<InMemoryUserLookup>>());
 
-        var result = await sut.FindByIdAsync(InMemoryUserLookup.ActiveUserId, CancellationToken.None);
+        var result = await sut.FindByIdAsync(InMemoryUserLookup.SeedUserId, CancellationToken.None);
 
         result.Should().NotBeNull();
-        result!.Active.Should().BeTrue();
-        result.DisplayName.Should().NotBeNullOrWhiteSpace();
-    }
-
-    [Fact] // CA-14
-    public async Task FindByIdAsync_UsuarioInativoFixo_RetornaActiveFalse()
-    {
-        var sut = new InMemoryUserLookup(Substitute.For<ILogger<InMemoryUserLookup>>());
-
-        var result = await sut.FindByIdAsync(InMemoryUserLookup.InactiveUserId, CancellationToken.None);
-
-        result.Should().NotBeNull();
-        result!.Active.Should().BeFalse();
-        result.DisplayName.Should().NotBeNullOrWhiteSpace();
-    }
-
-    [Fact] // CA-14
-    public void ActiveUserId_And_InactiveUserId_SaoDiferentes()
-    {
-        InMemoryUserLookup.ActiveUserId.Should().NotBe(InMemoryUserLookup.InactiveUserId);
+        result!.DisplayName.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact] // CA-15

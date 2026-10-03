@@ -215,7 +215,7 @@ BE-40 e BE-41 dependem só de BE-36 (e, no caso de BE-40, também de BE-08/BE-34
 | RN-AUTH-03 | Formato de e-mail válido | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md) |
 | RN-AUTH-04 | Senha ≥ 8, com letra e número | [BE-06](BE-06-hash-senha.md) |
 | RN-AUTH-05 | Senha em hash, nunca retornada | [BE-06](BE-06-hash-senha.md) |
-| RN-AUTH-06 | Usuário nasce ativo | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
+| RN-AUTH-06 | Usuário apto a autenticar ao se cadastrar | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
 | RN-AUTH-07 | Nome de exibição padrão = parte antes do `@` | [BE-04](BE-04-dominio-usuario.md), [BE-07](BE-07-cadastro-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
 | RN-AUTH-08 | Login com e-mail + senha | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md) (recorte T2), [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md) |
 | RN-AUTH-09 | Mensagem genérica de credencial inválida | [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md), [BE-36](BE-36-api-gateway.md) |
@@ -235,7 +235,7 @@ BE-40 e BE-41 dependem só de BE-36 (e, no caso de BE-40, também de BE-08/BE-34
 | RN-USER-01 | Campos do usuário | [BE-04](BE-04-dominio-usuario.md), [BE-26](BE-26-identity-servidor-grpc.md) |
 | RN-USER-02 | Editar nome de exibição | [BE-14](BE-14-perfil-usuario.md) |
 | RN-USER-03 | E-mail imutável | [BE-04](BE-04-dominio-usuario.md), [BE-14](BE-14-perfil-usuario.md) |
-| RN-USER-04 | Inativo não autentica | [BE-09](BE-09-login.md), [BE-26](BE-26-identity-servidor-grpc.md), [BE-28](BE-28-validacao-dono-grpc.md), [BE-33](BE-33-login-minimo-grpc.md) |
+| ~~RN-USER-04~~ | Removida em 03/10/2026 (issue #16): o usuário não tem estado | [BE-09](BE-09-login.md), [BE-26](BE-26-identity-servidor-grpc.md), [BE-28](BE-28-validacao-dono-grpc.md), [BE-33](BE-33-login-minimo-grpc.md) |
 | RN-USER-05 | Excluir conta remove as tarefas | [BE-16](BE-16-exclusao-conta.md) |
 | RN-TASK-01 | Campos da tarefa | [BE-05](BE-05-dominio-tarefa.md) |
 | RN-TASK-02 | Título 1–200, não só espaços | [BE-05](BE-05-dominio-tarefa.md) |

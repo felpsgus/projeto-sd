@@ -126,3 +126,7 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
 ## Auditoria dos critérios (03/10/2026)
 
 Critérios conferidos contra o código em 03/10/2026. Marcados: 25 de 25.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+Deixa de valer o caso de borda "usuário desativado": não há mais desativação e o motivo de revogação `AccountDeactivated` perde o uso (issue #16). A revogação por exclusão do usuário (RN-AUTH-19) permanece.

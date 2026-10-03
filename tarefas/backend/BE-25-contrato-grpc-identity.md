@@ -109,3 +109,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 5 de 8.
 | CA-06 | em aberto — parcial | Todos os RPCs e quase todos os campos têm comentário, mas faltam em campos de `RegisterResponse.display_name`, `ProfileResponse` (id, email, display_name, created_at), `UpdateProfileRequest.user_id`, `ChangePasswordRequest` (user_id, new_password) e `DeleteAccountRequest.user_id`; várias mensagens e valores de enum não têm comentário próprio. |
 | CA-07 | em aberto — não verificável por código | Exige alterar temporariamente o `.proto` e observar o campo nos dois lados (prova manual). A estrutura a sustenta (mesmo arquivo em todos os `.csproj`), mas não há teste. |
 | CA-08 | atendido em outro lugar | `ArchitectureTests.DomainEApplication_NaoReferenciamOProtoNemOsTiposGerados` em Identity e Tasks (`TodoList.Identity.UnitTests`, `TodoList.Tasks.UnitTests`). |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O contrato perde o campo `active` de `ValidateUserResponse` e a menção a RN-USER-04 no comentário do RPC (issue #16). A resposta de `ValidateUser` diz apenas se o usuário existe e qual o nome de exibição.

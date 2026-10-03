@@ -46,7 +46,7 @@ public class ResultGrpcStatusTests
     [Fact]
     public void ToRpcException_ComErrorDeNegocio_CarregaOErrorCodeNoTrailer()
     {
-        var error = new Error("task.owner_inactive", "O usuário informado está inativo.", ErrorType.Conflict);
+        var error = new Error("task.some_conflict", "Conflito de teste.", ErrorType.Conflict);
         var result = Result.Failure<string>(error);
 
         var exception = result.ToRpcException();

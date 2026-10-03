@@ -29,8 +29,8 @@ public class RegisterUserHandlerTests
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 10 }));
     private readonly FakeTimeProvider _timeProvider = new(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
 
-    [Fact] // CA-02: usuário criado tem IsActive == true e PasswordHash preenchido e diferente da senha
-    public async Task HandleAsync_DadosValidos_CriaUsuarioAtivoComHashDiferenteDaSenha()
+    [Fact] // CA-02: usuário criado tem PasswordHash preenchido e diferente da senha
+    public async Task HandleAsync_DadosValidos_CriaUsuarioComHashDiferenteDaSenha()
     {
         _userRepository.EmailExistsAsync(Arg.Any<Email>(), Arg.Any<CancellationToken>()).Returns(false);
         var sut = CreateHandler();
@@ -39,7 +39,7 @@ public class RegisterUserHandlerTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Email.Should().Be(NewEmail);
-        _userRepository.Received(1).Add(Arg.Is<User>(u => u.IsActive && u.PasswordHash != ValidPassword));
+        _userRepository.Received(1).Add(Arg.Is<User>(u => u.PasswordHash != ValidPassword));
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

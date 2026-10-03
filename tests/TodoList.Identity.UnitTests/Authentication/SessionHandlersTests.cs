@@ -74,18 +74,6 @@ public class SessionHandlersTests
         errors.Should().AllBeEquivalentTo(AuthErrors.InvalidRefreshToken);
     }
 
-    [Fact] // RN-USER-04 / RN-AUTH-19: conta desativada depois do login perde a sessão
-    public async Task Refresh_UsuarioInativo_FalhaERevogaASessao()
-    {
-        var login = await _refreshTokens.IssueAsync(_user.Id, null, CancellationToken.None);
-        _user.Deactivate(_time);
-
-        var result = await CreateRefreshHandler().HandleAsync(login.Value, CancellationToken.None);
-
-        result.Error.Should().Be(AuthErrors.InvalidRefreshToken);
-        _repository.Tokens.Should().OnlyContain(token => token.RevokedReason == RefreshTokenRevocationReason.AccountDeactivated);
-    }
-
     [Fact] // BE-11 CA-04 / CA-08 / CA-09 via serviço
     public async Task Logout_RevogaSessaoDoDonoEDevolveODesfecho()
     {

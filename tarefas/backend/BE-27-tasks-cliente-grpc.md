@@ -62,7 +62,7 @@ O Tasks Service consegue perguntar ao Identity, por gRPC, se um usuário existe 
 
 ### Chamada
 
-- [x] **CA-04** — Com o Identity no ar, `ValidateUserAsync` de um usuário ativo devolve `Exists=true, Active=true` e o nome de exibição.
+- [x] **CA-04** — Com o Identity no ar, `ValidateUserAsync` de um usuário existente devolve `Exists=true` e o nome de exibição. *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-05** — A resposta negativa do Identity (`exists=false`) chega como `UserValidation(false, false, "")`, sem exceção.
 - [x] **CA-06** — O endereço do Identity vem de `Identity:GrpcAddress`; uma varredura do código não encontra `localhost`, `http://` nem número de porta literal fora de `appsettings*.json` ([BE-30](BE-30-configuracao-enderecos-grpc.md)).
 - [x] **CA-07** — Alterar `Identity:GrpcAddress` para um endereço diferente faz a chamada ir para lá, **sem recompilar**.
@@ -99,3 +99,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 13.
 | CA-11 | atendido por inspeção | `AddGrpcClient<IdentityServiceClient>` (`Tasks.Infrastructure/Identity/ServiceCollectionExtensions.cs`) e nenhuma ocorrência de `GrpcChannel.ForAddress`; sem teste automatizado que impeça regressão. |
 | CA-10 | atendido (nível do gateway) | `GrpcIdentityGatewayTests.ValidateUserAsync_RepassaOCancellationTokenRecebidoParaAChamadaGrpc` prova o repasse do token; não há teste ponta a ponta de cancelamento da requisição. |
 | CA-06/CA-07 | atendidos em outro lugar | Chave de configuração segue `Identity:GrpcAddress`; varredura em `Tasks.UnitTests/ArchitectureTests.CodigoDoTasks_NaoContemEnderecoOuPortaLiteral_ForaDosAppsettings`; troca de endereço em `GrpcIdentityGatewayIntegrationTests` (inclusive por variável de ambiente). |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A abstração `ValidateUserAsync` deixa de expor `Active`: informa só se o dono existe e o nome de exibição (issue #16). A frase "existe e está ativo" do objetivo vale agora como "existe".

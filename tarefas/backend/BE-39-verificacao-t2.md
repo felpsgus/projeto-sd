@@ -62,7 +62,7 @@ Qualquer pessoa consegue, seguindo apenas o `README.md`, subir os três serviço
 - [ ] **CA-03** — O roteiro de apresentação (`deploy/README.md`) cabe em **5 minutos** num ensaio cronometrado real, com o tempo registrado.
 - [ ] **CA-04** — A verificação contra a VM (`scripts/demo-t2.ps1 -BaseUrl http://<IP externo>:8080`) é executada **a partir de fora** — pelo IP externo da `maquina-1-psd`, porta 8080 —, não de dentro da própria VM via `127.0.0.1`.
 - [x] **CA-05** — Os passos 1 e 2 da sequência (sem token, token lixo) respondem **401** nos dois — comprovando que o middleware trata os dois casos, não apenas um deles.
-- [x] **CA-06** — O passo 6 (usuário inativo) responde **401** com corpo indistinguível do de uma credencial simplesmente errada (RN-AUTH-09 estendida ao Gateway).
+- [x] ~~**CA-06** — O passo 6 (usuário inativo) responde **401** com corpo indistinguível do de uma credencial simplesmente errada (RN-AUTH-09 estendida ao Gateway).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [ ] **CA-07** — O caminho de falha controlada (Identity parado) responde **503** com `Retry-After`, nunca 401 nem 500, verificado com o Identity de fato encerrado.
 - [ ] **CA-08** — O trecho de log documentado no README/roteiro mostra o mesmo `traceId` nas linhas do Gateway, do Tasks e do Identity, para o caminho de sucesso.
 - [x] **CA-09** — Nenhum log ou resposta mostrados no material da task contém senha, hash de senha ou o access token completo (RN-AUTH-05, mesmo cuidado de BE-31 CA-12).
@@ -175,3 +175,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 5 de 11 (o arqui
 | CA-07 | em aberto (não verificável) | `deploy/demo.sh --falha` (`dc stop identity`) e o README afirmam o 503 com `Retry-After`, e `AuthLoginTests.Login_IdentityIndisponivel_Retorna503ComRetryAfterNunca401` cobre o mapeamento, mas o teste automatizado usa um Identity falso; o Identity real encerrado só se prova na VM/stack. |
 | CA-08 | em aberto (parcial) | O trecho de log do `README.md` (~linhas 885-925) é anterior a BE-40: mostra `ValidateToken` (removido) e o usuário do seed (removido); o próprio texto diz "pendente de recaptura". O `traceId` compartilhado Gateway/Tasks/Identity é coberto por `Tasks.IntegrationTests/Tasks/TraceIdCorrelationTests` e `Gateway.IntegrationTests/LogLeakageTests`, mas o material documentado precisa ser recapturado. |
 | CA-09 | atendido | Nenhum JWT, senha ou hash nos trechos do `README.md` e do `deploy/README.md` (varredura por `eyJ`/senha); `LogLeakageTests` garante o mesmo nos logs reais. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O passo do usuário inativo (RN-AUTH-09) foi removido da verificação, do `deploy/smoke.sh` e do roteiro da apresentação (issue #16). O CA-06 está substituído. Deixam de valer o `UPDATE ... SET is_active` por SQL e a variável `DEMO_INACTIVE_EMAIL` descritos na seção de emenda de 25/09/2026.

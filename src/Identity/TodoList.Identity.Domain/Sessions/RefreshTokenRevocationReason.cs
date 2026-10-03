@@ -15,7 +15,4 @@ public enum RefreshTokenRevocationReason
 
     /// <summary>Token já consumido apresentado de novo — vazamento presumido (RN-AUTH-17).</summary>
     ReuseDetected,
-
-    /// <summary>Usuário desativado depois de emitida a sessão (RN-USER-04, RN-AUTH-19).</summary>
-    AccountDeactivated,
 }

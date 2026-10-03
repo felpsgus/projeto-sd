@@ -50,7 +50,7 @@ public sealed partial class GrpcIdentityGateway : IIdentityGateway
 
             Log.ValidateUserCalled(_logger, userId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
-            return new UserValidation(response.Exists, response.Active, response.DisplayName);
+            return new UserValidation(response.Exists, response.DisplayName);
         }
         catch (RpcException ex)
         {

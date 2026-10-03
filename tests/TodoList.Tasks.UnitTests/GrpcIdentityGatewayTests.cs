@@ -24,23 +24,23 @@ public class GrpcIdentityGatewayTests
     [Fact] // CA-04
     public async Task ValidateUserAsync_UsuarioAtivo_RetornaUserValidationComDadosDaResposta()
     {
-        var response = new ValidateUserResponse { Exists = true, Active = true, DisplayName = "Ada Lovelace" };
+        var response = new ValidateUserResponse { Exists = true, DisplayName = "Ada Lovelace" };
         var gateway = CreateGateway(new StubIdentityServiceClient(response));
 
         var result = await gateway.ValidateUserAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.Should().Be(new UserValidation(Exists: true, Active: true, DisplayName: "Ada Lovelace"));
+        result.Should().Be(new UserValidation(Exists: true, DisplayName: "Ada Lovelace"));
     }
 
     [Fact] // CA-05
     public async Task ValidateUserAsync_UsuarioInexistente_RetornaUserValidationNegativoSemExcecao()
     {
-        var response = new ValidateUserResponse { Exists = false, Active = false, DisplayName = string.Empty };
+        var response = new ValidateUserResponse { Exists = false, DisplayName = string.Empty };
         var gateway = CreateGateway(new StubIdentityServiceClient(response));
 
         var result = await gateway.ValidateUserAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.Should().Be(new UserValidation(Exists: false, Active: false, DisplayName: string.Empty));
+        result.Should().Be(new UserValidation(Exists: false, DisplayName: string.Empty));
     }
 
     [Fact] // CA-08
@@ -69,7 +69,7 @@ public class GrpcIdentityGatewayTests
     [Fact] // CA-10 — o CancellationToken da chamada é repassado ao gRPC.
     public async Task ValidateUserAsync_RepassaOCancellationTokenRecebidoParaAChamadaGrpc()
     {
-        var response = new ValidateUserResponse { Exists = true, Active = true, DisplayName = "Ada Lovelace" };
+        var response = new ValidateUserResponse { Exists = true, DisplayName = "Ada Lovelace" };
         var client = new StubIdentityServiceClient(response);
         var gateway = CreateGateway(client);
         using var cts = new CancellationTokenSource();
@@ -82,7 +82,7 @@ public class GrpcIdentityGatewayTests
     [Fact] // CA-13 — o traceId de Activity.Current vai como metadata "traceparent".
     public async Task ValidateUserAsync_ComActivityAtual_EnviaTraceparentNaMetadata()
     {
-        var response = new ValidateUserResponse { Exists = true, Active = true, DisplayName = "Ada Lovelace" };
+        var response = new ValidateUserResponse { Exists = true, DisplayName = "Ada Lovelace" };
         var client = new StubIdentityServiceClient(response);
         var gateway = CreateGateway(client);
 
@@ -103,7 +103,7 @@ public class GrpcIdentityGatewayTests
     [Fact] // CA-12 — log com userId, StatusCode e duração.
     public async Task ValidateUserAsync_RegistraLogComUserIdStatusCodeEDuracao()
     {
-        var response = new ValidateUserResponse { Exists = true, Active = true, DisplayName = "Ada Lovelace" };
+        var response = new ValidateUserResponse { Exists = true, DisplayName = "Ada Lovelace" };
         var logger = new CapturingLogger();
         var userId = Guid.NewGuid();
         var gateway = new GrpcIdentityGateway(new StubIdentityServiceClient(response), Options.Create(_options), logger);

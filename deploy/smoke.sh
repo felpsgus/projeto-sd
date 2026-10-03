@@ -7,7 +7,6 @@
 #
 #     DEMO_PASSWORD=... ./smoke.sh                  # contra http://127.0.0.1 (porta 80, via nginx)
 #     DEMO_PASSWORD=... ./smoke.sh http://10.128.0.4
-#     DEMO_PASSWORD=... DEMO_INACTIVE_EMAIL=inativo@todolist.example ./smoke.sh
 #
 # Rode isto depois de todo deploy, e de novo cerca de uma hora antes da
 # apresentação. DEMO_PASSWORD é a senha da conta cadastrada pelo próprio
@@ -21,13 +20,6 @@
 # direto com um usuário pronto. Isso é o que permite rodar o script duas
 # vezes seguidas (ensaio, depois apresentação) sem um 409 de e-mail
 # duplicado.
-#
-# O passo 7 (usuário inativo, RN-AUTH-09) não tem mais uma conta pronta: não
-# existe rota para desativar usuário pela API, de propósito (superfície de
-# negócio nova, fora de escopo). Se você já cadastrou uma conta e a desativou
-# por UPDATE direto no banco (deploy/README.md, "No dia da apresentação"),
-# informe o e-mail dela em DEMO_INACTIVE_EMAIL — sem isso, o passo é PULADO
-# com um aviso explícito, nunca falha silenciosamente.
 #
 # Por que o padrão mudou de :8080 para sem porta (80): desde BE-42 o Gateway
 # não é mais alcançável de fora do 127.0.0.1 da própria VM — verificar contra
@@ -47,7 +39,6 @@ fi
 # na Onda E. %N (nanossegundos) evita colisão mesmo rodando o script duas
 # vezes no mesmo segundo.
 EMAIL_NOVO="demo-t2-$(date +%Y%m%d%H%M%S%N)@todolist.example"
-EMAIL_INATIVO="${DEMO_INACTIVE_EMAIL:-}"
 
 CORPO="$(mktemp)"
 CABECALHOS="$(mktemp)"
@@ -172,23 +163,6 @@ if [[ "$status" == "201" ]] && grep -qi '^location:' "$CABECALHOS"; then
 else
     printf '  ERRO  %-56s (ausente)\n' '6b. Header Location presente'
     falhas=$((falhas + 1))
-fi
-
-# 7. Usuário inativo (RN-AUTH-09) — não há mais um usuário pronto para isto
-# (o seed saiu, Onda E, e não existe rota para desativar conta pela API, de
-# propósito). Só roda se DEMO_INACTIVE_EMAIL foi informada, apontando para
-# uma conta cadastrada e depois desativada por UPDATE direto no banco
-# (deploy/README.md, "No dia da apresentação"). Sem isso, PULADO com aviso —
-# nunca falha silenciosamente, nunca finge sucesso.
-if [[ -z "$EMAIL_INATIVO" ]]; then
-    printf '  PULADO %-55s (defina DEMO_INACTIVE_EMAIL)\n' '7. POST /api/auth/login (usuário inativo)'
-    echo "         Cadastre uma conta e desative-a por SQL (deploy/README.md, 'No dia da apresentação'),"
-    echo "         depois rode de novo com DEMO_INACTIVE_EMAIL=<email-dessa-conta>."
-else
-    status="$(curl -s -o "$CORPO" -w '%{http_code}' --max-time 15 \
-        -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json' \
-        -d "{\"email\":\"$EMAIL_INATIVO\",\"password\":\"$DEMO_PASSWORD\"}")" || status=000
-    relatar '7. POST /api/auth/login (usuário inativo)' "$status" 401 auth.invalid_credentials
 fi
 
 echo ""

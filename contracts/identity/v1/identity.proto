@@ -86,14 +86,12 @@ message ValidateUserRequest {
 }
 
 message ValidateUserResponse {
-  // Verdadeiro se existe um usuário com esse id no Identity. Separado de
-  // `active` porque "nunca existiu" e "existe mas está inativo"
-  // (RN-USER-04) são desfechos diferentes para quem chama.
+  // Verdadeiro se existe um usuário com esse id no Identity. O usuário não
+  // tem estado: ou existe, ou foi excluído (RN-USER-05).
   bool exists = 1;
 
-  // Estado atual do usuário (RN-USER-01, RN-USER-04). Só tem sentido
-  // quando `exists = true`; caso contrário vem `false`.
-  bool active = 2;
+  reserved 2;
+  reserved "active";
 
   // Nome de exibição do dono, para o Tasks poder exibir/registrar sem
   // manter cópia do dado (RN-AUTH-07). Único campo de usuário que

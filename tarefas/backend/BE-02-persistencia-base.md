@@ -98,3 +98,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 17 de 18.
 | CA | Situação | Evidência / motivo |
 |---|---|---|
 | CA-14 | em aberto | Não existe a varredura de `JOIN`/nome de schema no CI (`.github/workflows/ci.yml` e `scripts/` não a têm). Por construção está certo: não há SQL cru em `src/` fora das migrations e os dois `DbContext` mapeiam só o próprio schema (CA-13). |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A FK continua sendo rede de segurança, mas deixou de valer a ressalva "não diz se está ativo (RN-USER-04)": o usuário não tem estado, existe ou foi excluído (RN-USER-04 removida, issue #16). O que a FK não cobre é o nome de exibição e a confirmação de existência no momento da criação, que vêm de `ValidateUser`.

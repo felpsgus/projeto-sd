@@ -34,7 +34,7 @@ Valem para as duas pontas e estão refletidas nas tasks. Detalhes em [backend/DE
 |---|---|---|
 | **Dois serviços** (D-26) | Identity (servidor gRPC) e Tasks (cliente gRPC), sem referência de projeto entre si | A comunicação interna precisa ser de rede, não chamada de método |
 | **Banco único, schema por serviço** (D-27) | Banco `todolist` com schemas `identity` e `tasks`; FK cruzada com `ON DELETE CASCADE` | Torna a exclusão de conta (RN-USER-05) atômica sem RPC novo; o schema é o que mantém a posse das tabelas explícita |
-| **Fail-closed** (D-28) | Identity inalcançável → `503`, tarefa não é criada | A FK garante que o dono existe, mas não que está **ativo** (RN-USER-04) — só o Identity sabe disso |
+| **Fail-closed** (D-28) | Identity inalcançável → `503`, tarefa não é criada | O dono pode ter sido excluído há instantes e só o Identity sabe; sem resposta dele, o Tasks recusa em vez de criar |
 | **Refresh token** (D-20 / FD-01) | Cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/auth` — fora do corpo JSON | Única forma de cumprir a RN-AUTH-20: o frontend nunca lê o valor |
 | **Hospedagem** (D-21 / FD-16 / D-32) | Front e API na mesma origem — e essa origem é o **API Gateway**, único ponto público; Identity e Tasks ficam atrás dele | Dispensa CORS e token anti-CSRF mesmo com o backend dividido em dois serviços; em troca, `withCredentials` é obrigatório |
 | **Autoridade sobre tokens** (D-31) | A chave de assinatura fica só no Identity; quem precisa validar chama `ValidateToken` por gRPC | Com HS256, quem valida também assina — distribuir a chave criaria um segundo emissor de tokens |

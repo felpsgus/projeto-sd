@@ -24,7 +24,7 @@ namespace TodoList.Tasks.IntegrationTests;
 /// Também fixa <c>UserStore:Provider=InMemory</c> como padrão para o
 /// Identity subido aqui: com <c>Persisted</c> virando o padrão de produção
 /// (D-39), os testes deste projeto que esperam o seed em memória
-/// (<c>InMemoryUserLookup.ActiveUserId</c>, ex.:
+/// (<c>InMemoryUserLookup.SeedUserId</c>, ex.:
 /// <see cref="GrpcIdentityGatewayIntegrationTests"/>) precisam continuar
 /// recebendo <c>InMemory</c> sem configurar nada extra.
 /// </para>

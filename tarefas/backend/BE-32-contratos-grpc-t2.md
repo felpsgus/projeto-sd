@@ -190,3 +190,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 8 de 9.
 | CA-03 | atendido em outro lugar | `ValidateToken` foi removido do contrato por D-38 (RS256 validado local no Gateway). `ValidateUser` segue intacto e compatível: `contracts/identity/v1/identity.proto`, `tests/TodoList.Tasks.UnitTests/GrpcIdentityGatewayTests.cs`. Todas as extensões posteriores foram aditivas. |
 | CA-04 | atendido em outro lugar | As mensagens `ValidateToken*` não existem mais (D-38). Os números de campo de `ValidateUserRequest` (`user_id=1`) e `ValidateUserResponse` (`exists=1`, `active=2`, `display_name=3`) são idênticos aos de BE-25. |
 | CA-07 | em aberto | Faltam comentários em campos: `ProfileResponse` (todos), `RegisterResponse.email`/`display_name`, `UpdateProfileRequest.user_id`, `ChangePasswordRequest.user_id`/`new_password`, e nos valores dos enums `TaskStatus`/`TaskStatusFilter`. O critério exige "cada campo". |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O comentário de `LoginResponse` ("e-mail inexistente, senha errada ou usuário inativo") passa a valer só para e-mail inexistente ou senha errada (issue #16).

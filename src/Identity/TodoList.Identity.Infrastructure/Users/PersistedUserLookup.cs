@@ -13,9 +13,9 @@ namespace TodoList.Identity.Infrastructure.Users;
 /// <see cref="FindByIdAsync"/> é uma consulta nova ao <see cref="IUserRepository"/>
 /// injetado, que por sua vez é <c>Scoped</c> sobre o <c>DbContext</c> da
 /// requisição — não há nada memorizado entre chamadas que pudesse ficar
-/// desatualizado. É isso que garante que desativar um usuário no banco muda
-/// a resposta de <c>ValidateUser</c> de <c>active=true</c> para
-/// <c>active=false</c> sem reiniciar o serviço (CA-13): a próxima chamada
+/// desatualizado. É isso que garante que excluir um usuário no banco muda
+/// a resposta de <c>ValidateUser</c> de <c>exists=true</c> para
+/// <c>exists=false</c> sem reiniciar o serviço (CA-13): a próxima chamada
 /// simplesmente lê o estado atual.
 /// </para>
 /// </summary>
@@ -32,6 +32,6 @@ public sealed class PersistedUserLookup : IUserLookup
     {
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
 
-        return user is null ? null : new UserLookupResult(user.IsActive, user.DisplayName);
+        return user is null ? null : new UserLookupResult(user.DisplayName);
     }
 }

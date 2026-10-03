@@ -129,7 +129,7 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 **Consequência aceita:** os dois serviços passam a depender do mesmo banco. Uma migration do Identity que altere o tipo de `users.id` quebra a FK do Tasks, e a implantação dos dois precisa ser coordenada. É o mesmo acoplamento que **D-22** já assume entre front e back.
 
-**O que a FK não substitui:** ela garante que o dono **existe**. Não diz se ele está **ativo** (RN-USER-04) nem qual o nome de exibição — isso continua vindo de `ValidateUser` via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)). A FK é a rede de segurança do banco; a chamada gRPC é a regra de negócio, e é ela que produz uma resposta clara em vez de uma violação de constraint.
+**O que a FK não substitui:** ela garante que o dono **existe** no banco. Não devolve o nome de exibição — isso continua vindo de `ValidateUser` via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)). A FK é a rede de segurança do banco; a chamada gRPC é a regra de negócio, e é ela que produz uma resposta clara em vez de uma violação de constraint.
 
 **Se mudar** (voltar a dois bancos): [BE-16](BE-16-exclusao-conta.md) precisa de exclusão coordenada entre serviços, e a validação de dono na criação passa a ser a **única** garantia de integridade.
 
@@ -141,11 +141,13 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 **Padrão adotado:** **recusar**. `503` com `identity.unavailable` e cabeçalho `Retry-After`. Nada é persistido. Deadline de **2 s** em `Identity:GrpcTimeoutSeconds`.
 
-**Por quê, mesmo com a FK de D-27:** a FK impede tarefa de dono inexistente, mas **não** impede tarefa de dono **inativo** (RN-USER-04) — o registro em `identity.users` continua lá. Sem o Identity, o Tasks não tem como saber o estado do usuário, e criar assumindo "ativo" grava uma tarefa que a regra proibia.
+**Por quê, mesmo com a FK de D-27:** a FK é só rede de segurança do banco; o dono pode ter sido excluído há instantes, e só o Identity sabe. O Tasks confirma a existência antes de criar e, sem resposta do Identity, recusa com 503 em vez de criar.
 
-**Consequência aceita:** o Identity fora do ar impede a criação de tarefas, mesmo de usuários perfeitamente válidos. Nesta escala é preferível a violar RN-USER-04 em silêncio.
+> **Nota (03/10/2026, issue #16):** a justificativa original era "a FK não impede dono inativo (RN-USER-04)". O usuário não tem mais estado ativo/inativo; a decisão (fail-closed) permanece, só o motivo mudou.
 
-**Se mudar** (fail-open apoiado só na FK): tarefas de usuário inativo passam a existir, e alguém precisa decidir o que fazer com elas depois.
+**Consequência aceita:** o Identity fora do ar impede a criação de tarefas, mesmo de usuários perfeitamente válidos. Nesta escala é preferível a criar tarefa de dono não confirmado.
+
+**Se mudar** (fail-open apoiado só na FK): tarefas passam a ser criadas sem o dono confirmado, e alguém precisa decidir o que fazer com elas depois.
 
 **Registrar como ADR** ([BE-24](BE-24-observabilidade-ci.md)).
 

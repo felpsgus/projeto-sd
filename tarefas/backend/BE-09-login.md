@@ -69,7 +69,7 @@ Um usuário ativo troca e-mail + senha por um par de tokens (access + refresh) e
 - [x] **CA-03** — O login funciona com o e-mail em qualquer combinação de maiúsculas/minúsculas.
 - [x] **CA-04** — Senha incorreta retorna **401** com código `auth.invalid_credentials`.
 - [x] **CA-05** — E-mail inexistente retorna **401** com **corpo byte a byte idêntico** ao de CA-04.
-- [x] **CA-06** — Usuário inativo, com senha **correta**, retorna **401** com o mesmo corpo de CA-04 e CA-05 — nunca 403, nunca mensagem sobre conta desativada (RN-USER-04 + RN-AUTH-09).
+- [x] ~~**CA-06** — Usuário inativo, com senha **correta**, retorna **401** com o mesmo corpo de CA-04 e CA-05 — nunca 403, nunca mensagem sobre conta desativada (RN-USER-04 + RN-AUTH-09).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [x] **CA-07** — A resposta de erro **não** revela se o e-mail existe, em nenhum campo (`detail`, `title`, `type`, cabeçalho).
 - [x] **CA-08** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — verificado por teste comparando medianas de N execuções com tolerância larga, ou por asserção de que o caminho de hash dummy foi invocado.
 - [x] **CA-09** — A resposta **não** contém hash de senha nem qualquer campo além do contrato acima.
@@ -97,3 +97,7 @@ Um usuário ativo troca e-mail + senha por um par de tokens (access + refresh) e
 ## Auditoria dos critérios (03/10/2026)
 
 Critérios conferidos contra o código em 03/10/2026. Marcados: 17 de 17.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+Deixa de valer a verificação "o usuário está ativo" (passo 3) e RN-USER-04 (issue #16). A resposta única de falha cobre só e-mail inexistente e senha errada; o CA-06 está substituído. Continua valendo: nunca 403, sempre 401.

@@ -1,7 +1,7 @@
 # ADR-0005 — Um banco PostgreSQL, um schema por serviço
 
 - **Status:** aceita — decisão **D-27** em `tarefas/backend/DECISOES-PENDENTES.md`
-- **Contexto de regra:** RN-USER-05 (exclusão de conta), RN-USER-04; tasks BE-02, BE-16, BE-17
+- **Contexto de regra:** RN-USER-05 (exclusão de conta); tasks BE-02, BE-16, BE-17
 
 ## Contexto
 
@@ -17,7 +17,7 @@ Um banco `todolist` com **dois schemas**: `identity` (`users`, `refresh_tokens`,
 
 - O schema mantém a **posse** explícita: sem ele nada impede o Tasks de consultar `users` direto, e a comunicação
   gRPC viraria decorativa. Ler o usuário continua exigindo `ValidateUser`.
-- A FK é a rede de segurança do banco (dono existe); a regra de negócio (dono **ativo**, RN-USER-04) é do gRPC.
+- A FK é a rede de segurança do banco (dono existe); a confirmação de que o dono ainda existe no momento da criação é do gRPC.
 - Cada serviço tem as suas migrations. **Identity sempre antes do Tasks**: a FK depende das tabelas de `identity`.
 
 ## Alternativas consideradas

@@ -53,7 +53,7 @@ Um visitante consegue criar a própria conta com e-mail e senha, e a conta nasce
 ## Critérios de aceite
 
 - [x] **CA-01** — `POST /api/auth/register` com dados válidos retorna **201** e o corpo contém `id`, `email` (normalizado), `displayName` e `createdAt`.
-- [x] **CA-02** — O usuário criado existe no banco com `IsActive == true` e `PasswordHash` preenchido (RN-AUTH-06).
+- [x] **CA-02** — O usuário criado existe no banco com `PasswordHash` preenchido (RN-AUTH-06). *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-03** — O `PasswordHash` gravado **não** é igual à senha enviada.
 - [x] **CA-04** — A resposta **não contém** nenhum campo de senha ou hash, em nenhum cenário (sucesso ou erro).
 - [x] **CA-05** — Cadastrar um e-mail já existente retorna **409** com código de erro estável (ex.: `auth.email_already_registered`).
@@ -81,3 +81,7 @@ Um visitante consegue criar a própria conta com e-mail e senha, e a conta nasce
 ## Auditoria dos critérios (03/10/2026)
 
 Critérios conferidos contra o código em 03/10/2026. Marcados: 15 de 15.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O usuário recém-cadastrado não "nasce ativo": não há mais estado `IsActive` (issue #16). Onde o texto acima diz "ativa"/"ativo" (RN-AUTH-06), leia "apto a autenticar". O CA-02 foi emendado.

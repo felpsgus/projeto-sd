@@ -432,12 +432,12 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     private ValidateUserResponse RespondAndLog(string rawUserId, UserLookupResult? user, TimeSpan elapsed)
     {
         var response = user is null
-            ? new ValidateUserResponse { Exists = false, Active = false, DisplayName = string.Empty }
-            : new ValidateUserResponse { Exists = true, Active = user.Active, DisplayName = user.DisplayName };
+            ? new ValidateUserResponse { Exists = false, DisplayName = string.Empty }
+            : new ValidateUserResponse { Exists = true, DisplayName = user.DisplayName };
 
-        // CA-10 — log estruturado sem dado sensível: userId, exists, active e
+        // CA-10 — log estruturado sem dado sensível: userId, exists e
         // duração, nunca e-mail, hash de senha ou display_name na entrada de log.
-        Log.ValidateUserCalled(_logger, rawUserId, response.Exists, response.Active, elapsed.TotalMilliseconds);
+        Log.ValidateUserCalled(_logger, rawUserId, response.Exists, elapsed.TotalMilliseconds);
 
         return response;
     }
@@ -479,8 +479,8 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     {
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "ValidateUser: userId={UserId}, exists={Exists}, active={Active}, durationMs={DurationMs}")]
-        public static partial void ValidateUserCalled(ILogger logger, string userId, bool exists, bool active, double durationMs);
+            Message = "ValidateUser: userId={UserId}, exists={Exists}, durationMs={DurationMs}")]
+        public static partial void ValidateUserCalled(ILogger logger, string userId, bool exists, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Information,

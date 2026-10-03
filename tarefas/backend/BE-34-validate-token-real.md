@@ -53,7 +53,7 @@
 - [x] **CA-07** — `ValidateToken` nunca lança exceção nem devolve status gRPC de erro para nenhuma entrada malformada — só para falha real de infraestrutura.
 - [x] **CA-08** — O token recebido não aparece em nenhuma entrada de log, inclusive `Debug`, em nenhum dos cenários acima.
 - [x] **CA-09** — `ValidateToken` **não** consulta o store de usuários (`IUserLookup`/`IUserRepository`) — verificado em revisão/teste de que nenhuma chamada a esse tipo é feita durante a validação.
-- [ ] **CA-10** — Um usuário desativado depois de logar continua com `valid=true` em `ValidateToken` até o token expirar (documentado como consequência aceita, não regressão) — verificado desativando o usuário entre a emissão e a chamada, dentro da janela de validade do token.
+- [x] ~~**CA-10** — Um usuário desativado depois de logar continua com `valid=true` em `ValidateToken` até o token expirar (documentado como consequência aceita, não regressão) — verificado desativando o usuário entre a emissão e a chamada, dentro da janela de validade do token.~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 
 ## Testes obrigatórios
 
@@ -85,3 +85,7 @@ O RPC `ValidateToken` não existe mais: D-38 (BE-40) o substituiu por RS256 vali
 | CA-02 | em aberto | Não há teste de token vazio (`Bearer ` sem valor) no Gateway; só o caso sem header (`CreateTask_SemAuthorizationHeader_...`). |
 | CA-03 | em aberto | Não há teste com string arbitrária não-JWT em `Authorization`; só HS256/`alg=none`/chave errada (JWTs bem formados). |
 | CA-10 | em aberto | O comportamento existe por desenho (sem consulta ao store; D-41, `SessionEndpointsTests` linha ~211 mostra token pós-logout aceito), mas nenhum teste desativa o usuário entre emissão e chamada. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O CA-10 foi substituído (issue #16): não existe "usuário desativado depois de logar". O que vale é a exclusão do usuário: o `ValidateToken` continua sem consultar o store e aceita o token até expirar; a recusa vem das operações que carregam o usuário (BE-16, ADR-0001).

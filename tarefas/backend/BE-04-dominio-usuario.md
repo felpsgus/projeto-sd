@@ -56,7 +56,7 @@ Existe a entidade `User` no domínio, com as suas invariantes garantidas pela pr
 - [x] **CA-03** — Dois `Email` criados de `A@X.com` e `a@x.com` são **iguais** (`Equals` e `GetHashCode`).
 - [x] **CA-04** — `User.Create` sem `displayName` define o nome como a parte antes do `@`.
 - [x] **CA-05** — `User.Create` com `displayName` informado preserva o valor recebido (apenas com trim).
-- [x] **CA-06** — Todo usuário recém-criado tem `IsActive == true`.
+- [x] ~~**CA-06** — Todo usuário recém-criado tem `IsActive == true`.~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [x] **CA-07** — A entidade `User` **não expõe nenhum setter público**; alterações só ocorrem via método de domínio (verificado por teste de arquitetura/reflection).
 - [x] **CA-08** — Não existe caminho de código que altere `Email` após a criação (não há método nem setter).
 - [x] **CA-09** — `Rename` rejeita nome vazio, só-espaços ou acima de 100 caracteres, e atualiza `UpdatedAt` quando aceita.
@@ -73,3 +73,7 @@ Existe a entidade `User` no domínio, com as suas invariantes garantidas pela pr
 ## Auditoria dos critérios (03/10/2026)
 
 Critérios conferidos contra o código em 03/10/2026. Marcados: 12 de 12.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O usuário não tem estado: `IsActive` e `Deactivate()` deixam de existir e RN-USER-04 foi removida (issue #16). O CA-06 está substituído. A criação (RN-AUTH-06) deixa o usuário apto a autenticar, sem flag de estado.

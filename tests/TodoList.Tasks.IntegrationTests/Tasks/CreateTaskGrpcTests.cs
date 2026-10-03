@@ -103,7 +103,7 @@ public sealed class CreateTaskGrpcTests : IAsyncLifetime, IDisposable
         await using var context = _factory.CreateDbContext();
         var persisted = await context.Tasks.SingleAsync(task => task.Id == Guid.Parse(reply.Id));
 
-        persisted.OwnerId.Should().Be(InMemoryUserLookup.ActiveUserId);
+        persisted.OwnerId.Should().Be(InMemoryUserLookup.SeedUserId);
     }
 
     [Fact] // CA-07
@@ -178,7 +178,7 @@ public sealed class CreateTaskGrpcTests : IAsyncLifetime, IDisposable
         // Relógio UTC em 2026-08-21T00:30 (ver InitializeAsync); usuário em
         // UTC-3 ainda está em 2026-08-20. Sem a metadata, isso venceria e
         // isOverdue seria true — com ela, D-18 exige false.
-        var headers = TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.ActiveUserId.ToString(), clientDate: "2026-08-20");
+        var headers = TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.SeedUserId.ToString(), clientDate: "2026-08-20");
 
         var call = _client.CreateTaskAsync(new CreateTaskRequest { Title = "D-18", DueDate = "2026-08-20" }, headers);
         var reply = await call;
@@ -204,13 +204,13 @@ public sealed class CreateTaskGrpcTests : IAsyncLifetime, IDisposable
 
     private async Task<TaskReply> CallAsync(CreateTaskRequest request)
     {
-        var headers = TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.ActiveUserId.ToString());
+        var headers = TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.SeedUserId.ToString());
         return await _client.CreateTaskAsync(request, headers);
     }
 
     private async Task<RpcException> CallAndCaptureFailureAsync(CreateTaskRequest request)
     {
-        var headers = TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.ActiveUserId.ToString());
+        var headers = TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.SeedUserId.ToString());
 
         try
         {

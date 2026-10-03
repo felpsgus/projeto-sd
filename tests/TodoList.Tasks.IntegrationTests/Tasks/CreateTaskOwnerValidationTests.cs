@@ -41,14 +41,14 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
     // CA1001: a disposição de verdade acontece em DisposeAsync.
     public void Dispose() => GC.SuppressFinalize(this);
 
-    [Fact] // CA-01, CA-14 — usuário existente e ativo: OK completo
-    public async Task CreateTask_UsuarioExistenteEAtivo_DevolveOk()
+    [Fact] // CA-01, CA-14 — usuário existente: OK completo
+    public async Task CreateTask_UsuarioExistente_DevolveOk()
     {
         await using var identityFactory = new WebApplicationFactory<IdentityProgram>();
         await using var factory = await CreateFactoryAsync(identityFactory);
         using var client = CreateClient(factory);
 
-        var reply = await CallAsync(client, InMemoryUserLookup.ActiveUserId, "Tarefa de usuário válido");
+        var reply = await CallAsync(client, InMemoryUserLookup.SeedUserId, "Tarefa de usuário válido");
 
         reply.Id.Should().NotBeNullOrEmpty();
     }
@@ -80,30 +80,14 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
         var antes = await CallAndCaptureFailureAsync(client, Guid.NewGuid(), "Antes de existir");
         antes.StatusCode.Should().Be(StatusCode.NotFound);
 
-        // ActiveUserId É um usuário existente no seed do Identity — a "mesma
+        // SeedUserId É um usuário existente no seed do Identity — a "mesma
         // requisição" muda só o x-user-id, provando que a decisão sai do
         // Identity, não de uma tabela local do Tasks.
-        var depois = await CallAsync(client, InMemoryUserLookup.ActiveUserId, "Depois de existir");
+        var depois = await CallAsync(client, InMemoryUserLookup.SeedUserId, "Depois de existir");
         depois.Id.Should().NotBeNullOrEmpty();
     }
 
-    [Fact] // CA-06 — usuário inativo: FailedPrecondition, nada persistido
-    public async Task CreateTask_UsuarioInativo_DevolveFailedPreconditionTaskOwnerInactiveSemPersistir()
-    {
-        await using var identityFactory = new WebApplicationFactory<IdentityProgram>();
-        await using var factory = await CreateFactoryAsync(identityFactory);
-        using var client = CreateClient(factory);
-
-        var exception = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.InactiveUserId, "Usuário inativo");
-
-        exception.StatusCode.Should().Be(StatusCode.FailedPrecondition);
-        exception.Trailers.GetValue("error-code").Should().Be("task.owner_inactive");
-
-        await using var context = factory.CreateDbContext();
-        (await context.Tasks.AnyAsync(task => task.OwnerId == InMemoryUserLookup.InactiveUserId)).Should().BeFalse();
-    }
-
-    [Fact] // CA-07 — as duas rejeições geram log Warning com userId e motivo
+    [Fact] // CA-07 — a rejeição gera log Warning com userId e motivo
     public async Task CreateTask_RejeicaoDeDono_GeraLogWarningComUserIdEMotivo()
     {
         await using var identityFactory = new WebApplicationFactory<IdentityProgram>();
@@ -114,14 +98,14 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
             configureServices: services => services.AddSingleton<ILogEventSink>(capturingProvider));
         using var client = CreateClient(factory);
 
-        var usuarioInativo = InMemoryUserLookup.InactiveUserId;
-        var exception = await CallAndCaptureFailureAsync(client, usuarioInativo, "Gera log de aviso");
-        exception.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+        var usuarioInexistente = Guid.NewGuid();
+        var exception = await CallAndCaptureFailureAsync(client, usuarioInexistente, "Gera log de aviso");
+        exception.StatusCode.Should().Be(StatusCode.NotFound);
 
         capturingProvider.Entries.Should().Contain(entry =>
             entry.Level == LogLevel.Warning
-            && entry.Message.Contains(usuarioInativo.ToString(), StringComparison.Ordinal)
-            && entry.Message.Contains("inactive", StringComparison.OrdinalIgnoreCase));
+            && entry.Message.Contains(usuarioInexistente.ToString(), StringComparison.Ordinal)
+            && entry.Message.Contains("not_found", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact] // CA-08, CA-10 — Identity desligado: Unavailable, sem vazar detalhe de transporte
@@ -131,7 +115,7 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
         await using var factory = await CreateFactoryAsync(identityFactory: null, identityAddress: enderecoMorto);
         using var client = CreateClient(factory);
 
-        var exception = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.ActiveUserId, "Identity fora do ar");
+        var exception = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.SeedUserId, "Identity fora do ar");
 
         exception.StatusCode.Should().Be(StatusCode.Unavailable);
         exception.Trailers.GetValue("error-code").Should().Be("identity.unavailable");
@@ -147,7 +131,7 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
         await using var factory = await CreateFactoryAsync(identityFactory: null, identityAddress: enderecoMorto);
         using var client = CreateClient(factory);
 
-        await CallAndCaptureFailureAsync(client, InMemoryUserLookup.ActiveUserId, "Não deveria ser gravada");
+        await CallAndCaptureFailureAsync(client, InMemoryUserLookup.SeedUserId, "Não deveria ser gravada");
 
         await using var context = factory.CreateDbContext();
         (await context.Tasks.AnyAsync()).Should().BeFalse();
@@ -164,7 +148,7 @@ public sealed class CreateTaskOwnerValidationTests : IAsyncLifetime, IDisposable
         using var client = CreateClient(factory);
 
         var cronometro = System.Diagnostics.Stopwatch.StartNew();
-        var exception = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.ActiveUserId, "Deadline");
+        var exception = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.SeedUserId, "Deadline");
         cronometro.Stop();
 
         exception.StatusCode.Should().Be(StatusCode.Unavailable);

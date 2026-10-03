@@ -19,8 +19,8 @@ namespace TodoList.Tasks.UnitTests.Tasks;
 /// <see cref="ITodoTaskRepository"/>, <see cref="IUnitOfWork"/> e
 /// <see cref="IIdentityGateway"/> substituídos (NSubstitute) — a ordem
 /// dono → limite → persistência (CA-23 de BE-17; CA-02, CA-03 de BE-28) e os
-/// quatro desfechos da tabela de BE-28. Por padrão, o gateway devolve
-/// <c>Exists=true, Active=true</c> (regra de "Testes obrigatórios" de BE-17).
+/// três desfechos da tabela de BE-28. Por padrão, o gateway devolve
+/// <c>Exists=true</c> (regra de "Testes obrigatórios" de BE-17).
 /// </summary>
 public class CreateTaskHandlerTests
 {
@@ -38,7 +38,7 @@ public class CreateTaskHandlerTests
         _currentUser.Id.Returns(_ownerId);
         _clientDate.Today.Returns(new DateOnly(2026, 1, 1));
         _identityGateway.ValidateUserAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new UserValidation(Exists: true, Active: true, DisplayName: "Ada Lovelace"));
+            .Returns(new UserValidation(Exists: true, DisplayName: "Ada Lovelace"));
         _repository.CountActiveByOwnerAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(0);
     }
 
@@ -87,27 +87,13 @@ public class CreateTaskHandlerTests
     public async Task HandleAsync_DonoInexistenteNoIdentity_RetornaOwnerNotFoundSemPersistir()
     {
         _identityGateway.ValidateUserAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new UserValidation(Exists: false, Active: false, DisplayName: string.Empty));
+            .Returns(new UserValidation(Exists: false, DisplayName: string.Empty));
         var handler = CreateHandler();
 
         var result = await handler.HandleAsync(new CreateTaskRequest("Tarefa", null, null, null), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(TaskErrors.OwnerNotFound);
-        AssertNadaFoiPersistido();
-    }
-
-    [Fact] // BE-28, tabela — Exists=true, Active=false
-    public async Task HandleAsync_DonoInativoNoIdentity_RetornaOwnerInactiveSemPersistir()
-    {
-        _identityGateway.ValidateUserAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new UserValidation(Exists: true, Active: false, DisplayName: "Charles Babbage"));
-        var handler = CreateHandler();
-
-        var result = await handler.HandleAsync(new CreateTaskRequest("Tarefa", null, null, null), CancellationToken.None);
-
-        result.IsFailure.Should().BeTrue();
-        result.Error.Should().Be(TaskErrors.OwnerInactive);
         AssertNadaFoiPersistido();
     }
 

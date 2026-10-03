@@ -38,7 +38,7 @@ public class GrpcErrorMappingTests
     [Fact]
     public async Task ToHttpResult_FailedPrecondition_Vira409() // CA-17
     {
-        var result = GrpcErrorMapping.ToHttpResult(StatusCode.FailedPrecondition, "owner_inactive", null, "dono inativo");
+        var result = GrpcErrorMapping.ToHttpResult(StatusCode.FailedPrecondition, "active_limit_reached", null, "limite atingido");
 
         var httpContext = await ExecuteAsync(result);
 

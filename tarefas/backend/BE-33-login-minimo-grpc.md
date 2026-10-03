@@ -49,10 +49,10 @@ Um usuário ativo troca e-mail e senha, via RPC `Login`, por um access token vá
 
 ## Critérios de aceite
 
-- [x] **CA-01** — Login com e-mail e senha corretos, usuário ativo, `Provider=Persisted` → `succeeded=true`, `access_token` preenchido e válido (aceito pela mesma validação de BE-08), `expires_at` e `user_id` corretos.
+- [x] **CA-01** — Login com e-mail e senha corretos, `Provider=Persisted` → `succeeded=true`, `access_token` preenchido e válido (aceito pela mesma validação de BE-08), `expires_at` e `user_id` corretos. *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-02** — Senha incorreta → `succeeded=false`, sem `access_token`.
 - [x] **CA-03** — E-mail inexistente → resposta **idêntica** (mesmos campos, mesmos valores) à de CA-02.
-- [x] **CA-04** — Usuário inativo, senha correta → resposta **idêntica** à de CA-02 e CA-03 (RN-USER-04 + RN-AUTH-09).
+- [x] ~~**CA-04** — Usuário inativo, senha correta → resposta **idêntica** à de CA-02 e CA-03 (RN-USER-04 + RN-AUTH-09).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [x] **CA-05** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — mesmo critério de BE-09 CA-08.
 - [x] **CA-06** — Nenhum log produzido pelo `Login` contém e-mail, senha, hash de senha ou o token emitido — só `userId` (quando resolvido), `succeeded` e `traceId`.
 - [ ] **CA-07** — Com `UserStore:SeedDemoUsers=true` e `UserStore:DemoUserPassword` ausente, a inicialização do Identity **falha** com mensagem indicando a configuração faltante.
@@ -87,3 +87,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 9 de 12.
 | CA-11 | atendido | Aviso único na inicialização em `Identity.Api/Program.cs` (`StartupLog.LoginNotSupportedWithInMemoryProvider`); `IdentityGrpcServiceTests.Login_ProviderInMemory_RetornaSucceededFalseSemConsultarRepositorio`; limitação documentada no `README.md`. |
 
 Nota: o `Login` evoluiu na Fase 4 (BE-10/BE-12: refresh token e bloqueio por tentativas); os CA-01 a CA-06 continuam cobertos por `LoginHandlerTests` e `IdentityGrpcServiceTests`.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O passo 4 do fluxo ("verifica `user.IsActive`") deixa de existir e RN-USER-04 foi removida (issue #16). A resposta única de falha cobre e-mail inexistente e senha errada. O CA-04 está substituído.

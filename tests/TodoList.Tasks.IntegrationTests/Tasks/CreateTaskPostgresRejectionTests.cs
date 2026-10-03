@@ -42,7 +42,7 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "Docker")]
-    public async Task CreateTask_DonoInexistenteOuInativo_NenhumaLinhaGravadaNoPostgresReal()
+    public async Task CreateTask_DonoInexistente_NenhumaLinhaGravadaNoPostgresReal()
     {
         await _fixture.EnsureStartedAsync();
 
@@ -55,15 +55,11 @@ public class CreateTaskPostgresRejectionTests : IAsyncLifetime
         var excecaoInexistente = await CallAndCaptureFailureAsync(client, usuarioInexistente, "Dono inexistente (Postgres real)");
         excecaoInexistente.StatusCode.Should().Be(StatusCode.NotFound);
 
-        var excecaoInativo = await CallAndCaptureFailureAsync(client, InMemoryUserLookup.InactiveUserId, "Dono inativo (Postgres real)");
-        excecaoInativo.StatusCode.Should().Be(StatusCode.FailedPrecondition);
-
         await using var scope = factory.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<TasksDbContext>();
 
-        (await context.Tasks.AnyAsync(task =>
-                task.OwnerId == usuarioInexistente || task.OwnerId == InMemoryUserLookup.InactiveUserId))
-            .Should().BeFalse("nenhuma das duas rejeições deve gravar linha, nem no Postgres real");
+        (await context.Tasks.AnyAsync(task => task.OwnerId == usuarioInexistente))
+            .Should().BeFalse("a rejeição não deve gravar linha, nem no Postgres real");
     }
 
     [Fact]

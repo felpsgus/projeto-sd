@@ -90,7 +90,7 @@ public sealed class ObservabilityTests : IAsyncLifetime, IDisposable
         using var grpc = new TasksGrpcTestClient(factory.Server.CreateHandler(), factory.Server.BaseAddress);
         await grpc.CreateTaskAsync(
             new ProtoCreateTaskRequest { Title = "Log de requisição" },
-            TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.ActiveUserId.ToString()));
+            TasksGrpcTestClient.OwnerHeaders(InMemoryUserLookup.SeedUserId.ToString()));
 
         var requestLogs = await WaitForRequestLogsAsync(sink, expected: 2);
 
@@ -100,7 +100,7 @@ public sealed class ObservabilityTests : IAsyncLifetime, IDisposable
         Property(live, "service").Should().Be("tasks");
         live.Properties.ContainsKey("userId").Should().BeFalse("anônimo não leva campo userId");
         Property(create, "service").Should().Be("tasks");
-        Property(create, "userId").Should().Be(InMemoryUserLookup.ActiveUserId.ToString());
+        Property(create, "userId").Should().Be(InMemoryUserLookup.SeedUserId.ToString());
     }
 
     // O log de requisição sai depois da resposta: espera (até 5 s) em vez de ler o sink às cegas.

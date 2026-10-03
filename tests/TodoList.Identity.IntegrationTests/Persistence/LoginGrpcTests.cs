@@ -29,14 +29,12 @@ namespace TodoList.Identity.IntegrationTests.Persistence;
 public class LoginGrpcTests : IAsyncLifetime
 {
     private const string DemoPassword = "senha-de-demonstracao-para-teste-123";
-    private const string ActiveUserEmail = "ada.lovelace@todolist.example";
-    private const string InactiveUserEmail = "charles.babbage@todolist.example";
+    private const string UserEmail = "ada.lovelace@todolist.example";
 
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 200 }));
     private readonly PostgresContainerFixture _fixture;
     private WebApplicationFactory<Program> _factory = null!;
-    private Guid _activeUserId;
-    private Guid _inactiveUserId;
+    private Guid _userId;
 
     public LoginGrpcTests(PostgresContainerFixture fixture)
     {
@@ -53,8 +51,7 @@ public class LoginGrpcTests : IAsyncLifetime
             await context.Database.MigrateAsync();
         }
 
-        _activeUserId = await CreateUserAsync(ActiveUserEmail, "Ada Lovelace", isActive: true);
-        _inactiveUserId = await CreateUserAsync(InactiveUserEmail, "Charles Babbage", isActive: false);
+        _userId = await CreateUserAsync(UserEmail, "Ada Lovelace");
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -73,42 +70,25 @@ public class LoginGrpcTests : IAsyncLifetime
 
     [Fact] // BE-33 CA-01
     [Trait("Category", "Docker")]
-    public async Task Login_UsuarioAtivoComSenhaCorreta_RetornaAccessToken()
+    public async Task Login_UsuarioComSenhaCorreta_RetornaAccessToken()
     {
         using var client = CreateClient();
 
-        var login = await client.LoginAsync(new LoginRequest { Email = ActiveUserEmail, Password = DemoPassword });
+        var login = await client.LoginAsync(new LoginRequest { Email = UserEmail, Password = DemoPassword });
 
         login.Succeeded.Should().BeTrue();
         login.AccessToken.Should().NotBeNullOrEmpty();
-        login.UserId.Should().Be(_activeUserId.ToString());
+        login.UserId.Should().Be(_userId.ToString());
         login.ExpiresAt.Should().NotBeNull();
     }
 
-    [Fact] // BE-33 — usuário inativo nunca autentica, mesmo com a senha correta
-    [Trait("Category", "Docker")]
-    public async Task Login_UsuarioInativoComSenhaCorreta_RetornaSucceededFalse()
-    {
-        using var client = CreateClient();
-
-        var response = await client.LoginAsync(new LoginRequest { Email = InactiveUserEmail, Password = DemoPassword });
-
-        response.Succeeded.Should().BeFalse();
-        response.AccessToken.Should().BeEmpty();
-    }
-
-    private async Task<Guid> CreateUserAsync(string email, string displayName, bool isActive)
+    private async Task<Guid> CreateUserAsync(string email, string displayName)
     {
         await using var context = CreateProbeContext();
 
         var emailResult = Email.Create(email);
         var userResult = User.Create(emailResult.Value, displayName, _passwordHasher.Hash(DemoPassword), TimeProvider.System);
         var user = userResult.Value;
-
-        if (!isActive)
-        {
-            user.Deactivate(TimeProvider.System);
-        }
 
         context.Users.Add(user);
         await context.SaveChangesAsync();

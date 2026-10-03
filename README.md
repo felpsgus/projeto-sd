@@ -113,7 +113,7 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
   malformado ou usuário inexistente (resposta negativa, status `OK`).
 - **`Login`** (BE-33, recorte de BE-09 — D-36) — troca e-mail e senha por um access token. Exige
   `UserStore:Provider=Persisted` (ver seção seguinte). Nunca revela, por resposta ou por tempo, qual
-  das causas de falha ocorreu (e-mail inexistente, senha errada, usuário inativo) — sempre
+  das causas de falha ocorreu (e-mail inexistente ou senha errada) — sempre
   `succeeded=false` sem detalhe adicional.
 
 ### Store de usuários: em memória ou persistido (BE-04)
@@ -123,16 +123,12 @@ O contrato compartilhado vive em [`contracts/identity/v1/identity.proto`](contra
 
 - **`InMemory`** (só em teste; o padrão é `Persisted`, D-39) — seed fixo em memória (`InMemoryUserLookup`). Roda no processo real — não
   é mock de teste — e emite um **log de aviso** na inicialização deixando explícito que o store
-  persistido não está em uso. Exatamente dois usuários, com ids fixos:
-
-  | Usuário | Id | Estado | Nome de exibição |
-  |---|---|---|---|
-  | Ativo | `10000000-0000-0000-0000-000000000001` | `active=true` | Ada Lovelace |
-  | Inativo | `10000000-0000-0000-0000-000000000002` | `active=false` | Charles Babbage |
+  persistido não está em uso. Exatamente um usuário, com id fixo:
+  `10000000-0000-0000-0000-000000000001` (Ada Lovelace).
 
 - **`Persisted`** — `PersistedUserLookup`, sobre `IUserRepository`/`IdentityDbContext` (BE-04). Cada
-  chamada é uma consulta nova ao banco — sem cache — então desativar um usuário muda a resposta de
-  `active=true` para `active=false` **sem reiniciar o serviço** (CA-13 de BE-26). Como
+  chamada é uma consulta nova ao banco — sem cache — então o resultado reflete o estado real do banco
+  **sem reiniciar o serviço** (CA-13 de BE-26). Como
   `PersistedUserLookup` depende do `DbContext` (`Scoped`), `IUserLookup` também é registrado como
   `Scoped` no `Program.cs` (nunca `Singleton` — criaria uma dependência cativa sobre um `DbContext`
   descartado); `InMemoryUserLookup` continua efetivamente único no processo porque ele mesmo é
@@ -145,17 +141,6 @@ identity.users(id)` (nota mais abaixo) exige que o dono exista de verdade no ban
 que for usar pela tela, por `curl`/Scalar (`POST /api/auth/register`, ver "gRPC do Identity Service"
 acima), ou deixe que `deploy/smoke.sh` cadastre a sua própria a cada execução.
 
-**Usuário inativo (RN-AUTH-09).** Não existe rota para desativar uma conta pela API — só o domínio
-tem `User.Deactivate()`, sem endpoint que o exponha (decisão consciente: seria superfície de negócio
-nova, fora do escopo desta onda). Para demonstrar que um usuário inativo recebe a mesma resposta 401
-de uma senha errada, cadastre uma conta normalmente e desative-a com um `UPDATE` direto no banco:
-
-```sql
-UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
-```
-
-Depois disso, `DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh` exercita o passo — ver
-"No dia da apresentação" em `deploy/README.md` para o roteiro completo.
 
 **Login (BE-33) exige `UserStore:Provider=Persisted`.** Com `Provider=InMemory`, não existe
 senha/hash associado aos usuários semeados em memória — `Login` sempre responde `succeeded=false`
@@ -662,7 +647,7 @@ tipos compartilhados com os backends.
 ### O que ele faz
 
 - `POST /api/auth/login` (anônimo) — troca e-mail/senha por um access token via `Login` (Identity); e-mail
-  inexistente, senha errada ou usuário inativo devolvem sempre o mesmo **401** `auth.invalid_credentials`
+  inexistente ou senha errada devolvem sempre o mesmo **401** `auth.invalid_credentials`
   (RN-AUTH-09) — o Gateway só vê `succeeded=false`, nunca a causa. Sucesso: `{ accessToken, expiresAt }`
   no corpo e o **refresh token só no cookie** `refreshToken` (`HttpOnly; Secure; SameSite=Strict;
   Path=/api/auth`, D-20) — nunca no corpo; falha nunca emite cookie. **Bloqueio (BE-12, RN-AUTH-13):** após
@@ -855,25 +840,19 @@ localmente" (seção do Gateway). A migration `AddRefreshTokens` cria `identity.
 `scripts/new-migrations-sql.ps1`. Numa VM em HTTP puro, o Gateway precisa de `RefreshCookie__Secure=false`.
 
 Nenhum usuário pronto para logar — cadastre um pelo Scalar/`curl` (`POST /api/auth/register`) ou deixe
-que o próprio `deploy/smoke.sh` cadastre o dele (próxima seção). Para o passo do usuário inativo
-(RN-AUTH-09), cadastre uma segunda conta e desative-a por SQL — ver "Cadastro real, não seed" acima e
-"No dia da apresentação" em `deploy/README.md`.
+que o próprio `deploy/smoke.sh` cadastre o dele (próxima seção).
 
 ### 3. `deploy/smoke.sh`
 
 ```bash
 # Gateway sozinho, sem nginx: o passo 0 (rota do SPA) é esperado falhar — quem serve o Angular é o nginx
 DEMO_PASSWORD="<qualquer senha de desenvolvimento>" ./deploy/smoke.sh http://localhost:8080
-# com a conta inativa já desativada por SQL:
-DEMO_PASSWORD="<...>" DEMO_INACTIVE_EMAIL="inativo@todolist.example" ./deploy/smoke.sh http://localhost:8080
 ```
 
 O script imprime uma linha `OK`/`ERRO` por passo e, no fim, o comando de log para achar o `traceId` do
 passo 6. Os passos: 0 rota profunda do SPA; 1 e 2 sem token e com token lixo (401); 3 e 4 cadastro e login
-da conta nova; 2b token adulterado (401); 5 título vazio (400); 6 criação válida (201 + `Location`); 7 login
-do usuário inativo (401 idêntico ao de senha errada, só se `DEMO_INACTIVE_EMAIL` estiver definida — senão
-`PULADO`, com aviso). Qualquer passo fora do esperado faz o script sair com `1` (BE-39 CA-02); o passo 7
-pulado nunca conta como falha.
+da conta nova; 2b token adulterado (401); 5 título vazio (400); 6 criação válida (201 + `Location`).
+Qualquer passo fora do esperado faz o script sair com `1` (BE-39 CA-02).
 
 ### 4. Evidência de log: o mesmo `traceId` nos serviços envolvidos (passo 6)
 
@@ -909,7 +888,7 @@ info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1049219497]
       ValidateToken: valid=True, durationMs=33.7856,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
 info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1561142135]
-      ValidateUser: userId=10000000-0000-0000-0000-000000000001, exists=True, active=True, durationMs=15.7272,
+      ValidateUser: userId=10000000-0000-0000-0000-000000000001, exists=True, durationMs=15.7272,
       traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-ed399fb3ceb26372-00
 
 # terminal 2 (Tasks) — chamou o Identity de novo (ValidateUser) antes de gravar — não muda com BE-40
@@ -970,9 +949,8 @@ com token válido.
 | **3. Segurança** — 401 com token ausente ou inválido | Passos 1 (sem token) e 2 (token lixo) — dois caminhos de código distintos no middleware (CA-05) | Seção 3 acima — `AddJwtBearer` (BE-40, D-38, substitui `IdentityTokenAuthenticationHandler`), mesmo corpo `auth.unauthorized` nos dois — validado localmente com a chave pública, sem round-trip ao Identity, atendendo ao requisito 6 do enunciado ("middleware de autenticação configurado no próprio Gateway") |
 | **4. Tradução e delegação de protocolo** — JSON → gRPC binário para o backend | Passo 6, evidência de log | Seção 4 acima — `traceId` correlacionado em Gateway (`CreateTask`), Tasks (`CreateTask`/`ValidateUser (Identity gRPC)`) e Identity (`ValidateUser`); a validação do JWT deixou de ser uma chamada gRPC do Gateway ao Identity desde BE-40 |
 
-O passo 7 (usuário inativo → 401 idêntico ao de senha errada, RN-AUTH-09 — pulado com aviso se
-`DEMO_INACTIVE_EMAIL` não for informada) e o caminho de indisponibilidade
-(seção 5) não mapeiam para um requisito numerado do enunciado, mas são exigidos pelo BE-39 (CA-06/CA-07; o
+O caminho de indisponibilidade
+(seção 5) não mapeia para um requisito numerado do enunciado, mas é exigido pelo BE-39 (CA-07; o
 indisponível se reproduz à mão, o `smoke.sh` não o derruba) — a diferença entre "credencial errada" e "não consigo checar" é o tipo de bug que só aparece
 na primeira demonstração real, não em revisão de código.
 

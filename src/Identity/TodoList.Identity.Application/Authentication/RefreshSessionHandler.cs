@@ -36,12 +36,8 @@ public sealed class RefreshSessionHandler
 
         var user = await _userRepository.GetByIdAsync(redeemed.Value.UserId, cancellationToken);
 
-        if (user is null || !user.IsActive)
+        if (user is null)
         {
-            // Conta desativada depois do login (RN-USER-04/RN-AUTH-19): encerra a sessão que acabou de rotacionar.
-            await _refreshTokens.RevokeSessionAsync(
-                redeemed.Value.Next.SessionId, RefreshTokenRevocationReason.AccountDeactivated, cancellationToken);
-
             return Result.Failure<RefreshSessionResult>(AuthErrors.InvalidRefreshToken);
         }
 

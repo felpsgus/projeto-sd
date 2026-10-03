@@ -293,7 +293,7 @@ DEMO_PASSWORD=... ./deploy/smoke.sh http://<IP_EXTERNO>   # do notebook (Git Bas
 
 Saída esperada do `smoke.sh`: a rota profunda `/tasks` devolve o `index.html` do Angular (prova
 do `try_files` do SPA), e os cenários seguintes (201 com `Location`, 400 de validação, três
-casos de 401, usuário inativo) saem `OK`. O mesmo `traceId` aparece nos três serviços:
+casos de 401) saem `OK`. O mesmo `traceId` aparece nos três serviços:
 
 ```bash
 sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \
@@ -309,22 +309,6 @@ Três lugares: o navegador, um terminal SSH na VM (logs) e um Git Bash no notebo
 (`deploy/smoke.sh`, para o 401).
 
 ### Preparar
-
-**Antes de tudo, com antecedência: a conta do usuário inativo.** Não existe rota para
-desativar conta pela API (decisão consciente: seria superfície de negócio nova), então a conta
-do Ato 5 precisa ser cadastrada e desativada por SQL, uma vez só — é o único jeito de provar
-RN-AUTH-09:
-
-```bash
-# 1. Cadastre pela tela (ou por curl) um e-mail qualquer, ex.: inativo@todolist.example
-# 2. Desative-o direto no banco (psql a partir da VM; sudo apt-get install -y postgresql-client):
-PGSSLMODE=require psql -h 10.30.240.3 -U todolist -d todolist
-UPDATE identity.users SET is_active = false, updated_at = now() WHERE email = 'inativo@todolist.example';
-```
-
-Passe o e-mail ao Ato 5 com `DEMO_INACTIVE_EMAIL=inativo@todolist.example`. Sem isso o passo 7 do
-script é **pulado com aviso** (não falha, mas não demonstra RN-AUTH-09). Nos ensaios, a conta
-`inativo@todolist.example` já existe e está desativada na `banco-1`.
 
 **Terminal 1 — SSH, na VM:**
 
@@ -355,12 +339,13 @@ export DEMO_PASSWORD="..."
 | 2 | **Título vazio → 400** | Criar tarefa sem título; o formulário mostra o erro **sem** round-trip até o Tasks — o Gateway validando na borda. | 0:40 | 2:20 |
 | 3 | **Tarefa válida (201) + atrasada** | Criar uma tarefa com título e **uma segunda com vencimento no passado** (a conta é nova e não tem tarefa vencida; sem isso o destaque nunca aparece). Surgem na lista sem recarregar. | 1:10 | 3:30 |
 | 4 | **Banco real, por `psql`** | `psql` contra `10.30.240.3` (`PGSSLMODE=require`), `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova de persistência real, não só o `201`. | 1:00 | 4:30 |
-| 5 | **401, pelo `smoke.sh`** | No terminal 2: `DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh http://<IP_EXTERNO>`. Três tokens inválidos (sem token, lixo, **adulterado** — exercita a assinatura RS256), todos 401 com o mesmo corpo, e o usuário inativo — mesmo 401, corpo idêntico ao de senha errada (RN-AUTH-09). Mostrar uma vez o interceptor do frontend redirecionando ao login num 401. | 1:30 | 6:00 |
-| 6 | **Logs, mesmo `traceId`** | Terminal 1: nos painéis Identity/Tasks/Gateway, localizar o `traceId` da criação do Ato 3 (`grep -E 'CreateTask\|ValidateUser'`). O nginx repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 7:00 |
-| 7 | **Código** | `AddJwtBearer` do Gateway (BE-40), `CreateTaskHttpRequestValidator`, o handler JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 9:00 |
-| — | Encerramento | Buffer deliberado, margem contra qualquer travada. | 1:00 | 10:00 |
+| 5 | **401, pelo `smoke.sh`** | No terminal 2: `./deploy/smoke.sh http://<IP_EXTERNO>`. Três tokens inválidos (sem token, lixo, **adulterado** — exercita a assinatura RS256), todos 401 com o mesmo corpo. Mostrar uma vez o interceptor do frontend redirecionando ao login num 401. | 1:00 | 5:30 |
+| 6 | **Logs, mesmo `traceId`** | Terminal 1: nos painéis Identity/Tasks/Gateway, localizar o `traceId` da criação do Ato 3 (`grep -E 'CreateTask\|ValidateUser'`). O nginx repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 6:30 |
+| 7 | **Código** | `AddJwtBearer` do Gateway (BE-40), `CreateTaskHttpRequestValidator`, o handler JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 8:30 |
+| — | Encerramento | Buffer deliberado, margem contra qualquer travada. | 1:00 | 9:30 |
 
-A soma dos atos é 9:00; com o buffer cabe em 10:00 **no papel** — só o ensaio confirma. O
+A soma dos atos é 8:30; com o buffer termina em 9:30, sobrando 0:30 até o limite — **no
+papel**, só o ensaio confirma. O
 cadastro ao vivo do Ato 1 é o item mais provável de estourar: memorize e-mail/senha rápidos de
 digitar. Alternativa (decisão de quem apresenta): cadastrar minutos antes e apenas logar no
 Ato 1 — nesse caso confira que a conta não tem tarefa atrasada pré-existente que estrague o
@@ -383,10 +368,9 @@ Ato 3.
 - [ ] `banco-1` ligada e `maquina-1-psd` **ligada**; IP externo do dia anotado (seção 9).
 - [ ] `sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env ps`
       → `frontend`, `gateway`, `identity`, `tasks` em `Up`.
-- [ ] Conta do usuário inativo cadastrada e desativada por `SQL` (acima).
-- [ ] `DEMO_PASSWORD=... DEMO_INACTIVE_EMAIL=inativo@todolist.example ./smoke.sh` verde na VM
+- [ ] `DEMO_PASSWORD=... ./smoke.sh` verde na VM
       (contra `http://127.0.0.1`, via nginx).
-- [ ] `DEMO_PASSWORD=... DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh
+- [ ] `DEMO_PASSWORD=... ./deploy/smoke.sh
       http://<IP_EXTERNO>` verde, do notebook (Git Bash), **de fora** da VM.
 - [ ] Verificação de fora refeita pouco antes: **80** responde; **8080/5080/5081/5100/5101**
       não respondem (seção 9).
@@ -469,7 +453,7 @@ cosmético, não corrigido.
 - [ ] Trocar a senha do usuário `todolist` depois da apresentação (a atual passou por uma
       conversa com o assistente).
 - [ ] Limpar as contas de teste do ensaio (`demo-t2-*@todolist.example`,
-      `ca07-*@todolist.example`), se incomodarem. **Não** apague `inativo@todolist.example`.
+      `ca07-*@todolist.example`, `inativo@todolist.example`), se incomodarem.
 
 ### Verificação que só o apresentador pode fazer
 
@@ -496,5 +480,5 @@ A VM sobe a stack sozinha (`todolist.service` está `enabled`) e o `.env` já es
 Não repita nada das seções 2 a 8; só verifique, com o IP do dia:
 
 ```bash
-DEMO_PASSWORD=<senha> DEMO_INACTIVE_EMAIL=inativo@todolist.example ./deploy/smoke.sh http://<IP_NOVO>
+DEMO_PASSWORD=<senha> ./deploy/smoke.sh http://<IP_NOVO>
 ```

@@ -88,7 +88,7 @@ O `errorCode` do trailer `error-code` alimenta `ProblemDetails.extensions.errorC
 
 - [x] **CA-01** — `POST /api/tasks` com token válido e payload válido devolve **201** com `Location: /api/tasks/{id}` e o corpo do `TaskHttpResponse` — a chamada efetivamente atravessou gRPC até o Tasks (verificado com o Tasks real ou um fake instrumentado).
 - [x] **CA-02** — `POST /api/auth/login` com credenciais válidas devolve **200** com `{accessToken, expiresAt}`; nenhum outro campo sensível no corpo.
-- [x] **CA-03** — `POST /api/auth/login` com credenciais inválidas devolve **401** com `auth.invalid_credentials` — mesma resposta, byte a byte, para e-mail inexistente, senha errada e usuário inativo (RN-AUTH-09, RN-USER-04; o Gateway só vê `succeeded=false`, [BE-33](BE-33-login-minimo-grpc.md)).
+- [x] **CA-03** — `POST /api/auth/login` com credenciais inválidas devolve **401** com `auth.invalid_credentials` — mesma resposta, byte a byte, para e-mail inexistente e senha errada (RN-AUTH-09; o Gateway só vê `succeeded=false`, [BE-33](BE-33-login-minimo-grpc.md)). *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-04** — O tipo gerado do `.proto` (`Contracts.Tasks.V1.*`, `Contracts.Identity.V1.*`) nunca aparece serializado na resposta HTTP — só os DTOs de `Contracts/` (verificado por inspeção do corpo de resposta serializado).
 
 ### Validação na borda (requisito 2 de `t2.md`)
@@ -111,7 +111,7 @@ O `errorCode` do trailer `error-code` alimenta `ProblemDetails.extensions.errorC
 ### Mapeamento de erro (D-35)
 
 - [x] **CA-16** — `RpcException` com `NotFound` do Tasks (dono inexistente) vira **404** no Gateway, com `errorCode` do trailer preservado no `ProblemDetails`.
-- [x] **CA-17** — `RpcException` com `FailedPrecondition` (dono inativo **ou** limite de tarefas ativas) vira **409**, com o `errorCode` distinguindo os dois casos.
+- [x] **CA-17** — `RpcException` com `FailedPrecondition` (limite de tarefas ativas) vira **409** com `task.active_limit_reached`. *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-18** — `RpcException` com `Unavailable`/`DeadlineExceeded` de qualquer backend vira **503** com `Retry-After`.
 - [x] **CA-19** — Nenhuma resposta de erro do Gateway expõe stack trace, endereço interno de gRPC ou mensagem crua de `RpcException`.
 
@@ -162,3 +162,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 24 de 26.
 | CA-13 | superado por D-38 / BE-40 | O Gateway não chama mais `ValidateToken` (RPC removido); a validação do JWT é local (`Authentication/ServiceCollectionExtensions.cs`), então não há "Identity inalcançável na autenticação". O princípio "não consegui perguntar não é 401" segue valendo e é testado no login (`AuthLoginTests.Login_IdentityIndisponivel_Retorna503ComRetryAfterNunca401`, CA-24) e em `CreateTaskTests` (CA-18). |
 | CA-15 | superado por D-38 / BE-40 | O critério proibia `Jwt:*` no Gateway; agora o Gateway precisa de `Jwt:PublicKeyPath`, `Issuer` e `Audience` (só a chave pública, nunca a privada), validados na inicialização (`JwtOptions`, `JwtStartupValidationTests`). Ver BE-40. |
 | CA-25 | atendido (parcialmente reinterpretado) | O `traceparent` chega ao `CreateTask` (`CreateTaskTests.CreateTask_TraceparentDaRequisicaoDeEntrada_ChegaAoCreateTask`); `ValidateToken` não existe mais (D-38), então só há esta chamada gRPC de saída em `POST /api/tasks`. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O Gateway não mapeia mais "dono inativo" para 409 e o 401 de login não menciona mais o usuário inativo (issue #16). O 409 por `FailedPrecondition` vale só para o limite de tarefas pendentes. CA-03 e CA-17 emendados.

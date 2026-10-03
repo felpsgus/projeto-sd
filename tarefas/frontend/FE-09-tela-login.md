@@ -60,7 +60,7 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 
 - [x] **CA-05** — Senha incorreta exibe exatamente **"E-mail ou senha inválidos."**
 - [x] **CA-06** — E-mail inexistente exibe **a mesma mensagem, no mesmo lugar, com o mesmo destaque visual**.
-- [x] **CA-07** — Conta inativa (RN-USER-04) exibe **a mesma mensagem** — a tela não menciona conta desativada.
+- [x] ~~**CA-07** — Conta inativa (RN-USER-04) exibe **a mesma mensagem** — a tela não menciona conta desativada.~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [x] **CA-08** — Em nenhum desses casos um campo específico é marcado como inválido: o erro é do formulário, não do e-mail.
 - [x] **CA-09** — A tela **não** faz nenhuma chamada de verificação de e-mail antes do envio.
 - [ ] **CA-10** — Um teste compara o DOM renderizado nos três cenários de falha e confirma que o texto e a estrutura da mensagem são idênticos.
@@ -104,3 +104,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 22.
 | CA-21 | em aberto | `role="alert"`/`aria-live="assertive"` e `focus()` do erro estão no código; o teste só verifica `role="alert"`, não o foco. |
 
 CA-06/CA-07 atendidos por desenho (o 401 é idêntico, sem tratamento por cenário), mas o teste correspondente só exerce um cenário.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A tela de login não trata conta inativa (RN-USER-04 removida, issue #16): o backend não tem mais esse caso. O CA-07 está substituído; as falhas restantes (credencial inválida, bloqueio, rede) seguem como especificado.

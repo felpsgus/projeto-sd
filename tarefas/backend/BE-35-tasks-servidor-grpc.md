@@ -60,12 +60,12 @@ O Tasks Service passa a ser alcançável **só** por gRPC — `CreateTask` subst
 
 ### `CreateTask`
 
-- [x] **CA-01** — Chamada `CreateTask` válida com `x-user-id` de usuário ativo devolve `OK` e a tarefa é gravada com `OwnerId` igual ao valor de `x-user-id` (verificado no banco).
+- [x] **CA-01** — Chamada `CreateTask` válida com `x-user-id` de usuário existente devolve `OK` e a tarefa é gravada com `OwnerId` igual ao valor de `x-user-id` (verificado no banco). *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-02** — `TaskReply` espelha o `TaskResponse` de [BE-17](BE-17-criar-tarefa.md)/[BE-32](BE-32-contratos-grpc-t2.md) — sem campo de dono no proto (RN-AUTZ-01 sem exposição de `OwnerId` no contrato).
 - [x] **CA-03** — Request inválido (título vazio, descrição > 2000, `due_date` fora do formato) devolve `StatusCode.InvalidArgument` **antes de qualquer chamada ao Identity**, com trailer `error-code: validation.failed` e trailer `validation-errors` contendo um JSON `{ "campo": ["mensagem", ...] }` — o mesmo dicionário que o `ValidationProblem` REST devolvia, para o Gateway reconstruir o 400 sem perder o detalhe por campo (**D-35**).
 - [x] **CA-04** — Dono inexistente no Identity devolve `StatusCode.NotFound` (`task.owner_not_found`), sem gravação (herdado de [BE-28](BE-28-validacao-dono-grpc.md) CA-04).
-- [x] **CA-05** — Dono existente porém inativo devolve `StatusCode.FailedPrecondition` (`task.owner_inactive`), sem gravação (**D-35**; herdado de BE-28 CA-06).
-- [x] **CA-06** — Limite de 500 tarefas ativas excedido devolve `StatusCode.FailedPrecondition` (`task.active_limit_reached`) — código distinto de `task.owner_inactive` no trailer (herdado de BE-17 CA-14).
+- [x] ~~**CA-05** — Dono existente porém inativo devolve `StatusCode.FailedPrecondition` (`task.owner_inactive`), sem gravação (**D-35**; herdado de BE-28 CA-06).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
+- [x] **CA-06** — Limite de 500 tarefas ativas excedido devolve `StatusCode.FailedPrecondition` (`task.active_limit_reached`) (herdado de BE-17 CA-14). *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-07** — Com o Identity fora do ar, a chamada devolve `StatusCode.Unavailable` (`identity.unavailable`) dentro do deadline configurado, sem gravação (herdado de BE-28 CA-08/CA-09).
 
 ### Identidade
@@ -107,3 +107,7 @@ O Tasks Service passa a ser alcançável **só** por gRPC — `CreateTask` subst
 Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 16.
 
 Observações (sem pendência): CA-10 é verificado por revisão (`Tasks.Api/Program.cs` registra só `AddScoped<ICurrentUser, CallerIdentityCurrentUser>()`; não há teste de composição de DI). CA-03 garante "antes do Identity" pela ordem em `TasksGrpcService.CreateTask` (validação antes de `CreateTaskHandler`); `CreateTaskGrpcTests` confere os trailers `error-code` e `validation-errors`, mas nenhum teste afirma explicitamente a ausência de chamada ao Identity nesse caminho.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+Deixa de existir o `FailedPrecondition` `task.owner_inactive` (D-35, issue #16). `FailedPrecondition` fica só para `task.active_limit_reached`. O CA-05 está substituído.

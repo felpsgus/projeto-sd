@@ -34,17 +34,6 @@ public static class TaskErrors
         ErrorType.NotFound);
 
     /// <summary>
-    /// O Identity respondeu <c>Exists=true, Active=false</c> para o dono da
-    /// tarefa (BE-28, RN-USER-04). <c>409</c>, não <c>403</c>: a identidade é
-    /// válida e o pedido é legítimo — o que impede é o estado atual do
-    /// usuário (nota técnica de BE-28).
-    /// </summary>
-    public static readonly Error OwnerInactive = new(
-        "task.owner_inactive",
-        "O usuário informado está inativo e não pode criar tarefas.",
-        ErrorType.Conflict);
-
-    /// <summary>
     /// RN-TASK-15: usuário já no limite de tarefas ativas. O limite entra na
     /// mensagem (CA-15 de BE-17) — por isso é um método, não um
     /// <c>Error</c> estático fixo: o valor vem de <see cref="TaskOptions.MaxActivePerUser"/>,

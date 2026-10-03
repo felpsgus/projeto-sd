@@ -18,14 +18,13 @@ namespace TodoList.Identity.Application.Authentication;
 ///
 /// <para>
 /// <b>Um único caminho de retorno de falha.</b> E-mail vazio/malformado
-/// (<see cref="Email.Create"/> falha), usuário inexistente, senha errada e
-/// usuário inativo devolvem exatamente o mesmo <see cref="AuthErrors.InvalidCredentials"/>
+/// (<see cref="Email.Create"/> falha), usuário inexistente e senha errada
+/// devolvem exatamente o mesmo <see cref="AuthErrors.InvalidCredentials"/>
 /// — nunca um erro diferente por causa, para não revelar por conteúdo da
-/// resposta qual delas ocorreu (RN-AUTH-09). A checagem de <see cref="User.IsActive"/>
-/// vem <b>depois</b> de <see cref="IPasswordHasher.Verify"/>, para o tempo de
-/// resposta também não denunciar usuário inativo — mesma exigência para o
-/// caminho de e-mail inexistente/malformado, que roda <c>Verify</c> contra o
-/// <see cref="DummyPasswordHash"/> em vez de pular a verificação (CA-05).
+/// resposta qual delas ocorreu (RN-AUTH-09). O caminho de e-mail
+/// inexistente/malformado roda <c>Verify</c> contra o
+/// <see cref="DummyPasswordHash"/> em vez de pular a verificação, para o
+/// tempo de resposta não denunciar a causa (CA-05).
 /// </para>
 /// </summary>
 public sealed class LoginHandler
@@ -119,13 +118,6 @@ public sealed class LoginHandler
         }
 
         if (!_passwordHasher.Verify(plainPassword, user.PasswordHash))
-        {
-            return Result.Failure<LoginResult>(AuthErrors.InvalidCredentials);
-        }
-
-        // RN-USER-04: checado só depois do Verify, para o tempo de resposta
-        // não denunciar "usuário inativo" (CA-04/CA-05 de BE-33).
-        if (!user.IsActive)
         {
             return Result.Failure<LoginResult>(AuthErrors.InvalidCredentials);
         }

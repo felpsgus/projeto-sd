@@ -33,16 +33,15 @@ namespace TodoList.Tasks.IntegrationTests;
 public class GrpcIdentityGatewayIntegrationTests
 {
     [Fact] // CA-04
-    public async Task ValidateUserAsync_IdentityNoAr_UsuarioAtivoDoSeed_RetornaExistsEActiveTrue()
+    public async Task ValidateUserAsync_IdentityNoAr_UsuarioDoSeed_RetornaExistsTrue()
     {
         using var identityFactory = new WebApplicationFactory<IdentityProgram>();
         using var host = BuildInProcessTasksHost(identityFactory, TimeSpan.FromSeconds(2));
         var gateway = host.Services.GetRequiredService<IIdentityGateway>();
 
-        var result = await gateway.ValidateUserAsync(InMemoryUserLookup.ActiveUserId, CancellationToken.None);
+        var result = await gateway.ValidateUserAsync(InMemoryUserLookup.SeedUserId, CancellationToken.None);
 
         result.Exists.Should().BeTrue();
-        result.Active.Should().BeTrue();
         result.DisplayName.Should().NotBeNullOrWhiteSpace();
     }
 
@@ -55,7 +54,7 @@ public class GrpcIdentityGatewayIntegrationTests
 
         var result = await gateway.ValidateUserAsync(Guid.NewGuid(), CancellationToken.None);
 
-        result.Should().Be(new UserValidation(Exists: false, Active: false, DisplayName: string.Empty));
+        result.Should().Be(new UserValidation(Exists: false, DisplayName: string.Empty));
     }
 
     [Fact] // CA-07 — o endereço em Identity:GrpcAddress determina o Identity chamado, sem recompilar.
@@ -63,7 +62,7 @@ public class GrpcIdentityGatewayIntegrationTests
     {
         using var identityFactory = new WebApplicationFactory<IdentityProgram>()
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-                services.AddSingleton<IUserLookup>(new FixedUserLookup(active: true, displayName: "Segundo Identity"))));
+                services.AddSingleton<IUserLookup>(new FixedUserLookup(displayName: "Segundo Identity"))));
         using var host = BuildInProcessTasksHost(identityFactory, TimeSpan.FromSeconds(2));
         var gateway = host.Services.GetRequiredService<IIdentityGateway>();
 
@@ -80,7 +79,7 @@ public class GrpcIdentityGatewayIntegrationTests
     {
         using var identityFactory = new WebApplicationFactory<IdentityProgram>()
             .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-                services.AddSingleton<IUserLookup>(new FixedUserLookup(active: true, displayName: "Identity via variável de ambiente"))));
+                services.AddSingleton<IUserLookup>(new FixedUserLookup(displayName: "Identity via variável de ambiente"))));
 
         Environment.SetEnvironmentVariable("Identity__GrpcAddress", identityFactory.Server.BaseAddress.ToString());
         try
@@ -186,7 +185,7 @@ public class GrpcIdentityGatewayIntegrationTests
         activity.Start();
         try
         {
-            await gateway.ValidateUserAsync(InMemoryUserLookup.ActiveUserId, CancellationToken.None);
+            await gateway.ValidateUserAsync(InMemoryUserLookup.SeedUserId, CancellationToken.None);
         }
         finally
         {
@@ -264,7 +263,7 @@ public class GrpcIdentityGatewayIntegrationTests
     {
         private readonly UserLookupResult _result;
 
-        public FixedUserLookup(bool active, string displayName) => _result = new UserLookupResult(active, displayName);
+        public FixedUserLookup(string displayName) => _result = new UserLookupResult(displayName);
 
         public Task<UserLookupResult?> FindByIdAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<UserLookupResult?>(_result);
@@ -279,7 +278,7 @@ public class GrpcIdentityGatewayIntegrationTests
         public async Task<UserLookupResult?> FindByIdAsync(Guid userId, CancellationToken cancellationToken)
         {
             await Task.Delay(_delay, cancellationToken);
-            return new UserLookupResult(Active: true, DisplayName: "Nunca deveria chegar aqui");
+            return new UserLookupResult(DisplayName: "Nunca deveria chegar aqui");
         }
     }
 }
