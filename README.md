@@ -613,14 +613,28 @@ tipos compartilhados com os backends.
 
 - `POST /api/auth/login` (anônimo) — troca e-mail/senha por um access token via `Login` (Identity); e-mail
   inexistente, senha errada ou usuário inativo devolvem sempre o mesmo **401** `auth.invalid_credentials`
-  (RN-AUTH-09) — o Gateway só vê `succeeded=false`, nunca a causa.
+  (RN-AUTH-09) — o Gateway só vê `succeeded=false`, nunca a causa. Sucesso: `{ accessToken, expiresAt }`
+  no corpo e o **refresh token só no cookie** `refreshToken` (`HttpOnly; Secure; SameSite=Strict;
+  Path=/api/auth`, D-20) — nunca no corpo; falha nunca emite cookie. **Bloqueio (BE-12, RN-AUTH-13):** após
+  5 falhas para o mesmo e-mail (normalizado, existente ou não — ADR-0002) o login responde **429**
+  `auth.too_many_attempts` com `Retry-After` em segundos, mesmo com a senha correta, por 15 minutos; sem
+  cookie e com `Cache-Control: no-store`. Configuração na seção `Lockout` do Identity (`Lockout__MaxAttempts`
+  etc.; `Lockout__Enabled=false` desliga).
+- `POST /api/auth/refresh` (anônimo, corpo vazio) — renova a sessão com o token **do cookie** e rotaciona
+  o cookie (uso único, RN-AUTH-16). Qualquer falha — sem cookie, expirado, revogado, reuso — é o mesmo
+  **401** `auth.invalid_refresh_token` e apaga o cookie. Reusar um token já consumido revoga a sessão inteira.
+- `POST /api/auth/logout` e `POST /api/auth/logout-all` (autenticados, corpo vazio) — **204**, idempotentes,
+  apagam o cookie; o primeiro encerra a sessão do cookie, o segundo todas as do usuário. O access token já
+  emitido continua válido até expirar (D-41).
+- `RefreshCookie:Secure` (padrão `true`; `RefreshCookie__Secure=false` em deploy HTTP puro por IP, D-42).
 - `POST /api/tasks` (autenticado) — valida o payload na borda (título, descrição, prioridade, data de
   vencimento — os mesmos limites de RN-TASK-02/03/04, duplicados de propósito como defesa em profundidade)
   e traduz para `CreateTask` (Tasks); sucesso devolve **201** com `Location: /api/tasks/{id}`.
 - `GET /health` (anônimo) — liveness simples, não depende de Identity/Tasks estarem de pé.
 - Autenticação via `AddJwtBearer` (BE-40, D-38 — substituiu o `IdentityTokenAuthenticationHandler`
   original de BE-36): todo endpoint exige token por padrão (fallback policy); só `/health`,
-  `POST /api/auth/login` e a documentação OpenAPI/Scalar (Development) são anônimos. O Bearer é
+  `POST /api/auth/login`, `POST /api/auth/refresh` (o cookie é a credencial; o access token já pode ter
+  expirado), `POST /api/auth/register` e a documentação OpenAPI/Scalar (Development) são anônimos. O Bearer é
   validado **localmente**, com a chave pública (`Jwt:PublicKeyPath`) — o Gateway não pergunta mais
   ao Identity a cada requisição. A chave de
   assinatura continua nunca saindo do Identity (D-31/D-38); o Gateway só tem a metade que verifica,
@@ -679,11 +693,21 @@ curl -s -X POST http://localhost:8080/api/auth/register \
   -d '{"email":"voce@todolist.example","password":"<senha, 8+ caracteres, letra e número>","displayName":"Voce"}'
 # => 201
 
-# login — troca e-mail/senha pelo access token
-curl -s -X POST http://localhost:8080/api/auth/login \
+# login — troca e-mail/senha pelo access token; -c guarda o cookie refreshToken (HttpOnly) no cookiejar.
+# Se o seu curl não reenviar o cookie Secure por http://, suba o Gateway com RefreshCookie__Secure=false.
+curl -s -c cookiejar -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"voce@todolist.example","password":"<a mesma senha>"}'
-# => 200 { "accessToken": "...", "expiresAt": "..." }
+# => 200 { "accessToken": "...", "expiresAt": "..." }   + Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict; Path=/api/auth
+
+# refresh — corpo vazio, o token vem só do cookie; -b envia o jar e -c grava o cookie rotacionado
+curl -s -b cookiejar -c cookiejar -X POST http://localhost:8080/api/auth/refresh
+# => 200 { "accessToken": "...", "expiresAt": "..." }   (repetir com o cookie antigo => 401 auth.invalid_refresh_token)
+
+# logout — autenticado, encerra a sessão do cookie e apaga o cookie (204)
+curl -s -b cookiejar -c cookiejar -X POST http://localhost:8080/api/auth/logout \
+  -H "Authorization: Bearer <accessToken>"
+# => 204. Depois: o refresh com o mesmo cookiejar => 401
 
 # criação de tarefa — usa o accessToken da resposta acima
 curl -s -X POST http://localhost:8080/api/tasks \
@@ -773,6 +797,12 @@ dotnet run --project src/Tasks/TodoList.Tasks.Api
 $env:Jwt__PublicKeyPath = "$PWD/.secrets/jwt/public.pem"
 dotnet run --project src/Gateway/TodoList.Gateway.Api
 ```
+
+Sessão (Fase 4): o login também emite o cookie `refreshToken` (`HttpOnly`, `Path=/api/auth`) e existem
+`POST /api/auth/refresh`, `/logout` e `/logout-all` — roteiro com `curl -c/-b cookiejar` em "Como subir
+localmente" (seção do Gateway). A migration `AddRefreshTokens` cria `identity.refresh_tokens`: aplique-a
+(`dotnet ef database update`, Identity antes do Tasks) ou gere o SQL idempotente com
+`scripts/new-migrations-sql.ps1`. Numa VM em HTTP puro, o Gateway precisa de `RefreshCookie__Secure=false`.
 
 Nenhum usuário pronto para logar — cadastre um pelo Scalar/`curl` (`POST /api/auth/register`) ou deixe
 que o próprio `deploy/smoke.sh` cadastre o dele (próxima seção). Para o passo do usuário inativo

@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 
 import { mapHttpErrorToAppError } from './error-mapper';
 
@@ -29,6 +29,27 @@ describe('mapHttpErrorToAppError', () => {
     const result = mapHttpErrorToAppError(httpError(401, { errorCode: 'auth.unauthorized' }));
 
     expect(result.code).toBe('auth.unauthorized');
+  });
+
+  it('429 auth.too_many_attempts usa Retry-After, arredondando para cima em minutos (RN-AUTH-13)', () => {
+    const response = new HttpErrorResponse({
+      status: 429,
+      error: { errorCode: 'auth.too_many_attempts' },
+      headers: new HttpHeaders({ 'Retry-After': '61' }),
+      url: '/api/auth/login',
+    });
+
+    const result = mapHttpErrorToAppError(response);
+
+    expect(result.code).toBe('auth.too_many_attempts');
+    expect(result.status).toBe(429);
+    expect(result.message).toBe('Muitas tentativas. Tente novamente em 2 minutos.');
+  });
+
+  it('429 sem Retry-After cai numa mensagem sem número', () => {
+    const result = mapHttpErrorToAppError(httpError(429, { errorCode: 'auth.too_many_attempts' }));
+
+    expect(result.message).toBe('Muitas tentativas. Tente novamente em alguns minutos.');
   });
 
   it('um código desconhecido cai na mensagem genérica, sem expor o código cru (CA-03)', () => {

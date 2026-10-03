@@ -50,7 +50,7 @@ O usuário apaga a própria conta; as tarefas dele somem junto e nenhuma sessão
 - [ ] **CA-04** — **Todas** as tarefas do usuário foram removidas do banco (RN-USER-05) — consultado em `tasks.tasks` com `IgnoreQueryFilters()`.
 - [ ] **CA-05** — Tarefas que estavam com **soft delete** também foram removidas. Nenhum registro órfão permanece.
 - [ ] **CA-05b** — A remoção das tarefas acontece **sem** o Identity Service chamar o Tasks Service: nenhum RPC novo foi adicionado ao contrato ([BE-25](BE-25-contrato-grpc-identity.md), CA-05 continua valendo — dois RPCs, nenhum a mais).
-- [ ] **CA-06** — Todos os refresh tokens do usuário foram removidos: nenhum renova (RN-AUTH-19).
+- [x] **CA-06** — Todos os refresh tokens do usuário foram removidos: nenhum renova (RN-AUTH-19).
 - [ ] **CA-07** — Os registros de tentativa de login daquele e-mail foram removidos.
 - [ ] **CA-08** — Tarefas e sessões de **outros usuários** permanecem intactas (verificado com uma segunda conta povoada no mesmo teste).
 - [ ] **CA-09** — Uma requisição feita com o access token do usuário excluído, ainda dentro da validade, retorna **401** — não 500 e não 200 com dados vazios.
@@ -71,3 +71,7 @@ O usuário apaga a própria conta; as tarefas dele somem junto e nenhuma sessão
 - **D-05** — Apagar vs. anonimizar. Padrão adotado: apagar.
 - **D-19** — Exigir confirmação de senha. Padrão provisório: sim.
 - **D-27** — Banco único com schema por serviço; é a decisão que torna esta task viável sem RPC novo. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Emenda (03/10/2026) — Fase 4, onda A1
+
+**CA-06 atendido pela cascata**, sem código no handler: `identity.refresh_tokens.user_id → identity.users(id) ON DELETE CASCADE` (migration `AddRefreshTokens`). Verificado em SQLite (`RefreshTokenSqliteTests.ExcluirUsuario_RemoveOsRefreshTokensPorCascata`); o equivalente em Postgres (`RefreshTokenPostgresTests.DeleteAccount_RemoveOsRefreshTokensPorCascata` e a checagem de `confdeltype`) está escrito e **não foi executado** (sem Docker). `login_attempts` (BE-12) entrará do mesmo jeito.

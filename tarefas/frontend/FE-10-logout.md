@@ -10,6 +10,8 @@
 
 > **Recorte do T2 (21/09/2026):** entra **só o logout local**: descarta o access token em memória (`SessionStore.endSession`) e navega para `/login` com `replaceUrl`. **Sem** chamada a `POST /api/auth/logout` — o backend do T2 não expõe esse endpoint (não há cookie de servidor a apagar, D-36) — e sem "sair de todos os dispositivos" ([BE-11](../backend/BE-11-logout-revogacao.md), fora do T2). Sem dependência de backend.
 
+> **Emenda (03/10/2026, Fase 4):** o recorte acima está **superado** — o escopo integral entrou. `LogoutService` chama `POST /api/auth/logout` (ou `logout-all`, novo botão em `/account`) com corpo vazio e `withCredentials`, e encerra a sessão local e navega a `/login` (`replaceUrl`) mesmo se a API falhar, sem exibir erro; o login mostra a confirmação discreta "Você saiu da sua conta.". **Não verificados em teste automatizado (E2E, FE-22, Fase 5):** CA-02b (cookie apagado pelo servidor, `HttpOnly`) e CA-06 (botão "voltar" no navegador).
+
 ## Objetivo
 
 O usuário sai da aplicação quando quiser, e nada do que ele viu permanece acessível na aba depois disso.
@@ -43,20 +45,20 @@ O usuário sai da aplicação quando quiser, e nada do que ele viu permanece ace
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — A ação "Sair" está no menu de conta e é alcançável pelo teclado.
-- [ ] **CA-02** — Sair chama `POST /api/auth/logout` com **corpo vazio** e `withCredentials: true`; nenhum token é enviado pelo frontend (RN-AUTH-12, FD-01).
+- [x] **CA-01** — A ação "Sair" está no menu de conta e é alcançável pelo teclado.
+- [x] **CA-02** — Sair chama `POST /api/auth/logout` com **corpo vazio** e `withCredentials: true`; nenhum token é enviado pelo frontend (RN-AUTH-12, FD-01).
 - [ ] **CA-02b** — Após o logout bem-sucedido, `document.cookie` não contém mais o cookie de sessão — apagado pela resposta do backend.
-- [ ] **CA-03** — Após sair, o usuário está em `/login` e o `AppShell` não é mais exibido.
-- [ ] **CA-04** — Após sair, nenhum token permanece em memória ou storage (teste que inspeciona ambos).
-- [ ] **CA-05** — Após sair, acessar `/tasks` pela URL leva ao login (o guard de [FE-07](FE-07-roteamento-guards.md) atua).
+- [x] **CA-03** — Após sair, o usuário está em `/login` e o `AppShell` não é mais exibido.
+- [x] **CA-04** — Após sair, nenhum token permanece em memória ou storage (teste que inspeciona ambos).
+- [x] **CA-05** — Após sair, acessar `/tasks` pela URL leva ao login (o guard de [FE-07](FE-07-roteamento-guards.md) atua).
 - [ ] **CA-06** — O botão "voltar" do navegador **não** exibe a tela autenticada anterior, nem por um instante (`replaceUrl`).
-- [ ] **CA-07** — O estado de tarefas em memória é limpo: entrar com **outro** usuário na mesma aba não mostra nenhum dado do anterior.
-- [ ] **CA-08** — Se `POST /api/auth/logout` falhar (500 ou rede fora), a sessão local **ainda assim** é encerrada e o usuário vai para o login.
-- [ ] **CA-09** — Nesse caso, o erro da API não é exibido como falha da operação — o usuário saiu, do ponto de vista dele.
-- [ ] **CA-10** — "Sair de todos os dispositivos" chama `POST /api/auth/logout-all` e também encerra a sessão local (RN-AUTH-19).
-- [ ] **CA-11** — Após o logout-all, uma segunda aba aberta com o mesmo usuário também é encerrada (sincronia entre abas de [FE-05](FE-05-estado-sessao.md)).
-- [ ] **CA-12** — O logout não exibe diálogo de confirmação.
-- [ ] **CA-13** — Nenhuma requisição pendente exibe toast de erro após o redirecionamento.
+- [x] **CA-07** — O estado de tarefas em memória é limpo: entrar com **outro** usuário na mesma aba não mostra nenhum dado do anterior.
+- [x] **CA-08** — Se `POST /api/auth/logout` falhar (500 ou rede fora), a sessão local **ainda assim** é encerrada e o usuário vai para o login.
+- [x] **CA-09** — Nesse caso, o erro da API não é exibido como falha da operação — o usuário saiu, do ponto de vista dele.
+- [x] **CA-10** — "Sair de todos os dispositivos" chama `POST /api/auth/logout-all` e também encerra a sessão local (RN-AUTH-19).
+- [x] **CA-11** — Após o logout-all, uma segunda aba aberta com o mesmo usuário também é encerrada (sincronia entre abas de [FE-05](FE-05-estado-sessao.md)).
+- [x] **CA-12** — O logout não exibe diálogo de confirmação.
+- [x] **CA-13** — Nenhuma requisição pendente exibe toast de erro após o redirecionamento.
 
 ## Testes obrigatórios
 

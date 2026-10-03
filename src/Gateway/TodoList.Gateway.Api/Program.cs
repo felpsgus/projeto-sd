@@ -58,6 +58,10 @@ builder.Services
 // só no cliente do Tasks, dentro deste método.
 builder.Services.AddBackendGrpcClients(builder.Configuration);
 
+// ── Cookie do refresh token (BE-09/BE-10, D-20) ──────────────────────────
+// RefreshCookie:Secure (padrão true) — false só em deploy HTTP puro por IP.
+builder.Services.AddRefreshCookie(builder.Configuration);
+
 // ── Autenticação (BE-40, D-38) ───────────────────────────────────────────
 // AddJwtBearer valida o token localmente, com a chave pública RSA carregada
 // de Jwt:PublicKeyPath — a chave de assinatura (privada) nunca sai do

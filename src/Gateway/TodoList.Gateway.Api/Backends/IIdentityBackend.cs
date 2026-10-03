@@ -27,6 +27,19 @@ public interface IIdentityBackend
     public Task<LoginOutcome> LoginAsync(string email, string password, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Chama <c>RefreshSession</c> (BE-10). Qualquer token inválido (inexistente,
+    /// expirado, revogado, reuso) volta como <see cref="RefreshOutcome.Succeeded"/>=false
+    /// — nunca uma exceção; só indisponibilidade lança.
+    /// </summary>
+    public Task<RefreshOutcome> RefreshSessionAsync(string refreshToken, CancellationToken cancellationToken);
+
+    /// <summary>Chama <c>Logout</c> (BE-11) com o <c>user_id</c> do token e o refresh token do cookie. Idempotente.</summary>
+    public Task LogoutAsync(string userId, string refreshToken, CancellationToken cancellationToken);
+
+    /// <summary>Chama <c>LogoutAll</c> (BE-11, RN-AUTH-19) com o <c>user_id</c> do token.</summary>
+    public Task LogoutAllAsync(string userId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Chama <c>Register</c> (BE-07). E-mail duplicado e senha fora da
     /// política viram <see cref="BackendCallException"/> (D-35) — ao
     /// contrário de <see cref="LoginAsync"/>, aqui a falha é sempre um status
@@ -55,4 +68,19 @@ public interface IIdentityBackend
 }
 
 /// <summary>Resultado de <see cref="IIdentityBackend.LoginAsync"/> — <see cref="Succeeded"/>=false cobre todas as causas de credencial inválida (RN-AUTH-09).</summary>
-public sealed record LoginOutcome(bool Succeeded, string AccessToken, DateTimeOffset ExpiresAt);
+/// <remarks>
+/// <see cref="RefreshToken"/> é credencial de longa duração (RN-AUTH-20): vai só para o cookie
+/// HttpOnly, nunca para o corpo nem para log — por isso o <c>ToString</c> do record omite os tokens.
+/// </remarks>
+public sealed record LoginOutcome(
+    bool Succeeded, string AccessToken, DateTimeOffset ExpiresAt, string RefreshToken = "", DateTimeOffset RefreshTokenExpiresAt = default, int? RetryAfterSeconds = null)
+{
+    public override string ToString() => $"LoginOutcome {{ Succeeded = {Succeeded} }}";
+}
+
+/// <summary>Resultado de <see cref="IIdentityBackend.RefreshSessionAsync"/> — <see cref="Succeeded"/>=false cobre todas as causas de token inválido.</summary>
+public sealed record RefreshOutcome(
+    bool Succeeded, string AccessToken, DateTimeOffset ExpiresAt, string RefreshToken, DateTimeOffset RefreshTokenExpiresAt)
+{
+    public override string ToString() => $"RefreshOutcome {{ Succeeded = {Succeeded} }}";
+}

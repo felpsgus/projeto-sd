@@ -52,12 +52,13 @@ public class RouteGuardTests : IClassFixture<GatewayApiFactory>
     }
 
     /// <summary>
-    /// Allowlist explícita de CA-14: <c>/health</c>, login, cadastro (BE-07 —
+    /// Allowlist explícita de CA-14: <c>/health</c>, login, refresh (BE-10 — o
+    /// access token já pode ter expirado; o cookie é a credencial), cadastro (BE-07 —
     /// visitante sem conta precisa acessar sem token) e a documentação
     /// OpenAPI/Scalar (Development).
     /// </summary>
     private static bool IsAllowlisted(string routeText) =>
-        routeText is "/health" or "/api/auth/login" or "/api/auth/register"
+        routeText is "/health" or "/api/auth/login" or "/api/auth/refresh" or "/api/auth/register"
         || routeText.Contains("openapi", StringComparison.OrdinalIgnoreCase)
         || routeText.Contains("scalar", StringComparison.OrdinalIgnoreCase);
 }

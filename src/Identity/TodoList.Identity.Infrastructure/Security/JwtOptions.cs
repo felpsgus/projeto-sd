@@ -47,7 +47,7 @@ public sealed class JwtOptions : IValidatableObject
     [Range(1, 60, ErrorMessage = "Jwt:AccessTokenMinutes deve estar entre 1 e 60.")]
     public int AccessTokenMinutes { get; init; } = DefaultAccessTokenMinutes;
 
-    /// <summary>Duração do refresh token, em dias (D-10) — usado pela futura BE-10; não emitido nesta etapa.</summary>
+    /// <summary>Duração do refresh token, em dias (D-10, RN-AUTH-15). Padrão 7, faixa 1–90. O Gateway deriva o <c>Max-Age</c> do cookie da expiração devolvida pelo RPC, então não tem cópia desta chave.</summary>
     [Range(1, 90, ErrorMessage = "Jwt:RefreshTokenDays deve estar entre 1 e 90.")]
     public int RefreshTokenDays { get; init; } = DefaultRefreshTokenDays;
 

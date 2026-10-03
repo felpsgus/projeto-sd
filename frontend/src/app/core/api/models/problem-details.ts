@@ -1,6 +1,6 @@
 /**
- * Códigos de erro emitidos pelo backend do T2 (catálogo restrito ao recorte —
- * ver FE-03 "Recorte do T2"). Um código novo deve ser adicionado aqui antes de
+ * Códigos de erro emitidos pelo backend (catálogo restrito ao que o
+ * frontend trata — ver FE-03). Um código novo deve ser adicionado aqui antes de
  * ser tratado em qualquer mapa de mensagens.
  */
 export type ApiErrorCode =
@@ -8,6 +8,7 @@ export type ApiErrorCode =
   | 'auth.unauthorized'
   | 'auth.email_already_registered'
   | 'auth.invalid_current_password'
+  | 'auth.too_many_attempts'
   | 'task.already_completed'
   | 'task.not_completed'
   | 'task.active_limit_reached';

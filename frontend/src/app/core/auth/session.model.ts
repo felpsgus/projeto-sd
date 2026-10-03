@@ -1,12 +1,13 @@
 /**
  * Motivo do encerramento de sessão — cada um produz uma mensagem diferente na tela de
- * login (FE-09, CA-16/CA-17). `user_logout` (FE-10) e `session_expired` (FE-06 — 401 de
- * token ausente/inválido/expirado) continuam sem mensagem de contexto própria diferente
- * do já existente. `session_revoked` passa a ser produzido pela troca de senha (FE-12,
- * RN-AUTH-19) — o texto exibido é parcial (só "você foi desconectado", sem "todos os
- * dispositivos": o backend do T2 não revoga sessões de fato, ver comentário em
- * `ChangePasswordComponent`). `account_deleted` (FE-13) é produzido após a exclusão de
- * conta bem-sucedida.
+ * login (FE-05, CA-16): `user_logout` (FE-10) mostra só uma confirmação discreta;
+ * `session_expired` (FE-06 — refresh recusado) "sua sessão expirou"; `session_revoked`
+ * (revogação no servidor) "sua sessão foi encerrada"; `password_changed` (FE-12 — o
+ * backend revoga todas as sessões) "senha alterada, entre novamente"; `account_deleted`
+ * (FE-13) após a exclusão de conta.
  */
 export type SessionEndReason =
-  'user_logout' | 'session_expired' | 'session_revoked' | 'account_deleted';
+  'user_logout' | 'session_expired' | 'session_revoked' | 'password_changed' | 'account_deleted';
+
+/** `unknown` só existe durante o bootstrap, até a tentativa de restaurar a sessão terminar (FE-05). */
+export type SessionStatus = 'unknown' | 'authenticated' | 'anonymous';

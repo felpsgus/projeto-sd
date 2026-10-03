@@ -4,7 +4,9 @@ using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Persistence;
+using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
+using TodoList.Identity.Domain.Sessions;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
 using TodoList.SharedKernel;
@@ -13,13 +15,8 @@ using Xunit;
 namespace TodoList.Identity.UnitTests.Authentication;
 
 /// <summary>
-/// <see cref="ChangePasswordHandler"/> (BE-15) — CA-04, CA-05, CA-06.
-///
-/// <para>
-/// <b>CA-07 a CA-09 (revogação de refresh tokens) não são exercidos aqui.</b>
-/// A tabela <c>refresh_tokens</c> é da Fase 4 (BE-10/BE-11) — ver a nota
-/// técnica de <see cref="ChangePasswordHandler"/>.
-/// </para>
+/// <see cref="ChangePasswordHandler"/> (BE-15) — CA-04, CA-05, CA-06 e a
+/// revogação de sessões da troca de senha (RN-AUTH-19, BE-15 CA-07 a CA-09).
 /// </summary>
 public class ChangePasswordHandlerTests
 {
@@ -28,6 +25,7 @@ public class ChangePasswordHandlerTests
 
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IRefreshTokenRepository _refreshTokenRepository = Substitute.For<IRefreshTokenRepository>();
     private readonly Pbkdf2PasswordHasher _passwordHasher = new(Options.Create(new PasswordHashingOptions { Iterations = 10 }));
     private readonly FakeTimeProvider _timeProvider = new(DateTimeOffset.Parse("2026-01-01T10:00:00Z"));
     private readonly User _user;
@@ -50,6 +48,35 @@ public class ChangePasswordHandlerTests
         _user.PasswordHash.Should().NotBe(hashAntes);
         _passwordHasher.Verify(NewPassword, _user.PasswordHash).Should().BeTrue();
         await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact] // RN-AUTH-19: a troca revoga todas as sessões, antes do mesmo SaveChanges que grava o hash
+    public async Task HandleAsync_Sucesso_RevogaTodasAsSessoesAntesDeSalvar()
+    {
+        var sut = CreateHandler();
+
+        await sut.HandleAsync(new ChangePasswordRequest(_user.Id, CurrentPassword, NewPassword), CancellationToken.None);
+
+        Received.InOrder(() =>
+        {
+            _refreshTokenRepository.RevokeAllForUserAsync(_user.Id, RefreshTokenRevocationReason.PasswordChanged, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            _unitOfWork.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Theory] // senha atual errada / nova fora da política / nova igual: nenhuma sessão é revogada
+    [InlineData("senha-errada", NewPassword)]
+    [InlineData(CurrentPassword, "curta")]
+    [InlineData(CurrentPassword, CurrentPassword)]
+    public async Task HandleAsync_Falha_NaoRevogaSessoes(string currentPassword, string newPassword)
+    {
+        var sut = CreateHandler();
+
+        var result = await sut.HandleAsync(new ChangePasswordRequest(_user.Id, currentPassword, newPassword), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        await _refreshTokenRepository.DidNotReceive().RevokeAllForUserAsync(
+            Arg.Any<Guid>(), Arg.Any<RefreshTokenRevocationReason>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact] // CA-04: senha atual incorreta não altera o hash
@@ -100,5 +127,5 @@ public class ChangePasswordHandlerTests
     }
 
     private ChangePasswordHandler CreateHandler() =>
-        new(_userRepository, _unitOfWork, _passwordHasher, _timeProvider);
+        new(_userRepository, _unitOfWork, _passwordHasher, _timeProvider, new RefreshTokenService(_refreshTokenRepository, _unitOfWork, _timeProvider, TimeSpan.FromDays(7)));
 }

@@ -25,13 +25,11 @@ type ChangePasswordField = 'currentPassword' | 'newPassword' | 'confirmNewPasswo
 /**
  * Troca de senha (FE-12) — `/account/password`, `AppShell`, `authGuard`.
  *
- * **RN-AUTH-19, parcial (decisão do tech lead, 24/09/2026):** a regra pede o aviso "você
- * será desconectado de **todos os dispositivos**". O backend do T2 não revoga sessões de
- * verdade — não existe refresh token nem tabela de sessão (isso é Fase 4, BE-10/BE-11) —
- * então essa frase seria uma afirmação falsa na tela. O aviso abaixo (CA-06) é verdadeiro:
- * ele diz que **esta** sessão é encerrada e é preciso entrar de novo, sem prometer nada
- * sobre outros dispositivos. Quando BE-10/BE-11 existirem, o texto completo de RN-AUTH-19
- * entra aqui sem mudança de desenho — só o texto muda.
+ * **RN-AUTH-19 (Fase 4, 03/10/2026):** o backend revoga **todas** as sessões do usuário,
+ * inclusive a atual — o próximo refresh falharia. Por isso o sucesso encerra a sessão local
+ * na hora (motivo `password_changed`) e leva ao login com "senha alterada, entre novamente",
+ * em vez de deixar a aba numa sessão que vai morrer. O texto do aviso prévio (CA-06) segue
+ * como está: continua verdadeiro e não promete mais do que a tela mostra.
  *
  * O indicador de requisitos de senha é o mesmo de `RegisterComponent` (FE-08) —
  * `<app-password-requirements>` e os validadores de `shared/forms/password-policy`, nunca
@@ -117,10 +115,10 @@ export class ChangePasswordComponent {
 
     this.userApi.changePassword({ currentPassword, newPassword }).subscribe({
       next: () => {
-        // Encerra a sessão local imediatamente (CA-03): o access token ainda vale por
-        // alguns minutos no servidor, mas manter a aba "funcionando" até a próxima chamada
-        // falhar criaria um estado ambíguo (FE-12, notas técnicas).
-        this.session.endSession('session_revoked');
+        // Encerra a sessão local imediatamente (CA-03): o refresh token já foi revogado no
+        // servidor (RN-AUTH-19); o access token ainda vale por alguns minutos, mas manter a
+        // aba "funcionando" até o próximo refresh falhar criaria um estado ambíguo (FE-12).
+        this.session.endSession('password_changed');
         void this.router.navigate(['/login'], {
           queryParams: email ? { email } : {},
           replaceUrl: true,

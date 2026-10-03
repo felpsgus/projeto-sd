@@ -54,7 +54,9 @@ Isso **não** altera FD-09: o frontend continua **lendo** `isOverdue` da respost
 
 Rotas permanecem `/api/...`. Front e back são implantados juntos (ver **D-22** no backend). A consequência aceita é que toda mudança incompatível de contrato exige implantação coordenada.
 
-### FD-20 ✅ — Sessão do T2 só em memória (21/09/2026)
+### FD-20 ⛔ REVOGADA em 03/10/2026 (Fase 4) — Sessão do T2 só em memória (21/09/2026)
+
+> **Revogação (03/10/2026):** o backend passou a emitir o refresh token em cookie `HttpOnly` (BE-10/BE-11, Fase 4), então a ausência de refresh deixou de valer: voltam a valer **FD-01** e **FD-16**, com bootstrap por refresh, renovação proativa/reativa, single-flight e logout no servidor ([FE-05](FE-05-estado-sessao.md), [FE-06](FE-06-interceptor-auth-refresh.md), [FE-10](FE-10-logout.md) em escopo integral). **Continua valendo da FD-20:** o access token vive só em memória — nunca em `localStorage`/`sessionStorage` — e o frontend nunca vê o refresh token. O texto abaixo fica como registro histórico.
 
 > Nota de numeração: o pedido original chamava esta decisão de "FD-19", mas esse número já estava em uso na tabela de "Demais decisões" (a questão do `Intl.DateTimeFormat` para `X-Client-Date`). Esta entrada ocupa **FD-20**, o próximo número livre.
 

@@ -23,14 +23,11 @@ namespace TodoList.Identity.Application.Users;
 /// </para>
 ///
 /// <para>
-/// <b>Recorte da Fase 4.</b> RN-AUTH-19 pede remover também todos os refresh
-/// tokens e registros de tentativa de login do usuário — as tabelas
-/// <c>refresh_tokens</c> e <c>login_attempts</c> não existem nesta fase
-/// (BE-10/BE-11/BE-12 são Fase 4), então esse passo fica de fora aqui,
-/// deliberadamente. Quando essas tabelas existirem, com
-/// <c>OnDelete(DeleteBehavior.Cascade)</c> de <c>User</c> para elas (nota
-/// técnica de BE-16), a própria remoção do usuário já as levará junto — nenhum
-/// código adicional neste handler deveria ser necessário.
+/// <b>RN-AUTH-19 (BE-10).</b> Os refresh tokens do usuário também saem por
+/// cascata: <c>identity.refresh_tokens.user_id → identity.users(id) ON DELETE
+/// CASCADE</c>. Nenhum código extra aqui — o teste de integração de BE-10
+/// prova que a cascata acontece. <c>login_attempts</c> (BE-12) entrará do
+/// mesmo jeito.
 /// </para>
 /// </summary>
 public sealed class DeleteAccountHandler

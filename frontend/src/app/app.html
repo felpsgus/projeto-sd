@@ -1,5 +1,9 @@
 <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
 
+@if (bootstrapping()) {
+  <app-loading label="Carregando…" />
+}
+
 <router-outlet />
 
 <app-http-status-indicator />

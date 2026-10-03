@@ -63,6 +63,16 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
     /// <summary>Mensagens de log capturadas do host (CA-26: prova de que nenhuma carrega token/senha/corpo).</summary>
     public CapturingLoggerProvider Logs { get; } = new();
 
+    /// <summary>
+    /// Configuração extra aplicada por cima da padrão, definida antes do primeiro
+    /// <c>CreateClient()</c>. Existe para testes que precisam de uma <b>instância
+    /// própria</b> com outra configuração (ex.: <c>RefreshCookie:Secure=false</c>):
+    /// <c>WithWebHostBuilder</c> reaproveitaria a mesma chave RSA e, ao ser descartado,
+    /// invalidaria o cache de assinatura dos outros hosts da classe (ver comentário de
+    /// <see cref="SigningKey"/>).
+    /// </summary>
+    public Dictionary<string, string?> AdditionalSettings { get; } = [];
+
     private readonly FakeIdentityServiceHost _identityHost;
     private readonly FakeTasksServiceHost _tasksHost;
 
@@ -99,6 +109,8 @@ public sealed class GatewayApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Audience"] = JwtTestTokens.DefaultAudience,
                 ["Jwt:PublicKeyPath"] = _publicKeyPath,
             });
+
+            configuration.AddInMemoryCollection(AdditionalSettings);
         });
 
         builder.ConfigureServices(services =>

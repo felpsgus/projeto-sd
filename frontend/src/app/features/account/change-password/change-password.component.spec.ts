@@ -59,7 +59,7 @@ describe('ChangePasswordComponent (FE-12)', () => {
 
     expect(session.isAuthenticated()).toBe(false);
     expect(session.accessToken()).toBeNull();
-    expect(session.lastEndReason()).toBe('session_revoked');
+    expect(session.lastEndReason()).toBe('password_changed');
     expect(navigateSpy).toHaveBeenCalledWith(['/login'], {
       queryParams: { email: 'ana@example.com' },
       replaceUrl: true,

@@ -42,117 +42,97 @@ public sealed partial class IdentityBackend : IIdentityBackend
 
     public async Task<LoginOutcome> LoginAsync(string email, string password, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
+        var response = await CallAsync(
+            "Login",
+            options => _client.LoginAsync(new LoginRequest { Email = email, Password = password }, options),
+            cancellationToken);
 
-        try
+        // response.ExpiresAt só vem preenchido quando succeeded=true (contrato de LoginResponse) —
+        // acessá-lo sem essa checagem lançaria NullReferenceException no caminho de credencial inválida.
+        if (!response.Succeeded)
         {
-            var callOptions = new CallOptions(
-                headers: BuildTraceparentHeaders(traceId),
-                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
-                cancellationToken: cancellationToken);
-
-            var response = await _client.LoginAsync(new LoginRequest { Email = email, Password = password }, callOptions);
-
-            Log.CallSucceeded(_logger, BackendName, "Login", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            // response.ExpiresAt só vem preenchido quando succeeded=true (contrato de LoginResponse) —
-            // acessá-lo sem essa checagem lançaria NullReferenceException no caminho de credencial inválida.
-            var expiresAt = response.Succeeded ? response.ExpiresAt.ToDateTimeOffset() : default;
-
-            return new LoginOutcome(response.Succeeded, response.AccessToken, expiresAt);
+            return new LoginOutcome(
+                false, string.Empty, default, RetryAfterSeconds: response.LockedOut ? Math.Max(1, response.RetryAfterSeconds) : null);
         }
-        catch (RpcException ex)
-        {
-            Log.CallFailed(_logger, BackendName, "Login", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
 
-            throw ToBackendException(ex);
-        }
+        return new LoginOutcome(
+            true,
+            response.AccessToken,
+            response.ExpiresAt.ToDateTimeOffset(),
+            response.RefreshToken,
+            response.RefreshTokenExpiresAt?.ToDateTimeOffset() ?? default);
     }
+
+    /// <summary>Chama <c>RefreshSession</c> (BE-10) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>; o token nunca aparece no log.</summary>
+    public async Task<RefreshOutcome> RefreshSessionAsync(string refreshToken, CancellationToken cancellationToken)
+    {
+        var response = await CallAsync(
+            "RefreshSession",
+            options => _client.RefreshSessionAsync(new RefreshSessionRequest { RefreshToken = refreshToken }, options),
+            cancellationToken);
+
+        if (!response.Succeeded)
+        {
+            return new RefreshOutcome(false, string.Empty, default, string.Empty, default);
+        }
+
+        return new RefreshOutcome(
+            true,
+            response.AccessToken,
+            response.ExpiresAt.ToDateTimeOffset(),
+            response.RefreshToken,
+            response.RefreshTokenExpiresAt.ToDateTimeOffset());
+    }
+
+    /// <summary>Chama <c>Logout</c> (BE-11); a resposta é <c>google.protobuf.Empty</c>.</summary>
+    public async Task LogoutAsync(string userId, string refreshToken, CancellationToken cancellationToken) =>
+        await CallAsync(
+            "Logout",
+            options => _client.LogoutAsync(new LogoutRequest { UserId = userId, RefreshToken = refreshToken }, options),
+            cancellationToken);
+
+    /// <summary>Chama <c>LogoutAll</c> (BE-11, RN-AUTH-19); a resposta é <c>google.protobuf.Empty</c>.</summary>
+    public async Task LogoutAllAsync(string userId, CancellationToken cancellationToken) =>
+        await CallAsync(
+            "LogoutAll",
+            options => _client.LogoutAllAsync(new LogoutAllRequest { UserId = userId }, options),
+            cancellationToken);
 
     /// <summary>Chama <c>Register</c> (BE-07) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>.</summary>
     public async Task<ProfileHttpResponse> RegisterAsync(string? email, string? password, string? displayName, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
-
-        try
-        {
-            var callOptions = new CallOptions(
-                headers: BuildTraceparentHeaders(traceId),
-                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
-                cancellationToken: cancellationToken);
-
-            var response = await _client.RegisterAsync(
+        var response = await CallAsync(
+            "Register",
+            options => _client.RegisterAsync(
                 new RegisterRequest { Email = email ?? string.Empty, Password = password ?? string.Empty, DisplayName = displayName ?? string.Empty },
-                callOptions);
+                options),
+            cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "Register", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
-        }
-        catch (RpcException ex)
-        {
-            Log.CallFailed(_logger, BackendName, "Register", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            throw ToBackendException(ex);
-        }
+        return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
     }
 
     /// <summary>Chama <c>GetProfile</c> (BE-14) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>.</summary>
     public async Task<ProfileHttpResponse> GetProfileAsync(string userId, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
+        var response = await CallAsync(
+            "GetProfile",
+            options => _client.GetProfileAsync(new GetProfileRequest { UserId = userId }, options),
+            cancellationToken);
 
-        try
-        {
-            var callOptions = new CallOptions(
-                headers: BuildTraceparentHeaders(traceId),
-                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
-                cancellationToken: cancellationToken);
-
-            var response = await _client.GetProfileAsync(new GetProfileRequest { UserId = userId }, callOptions);
-
-            Log.CallSucceeded(_logger, BackendName, "GetProfile", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
-        }
-        catch (RpcException ex)
-        {
-            Log.CallFailed(_logger, BackendName, "GetProfile", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            throw ToBackendException(ex);
-        }
+        return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
     }
 
     /// <summary>Chama <c>UpdateProfile</c> (BE-14, RN-USER-02) — mesmo padrão de deadline/log/tradução de erro de <see cref="LoginAsync"/>.</summary>
     public async Task<ProfileHttpResponse> UpdateProfileAsync(string userId, string? displayName, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
-
-        try
-        {
-            var callOptions = new CallOptions(
-                headers: BuildTraceparentHeaders(traceId),
-                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
-                cancellationToken: cancellationToken);
-
-            var response = await _client.UpdateProfileAsync(
+        var response = await CallAsync(
+            "UpdateProfile",
+            options => _client.UpdateProfileAsync(
                 new UpdateProfileRequest { UserId = userId, DisplayName = displayName ?? string.Empty },
-                callOptions);
+                options),
+            cancellationToken);
 
-            Log.CallSucceeded(_logger, BackendName, "UpdateProfile", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
-        }
-        catch (RpcException ex)
-        {
-            Log.CallFailed(_logger, BackendName, "UpdateProfile", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            throw ToBackendException(ex);
-        }
+        return ToProfileHttpResponse(response.Id, response.Email, response.DisplayName, response.CreatedAt);
     }
 
     /// <summary>
@@ -160,37 +140,33 @@ public sealed partial class IdentityBackend : IIdentityBackend
     /// de erro de <see cref="LoginAsync"/>; a resposta é <c>google.protobuf.Empty</c>,
     /// então não há nada a traduzir de volta.
     /// </summary>
-    public async Task ChangePasswordAsync(string userId, string? currentPassword, string? newPassword, CancellationToken cancellationToken)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var traceId = Activity.Current?.Id ?? string.Empty;
-
-        try
-        {
-            var callOptions = new CallOptions(
-                headers: BuildTraceparentHeaders(traceId),
-                deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
-                cancellationToken: cancellationToken);
-
-            await _client.ChangePasswordAsync(
+    public async Task ChangePasswordAsync(string userId, string? currentPassword, string? newPassword, CancellationToken cancellationToken) =>
+        await CallAsync(
+            "ChangePassword",
+            options => _client.ChangePasswordAsync(
                 new ChangePasswordRequest { UserId = userId, CurrentPassword = currentPassword ?? string.Empty, NewPassword = newPassword ?? string.Empty },
-                callOptions);
-
-            Log.CallSucceeded(_logger, BackendName, "ChangePassword", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
-        }
-        catch (RpcException ex)
-        {
-            Log.CallFailed(_logger, BackendName, "ChangePassword", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
-
-            throw ToBackendException(ex);
-        }
-    }
+                options),
+            cancellationToken);
 
     /// <summary>
     /// Chama <c>DeleteAccount</c> (BE-16, D-19) — mesmo padrão de deadline/log/tradução
     /// de erro de <see cref="LoginAsync"/>; a resposta é <c>google.protobuf.Empty</c>.
     /// </summary>
-    public async Task DeleteAccountAsync(string userId, string? password, CancellationToken cancellationToken)
+    public async Task DeleteAccountAsync(string userId, string? password, CancellationToken cancellationToken) =>
+        await CallAsync(
+            "DeleteAccount",
+            options => _client.DeleteAccountAsync(
+                new DeleteAccountRequest { UserId = userId, Password = password ?? string.Empty },
+                options),
+            cancellationToken);
+
+    /// <summary>
+    /// Padrão comum de toda chamada de saída: deadline (<c>IdentityGrpcTimeoutSeconds</c>),
+    /// <c>traceparent</c>, log de sucesso/falha com duração e tradução de
+    /// <see cref="RpcException"/> em <see cref="ToBackendException"/>.
+    /// </summary>
+    private async Task<TResponse> CallAsync<TResponse>(
+        string rpc, Func<CallOptions, AsyncUnaryCall<TResponse>> call, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
         var traceId = Activity.Current?.Id ?? string.Empty;
@@ -202,15 +178,15 @@ public sealed partial class IdentityBackend : IIdentityBackend
                 deadline: DateTime.UtcNow.AddSeconds(_options.IdentityGrpcTimeoutSeconds),
                 cancellationToken: cancellationToken);
 
-            await _client.DeleteAccountAsync(
-                new DeleteAccountRequest { UserId = userId, Password = password ?? string.Empty },
-                callOptions);
+            var response = await call(callOptions);
 
-            Log.CallSucceeded(_logger, BackendName, "DeleteAccount", StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallSucceeded(_logger, BackendName, rpc, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            return response;
         }
         catch (RpcException ex)
         {
-            Log.CallFailed(_logger, BackendName, "DeleteAccount", ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.CallFailed(_logger, BackendName, rpc, ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
 
             throw ToBackendException(ex);
         }

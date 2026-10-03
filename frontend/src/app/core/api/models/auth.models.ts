@@ -5,10 +5,11 @@ export interface LoginRequest {
 }
 
 /**
- * Resposta 200 de `POST /api/auth/login` — espelha `LoginHttpResponse`.
+ * Resposta 200 de `POST /api/auth/login` e `POST /api/auth/refresh` — espelha
+ * `LoginHttpResponse`.
  *
- * Não existe `refreshToken`: o backend do T2 emite só um access token (D-36),
- * então não há refresh nem cookie a guardar (FD-20). Não reintroduzir esse campo.
+ * Não existe campo de refresh token aqui, de propósito: ele vai e volta num cookie
+ * `HttpOnly` que o JavaScript nunca vê (FD-01, RN-AUTH-20). Não reintroduzir esse campo.
  */
 export interface LoginResponse {
   readonly accessToken: string;

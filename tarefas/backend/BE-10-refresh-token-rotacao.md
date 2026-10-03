@@ -62,40 +62,40 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
 
 ### Fluxo feliz
 
-- [ ] **CA-01** — `POST /api/auth/refresh` com o cookie válido e **corpo vazio** retorna **200** com novo access token no corpo e novo refresh token em `Set-Cookie`.
+- [x] **CA-01** — `POST /api/auth/refresh` com o cookie válido e **corpo vazio** retorna **200** com novo access token no corpo e novo refresh token em `Set-Cookie`.
 - [ ] **CA-02** — O novo access token é aceito por um endpoint protegido.
-- [ ] **CA-03** — O novo refresh token é **diferente** do apresentado (RN-AUTH-16).
-- [ ] **CA-03b** — O corpo da resposta **não contém** o refresh token (**D-20**).
-- [ ] **CA-03c** — Enviar o refresh token no **corpo**, em **query string** ou em header customizado **não** autentica a renovação: sem o cookie, retorna 401. Há um único caminho de entrada.
-- [ ] **CA-04** — A renovação funciona **sem** enviar e-mail ou senha (RN-AUTH-14) e **sem** access token válido no cabeçalho.
-- [ ] **CA-05** — A renovação funciona mesmo com o access token anterior **já expirado** (cenário real de uso).
-- [ ] **CA-06** — A `SessionId` permanece a mesma através de N rotações consecutivas.
-- [ ] **CA-07** — `ExpiresAt` do refresh token é `CreatedAt + Jwt:RefreshTokenDays` (7 dias por padrão) e é **maior** que a expiração do access token (RN-AUTH-15).
+- [x] **CA-03** — O novo refresh token é **diferente** do apresentado (RN-AUTH-16).
+- [x] **CA-03b** — O corpo da resposta **não contém** o refresh token (**D-20**).
+- [x] **CA-03c** — Enviar o refresh token no **corpo**, em **query string** ou em header customizado **não** autentica a renovação: sem o cookie, retorna 401. Há um único caminho de entrada.
+- [x] **CA-04** — A renovação funciona **sem** enviar e-mail ou senha (RN-AUTH-14) e **sem** access token válido no cabeçalho.
+- [x] **CA-05** — A renovação funciona mesmo com o access token anterior **já expirado** (cenário real de uso).
+- [x] **CA-06** — A `SessionId` permanece a mesma através de N rotações consecutivas.
+- [x] **CA-07** — `ExpiresAt` do refresh token é `CreatedAt + Jwt:RefreshTokenDays` (7 dias por padrão) e é **maior** que a expiração do access token (RN-AUTH-15).
 
 ### Uso único e reuso
 
-- [ ] **CA-08** — Usar o **mesmo** refresh token duas vezes: a primeira sucede, a segunda retorna **401** (RN-AUTH-16).
-- [ ] **CA-09** — Após a detecção de reuso, **toda a cadeia daquela sessão** fica revogada: o refresh token mais recente, obtido legitimamente, também para de funcionar (RN-AUTH-17).
-- [ ] **CA-10** — Após a detecção de reuso, o usuário consegue voltar a operar **apenas** fazendo login novamente.
-- [ ] **CA-11** — A detecção de reuso **não** afeta outras sessões do mesmo usuário (outro dispositivo continua funcionando — D-15).
+- [x] **CA-08** — Usar o **mesmo** refresh token duas vezes: a primeira sucede, a segunda retorna **401** (RN-AUTH-16).
+- [x] **CA-09** — Após a detecção de reuso, **toda a cadeia daquela sessão** fica revogada: o refresh token mais recente, obtido legitimamente, também para de funcionar (RN-AUTH-17).
+- [x] **CA-10** — Após a detecção de reuso, o usuário consegue voltar a operar **apenas** fazendo login novamente.
+- [x] **CA-11** — A detecção de reuso **não** afeta outras sessões do mesmo usuário (outro dispositivo continua funcionando — D-15).
 - [ ] **CA-12** — Dois refreshes **concorrentes** com o mesmo token: exatamente um retorna 200 e o outro 401; o banco não fica com dois tokens ativos derivados do mesmo pai.
 
 ### Expiração e revogação
 
-- [ ] **CA-13** — Refresh token expirado retorna **401**; o usuário precisa de novo login (RN-AUTH-18).
-- [ ] **CA-14** — Refresh token revogado (por qualquer motivo) retorna **401**.
-- [ ] **CA-15** — Token inexistente/malformado retorna **401**, nunca 500.
-- [ ] **CA-16** — Os corpos de resposta de CA-08, CA-13, CA-14 e CA-15 são **idênticos** — o cliente não distingue expirado de revogado de inexistente.
+- [x] **CA-13** — Refresh token expirado retorna **401**; o usuário precisa de novo login (RN-AUTH-18).
+- [x] **CA-14** — Refresh token revogado (por qualquer motivo) retorna **401**.
+- [x] **CA-15** — Token inexistente/malformado retorna **401**, nunca 500.
+- [x] **CA-16** — Os corpos de resposta de CA-08, CA-13, CA-14 e CA-15 são **idênticos** — o cliente não distingue expirado de revogado de inexistente.
 
 ### Segurança e armazenamento
 
-- [ ] **CA-17** — A coluna do banco guarda o **hash**: uma busca pelo valor em claro do token não encontra nenhuma linha (RN-AUTH-20).
-- [ ] **CA-18** — O valor em claro do refresh token não aparece em nenhum log, em nenhum nível — nem no log de requisição, que não deve registrar cabeçalhos de cookie.
-- [ ] **CA-18b** — O cookie emitido tem `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/api/auth` (**D-20**), verificados no `Set-Cookie`.
-- [ ] **CA-18c** — Toda resposta **401** do refresh apaga o cookie, emitindo `Set-Cookie` com expiração no passado.
-- [ ] **CA-19** — Dois refresh tokens gerados nunca colidem, e o valor tem ≥ 32 bytes de entropia (verificado no gerador).
-- [ ] **CA-20** — `TokenHash` tem índice único no banco.
-- [ ] **CA-21** — A resposta de refresh traz `Cache-Control: no-store`.
+- [x] **CA-17** — A coluna do banco guarda o **hash**: uma busca pelo valor em claro do token não encontra nenhuma linha (RN-AUTH-20).
+- [x] **CA-18** — O valor em claro do refresh token não aparece em nenhum log, em nenhum nível — nem no log de requisição, que não deve registrar cabeçalhos de cookie.
+- [x] **CA-18b** — O cookie emitido tem `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/api/auth` (**D-20**), verificados no `Set-Cookie`.
+- [x] **CA-18c** — Toda resposta **401** do refresh apaga o cookie, emitindo `Set-Cookie` com expiração no passado.
+- [x] **CA-19** — Dois refresh tokens gerados nunca colidem, e o valor tem ≥ 32 bytes de entropia (verificado no gerador).
+- [x] **CA-20** — `TokenHash` tem índice único no banco.
+- [x] **CA-21** — A resposta de refresh traz `Cache-Control: no-store`.
 
 ## Testes obrigatórios
 
@@ -111,3 +111,14 @@ A sessão sobrevive à expiração do access token: o usuário troca um refresh 
 - **D-15** — Múltiplas sessões simultâneas. Padrão provisório: sim, uma cadeia por login.
 - **D-20** — ✅ decidida: refresh token em cookie `HttpOnly`, fora do corpo JSON.
 - **D-21** — ✅ decidida: mesma origem → `SameSite=Strict` e sem CSRF token. **Reavaliar se a hospedagem mudar.**
+
+## Emenda (03/10/2026) — Fase 4, onda A1: o que mudou pela arquitetura gRPC
+
+- **Endpoint no Gateway.** `POST /api/auth/refresh` é do Gateway: anônimo, **corpo vazio**, token **só** do cookie `refreshToken` (corpo, query e header customizado nunca são lidos). Chama o RPC `RefreshSession`; `succeeded=false` — e também a ausência do cookie — vira sempre **401** `auth.invalid_refresh_token`, corpo idêntico, com o cookie apagado (mesmos `Path`/`SameSite`/`Secure`/`HttpOnly` da emissão). Indisponibilidade do Identity é 503 (D-28) e **não** apaga o cookie.
+- **Lógica no Identity.** `RefreshTokenService` (Application) + `IRefreshTokenRepository` (Infrastructure, EF Core). Tabela `identity.refresh_tokens` (migration `AddRefreshTokens`): `token_hash` SHA-256 hex **único**, índice `(user_id, session_id)`, FK para `users` com `ON DELETE CASCADE`. O consumo é um `UPDATE ... WHERE consumed_at IS NULL AND revoked_at IS NULL AND expires_at > now` (`ExecuteUpdateAsync`, linhas afetadas), nunca ler-verificar-escrever.
+- **Concorrência (CA-12).** O token novo é inserido *antes* de o antigo ser consumido; quem **perde a corrida** do consumo é tratado como reuso (RN-AUTH-17) e a sessão inteira é revogada — inclusive o token do vencedor. Nunca sobram dois tokens ativos derivados do mesmo pai, sem transação explícita. Custo aceito: dois refreshes simultâneos legítimos (duas abas) derrubam a sessão. Registrado em **D-42**.
+- **Ordem das checagens.** inexistente → revogado → **consumido (reuso, revoga a cadeia)** → expirado. Um token consumido *e* expirado também derruba a cadeia (RN-AUTH-17 inclui "expirado").
+- **Usuário desativado** depois do login: o refresh falha e a sessão é revogada (`RevokedReason = AccountDeactivated`, motivo acrescentado ao enum da task).
+- **`Max-Age`** do cookie vem de `refresh_token_expires_at` (RPC), derivado de `Jwt:RefreshTokenDays` (padrão 7, faixa 1–90, validada no start).
+- **Logs:** o valor do token nunca é logado; `IssuedRefreshToken`, `LoginOutcome` e `RefreshOutcome` sobrescrevem `ToString`. O Gateway não tem log de requisição/cabeçalhos; o nginx usa o formato padrão (sem `Cookie`/`Set-Cookie`) e repassa `Set-Cookie`/`Cookie` em `/api/` por padrão.
+- **CAs em aberto:** **CA-02** (sem teste ponta a ponta contra o Identity real; `smoke.sh`) e **CA-12** — o teste de concorrência obrigatório existe (`RefreshTokenPostgresTests.RefreshSession_DoisRedeemsParalelosDoMesmoToken_ExatamenteUmSucede`, `Category=Docker`), mas **não foi executado**: não havia Docker na máquina desta onda. A semântica do UPDATE condicional (uma linha afetada só na primeira tentativa) foi verificada em SQLite (`RefreshTokenSqliteTests`) e a corrida simulada em unidade. **Rodar a suíte Docker antes de fechar o CA-12.**

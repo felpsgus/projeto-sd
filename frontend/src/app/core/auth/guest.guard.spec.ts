@@ -8,7 +8,9 @@ import { SessionStore } from './session-store';
 function runGuard() {
   const route = {} as ActivatedRouteSnapshot;
   const state = {} as RouterStateSnapshot;
-  return TestBed.runInInjectionContext(() => guestGuard(route, state));
+  return TestBed.runInInjectionContext(() => guestGuard(route, state)) as Promise<
+    boolean | UrlTree
+  >;
 }
 
 describe('guestGuard', () => {
@@ -19,16 +21,26 @@ describe('guestGuard', () => {
     sessionStore = TestBed.inject(SessionStore);
   });
 
-  it('permite acesso a /login quando anônimo (CA sem sessão)', () => {
-    expect(runGuard()).toBe(true);
+  it('permite acesso a /login quando anônimo (CA sem sessão)', async () => {
+    sessionStore.finishBootstrap();
+
+    expect(await runGuard()).toBe(true);
   });
 
-  it('redireciona para /tasks quando já autenticado (CA-03)', () => {
+  it('redireciona para /tasks quando já autenticado (CA-03)', async () => {
     sessionStore.startSession(
       { accessToken: 'abc', expiresAt: new Date().toISOString() },
       'a@b.com',
     );
 
-    expect(runGuard()).toBeInstanceOf(UrlTree);
+    expect(await runGuard()).toBeInstanceOf(UrlTree);
+  });
+
+  it('espera o bootstrap: com a sessão restaurada, manda a /tasks em vez de mostrar o login', async () => {
+    const pending = runGuard();
+
+    sessionStore.updateTokens({ accessToken: 'abc', expiresAt: new Date().toISOString() });
+
+    expect(await pending).toBeInstanceOf(UrlTree);
   });
 });

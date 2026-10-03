@@ -1,6 +1,8 @@
 using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Application.Security;
+using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
+using TodoList.Identity.Domain.Sessions;
 using TodoList.SharedKernel;
 
 namespace TodoList.Identity.Application.Authentication;
@@ -12,14 +14,11 @@ namespace TodoList.Identity.Application.Authentication;
 /// e rejeita nova senha igual à atual.
 ///
 /// <para>
-/// <b>Recorte da Fase 4 (D-omitido; ver relatório da task).</b> RN-AUTH-19
-/// pede revogar todos os refresh tokens do usuário com
-/// <c>RevokedReason = PasswordChanged</c> depois da troca — a tabela
-/// <c>refresh_tokens</c> não existe nesta fase (BE-10/BE-11 são Fase 4), então
-/// esse passo fica de fora aqui, deliberadamente. Quando BE-10/BE-11
-/// existirem, a revogação entra **dentro** do mesmo <see cref="IUnitOfWork.SaveChangesAsync"/>
-/// já usado abaixo, preservando a atomicidade "senha muda e sessões caem
-/// juntas, ou nada acontece" que a task pede.
+/// <b>RN-AUTH-19 (BE-10).</b> A troca revoga todos os refresh tokens do usuário
+/// (<see cref="RefreshTokenRevocationReason.PasswordChanged"/>) no <b>mesmo</b>
+/// <see cref="IUnitOfWork.SaveChangesAsync"/> que grava o novo hash: senha muda
+/// e sessões caem juntas, ou nada acontece. O access token já emitido continua
+/// válido até expirar (D-41).
 /// </para>
 /// </summary>
 public sealed class ChangePasswordHandler
@@ -28,13 +27,16 @@ public sealed class ChangePasswordHandler
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly TimeProvider _timeProvider;
+    private readonly RefreshTokenService _refreshTokens;
 
     public ChangePasswordHandler(
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        RefreshTokenService refreshTokens)
     {
+        _refreshTokens = refreshTokens;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
@@ -71,10 +73,7 @@ public sealed class ChangePasswordHandler
 
         user.ChangePasswordHash(_passwordHasher.Hash(request.NewPassword!), _timeProvider);
 
-        // Fase 4 (BE-10/BE-11, RN-AUTH-19): aqui entraria a revogação de todos
-        // os refresh tokens do usuário (RevokedReason.PasswordChanged), no
-        // mesmo SaveChangesAsync — sem tabela refresh_tokens ainda, não há
-        // sessão para revogar.
+        await _refreshTokens.RevokeAllForUserAsync(user.Id, RefreshTokenRevocationReason.PasswordChanged, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();

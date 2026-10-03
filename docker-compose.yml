@@ -162,6 +162,9 @@ services:
       Jwt__PublicKeyPath: /run/secrets/jwt_public
       # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway — só a
       # chave pública precisa ser apontada aqui (BE-40, D-38).
+      # RefreshCookie:Secure fica no padrão (true): `http://localhost` é contexto
+      # seguro e o navegador aceita cookie Secure nele. Só ao abrir o compose por
+      # IP/nome de host em HTTP puro é preciso `RefreshCookie__Secure: "false"`.
     # Sem `ports:` desde a Etapa 13 (D-32 revisado): o gateway deixou de ser
     # alcançável direto do host. Quem publica porta agora é o `frontend` — seu
     # nginx é a origem única HTTP e repassa /api/* para cá pela rede interna.

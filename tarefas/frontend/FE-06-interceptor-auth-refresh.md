@@ -10,6 +10,8 @@
 
 > **Recorte do T2 (21/09/2026):** entra **muito reduzido**. Só o interceptor de autenticação (anexa `Authorization: Bearer` a toda requisição para a API, exceto `login`) e a distinção 401/403 (um 401 encerra a sessão local e leva ao login com "sessão expirada"; um 403 não). **Sem renovação automática, nem proativa nem reativa** — não existe `POST /api/auth/refresh` no T2 (D-36), então não há o que renovar, não há single-flight a implementar e não há detecção de reuso a proteger. Isso não é um corte de esforço: é a task inteira reduzida à sua metade mais simples. Sem dependência de backend além do que [FE-05](FE-05-estado-sessao.md) já usa.
 
+> **Emenda (03/10/2026, Fase 4):** o recorte acima está **superado** — o escopo integral entrou. `authInterceptor` só anexa o Bearer; `refreshInterceptor` faz a renovação proativa (`environment.refreshSkewSeconds`, 30) e reativa (um 401, uma repetição), com single-flight em `SessionRefresher`. A ordem em `app.config.ts` é erro → refresh → auth (o erro traduz por último; a repetição passa de novo pelo auth). **Requisito adicional — serialização entre abas:** o backend trata dois refreshes simultâneos com o mesmo cookie como reuso (RN-AUTH-17), e o single-flight por aba não cobre duas abas restaurando a sessão juntas; por isso a chamada de refresh roda dentro de `navigator.locks.request('todolist-session-refresh', ...)` (Web Locks API, nativa) — a segunda aba espera e refaz com o cookie já rotacionado; sem Web Locks cai no comportamento só-por-aba. **CA-12 não atendido por completo:** o backend devolve o mesmo 401 `auth.invalid_refresh_token` para expirado, revogado e reusado, então o frontend não distingue "expirou" de "revogada"; todos encerram com `session_expired`. O motivo `session_revoked` e sua mensagem existem, aguardando um código distinto do backend.
+
 ## Objetivo
 
 O usuário nunca é interrompido pela expiração do access token: as requisições levam o token automaticamente e, quando ele expira, a renovação acontece de forma transparente — uma única vez, mesmo com várias requisições simultâneas.
@@ -47,36 +49,36 @@ O usuário nunca é interrompido pela expiração do access token: as requisiç�
 
 ### Anexação do token
 
-- [ ] **CA-01** — Requisição a endpoint autenticado inclui `Authorization: Bearer <token>`.
-- [ ] **CA-02** — Requisições a `register`, `login` e `refresh` **não** incluem o cabeçalho.
-- [ ] **CA-03** — Requisições a URLs fora do `apiBaseUrl` (ex.: um asset externo) **não** recebem o token — ele nunca vaza para terceiros.
-- [ ] **CA-04** — Sem sessão ativa, nenhuma requisição leva `Authorization` vazio ou `Bearer null`.
+- [x] **CA-01** — Requisição a endpoint autenticado inclui `Authorization: Bearer <token>`.
+- [x] **CA-02** — Requisições a `register`, `login` e `refresh` **não** incluem o cabeçalho.
+- [x] **CA-03** — Requisições a URLs fora do `apiBaseUrl` (ex.: um asset externo) **não** recebem o token — ele nunca vaza para terceiros.
+- [x] **CA-04** — Sem sessão ativa, nenhuma requisição leva `Authorization` vazio ou `Bearer null`.
 
 ### Renovação
 
-- [ ] **CA-05** — Com o access token expirando em menos de 30 s, a requisição dispara refresh **antes** de ser enviada e segue com o token novo (RN-AUTH-14).
-- [ ] **CA-05b** — A chamada de refresh é feita com **`withCredentials: true`** e **corpo vazio**, sem nenhum campo de token (FD-01, FD-16).
-- [ ] **CA-05c** — A chamada de refresh **não** inclui o header `Authorization` — o access token pode estar expirado e é irrelevante ali.
-- [ ] **CA-06** — **Três requisições simultâneas** recebendo 401 disparam **exatamente uma** chamada a `/api/auth/refresh` — verificado contando as chamadas.
-- [ ] **CA-07** — Nesse cenário, as três requisições são repetidas com o **novo** token e todas concluem com sucesso; a sessão **não** é encerrada (guarda contra a detecção de reuso de RN-AUTH-17).
-- [ ] **CA-08** — Após um refresh bem-sucedido, o novo par de tokens é gravado no `SessionStore` (RN-AUTH-16).
-- [ ] **CA-09** — A requisição original é repetida **uma única vez**; um segundo 401 na repetição **não** dispara novo refresh.
-- [ ] **CA-10** — Não existe laço infinito em nenhum cenário de falha (teste com API que responde 401 sempre — a cadeia termina).
+- [x] **CA-05** — Com o access token expirando em menos de 30 s, a requisição dispara refresh **antes** de ser enviada e segue com o token novo (RN-AUTH-14).
+- [x] **CA-05b** — A chamada de refresh é feita com **`withCredentials: true`** e **corpo vazio**, sem nenhum campo de token (FD-01, FD-16).
+- [x] **CA-05c** — A chamada de refresh **não** inclui o header `Authorization` — o access token pode estar expirado e é irrelevante ali.
+- [x] **CA-06** — **Três requisições simultâneas** recebendo 401 disparam **exatamente uma** chamada a `/api/auth/refresh` — verificado contando as chamadas.
+- [x] **CA-07** — Nesse cenário, as três requisições são repetidas com o **novo** token e todas concluem com sucesso; a sessão **não** é encerrada (guarda contra a detecção de reuso de RN-AUTH-17).
+- [x] **CA-08** — Após um refresh bem-sucedido, o novo par de tokens é gravado no `SessionStore` (RN-AUTH-16).
+- [x] **CA-09** — A requisição original é repetida **uma única vez**; um segundo 401 na repetição **não** dispara novo refresh.
+- [x] **CA-10** — Não existe laço infinito em nenhum cenário de falha (teste com API que responde 401 sempre — a cadeia termina).
 
 ### Falha de sessão
 
-- [ ] **CA-11** — Refresh token **expirado** (401 do `/refresh`) encerra a sessão e leva ao login com "sua sessão expirou" (RN-AUTH-18).
+- [x] **CA-11** — Refresh token **expirado** (401 do `/refresh`) encerra a sessão e leva ao login com "sua sessão expirou" (RN-AUTH-18).
 - [ ] **CA-12** — Refresh token **revogado** (troca de senha em outro dispositivo, logout-all) encerra a sessão com a mensagem de sessão encerrada (RN-AUTH-19).
-- [ ] **CA-13** — Detecção de reuso no backend (RN-AUTH-17) leva ao mesmo encerramento controlado — não a uma tela de erro genérica ou travada.
-- [ ] **CA-14** — Ao ser levado ao login por expiração, a rota que o usuário tentava acessar é preservada em `returnUrl`, e após novo login ele volta para lá.
-- [ ] **CA-15** — Requisições em voo no momento do encerramento são canceladas; nenhuma delas exibe toast de erro depois do redirecionamento.
+- [x] **CA-13** — Detecção de reuso no backend (RN-AUTH-17) leva ao mesmo encerramento controlado — não a uma tela de erro genérica ou travada.
+- [x] **CA-14** — Ao ser levado ao login por expiração, a rota que o usuário tentava acessar é preservada em `returnUrl`, e após novo login ele volta para lá.
+- [x] **CA-15** — Requisições em voo no momento do encerramento são canceladas; nenhuma delas exibe toast de erro depois do redirecionamento.
 
 ### Diferenciação
 
-- [ ] **CA-16** — Um **403** não dispara refresh nem encerra a sessão.
-- [ ] **CA-17** — Um **404** ou **409** não dispara refresh.
-- [ ] **CA-18** — Um erro de rede (status 0) não dispara refresh nem encerra a sessão.
-- [ ] **CA-19** — A ordem dos interceptors está coberta por teste: o de erro (FE-03) não intercepta o 401 antes do de refresh.
+- [x] **CA-16** — Um **403** não dispara refresh nem encerra a sessão.
+- [x] **CA-17** — Um **404** ou **409** não dispara refresh.
+- [x] **CA-18** — Um erro de rede (status 0) não dispara refresh nem encerra a sessão.
+- [x] **CA-19** — A ordem dos interceptors está coberta por teste: o de erro (FE-03) não intercepta o 401 antes do de refresh.
 
 ## Testes obrigatórios
 

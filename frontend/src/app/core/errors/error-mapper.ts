@@ -2,13 +2,19 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { ProblemDetails } from '../api/models/problem-details';
 import { AppError, AppErrorCode } from './app-error.model';
-import { ERROR_MESSAGES, NOT_FOUND_MESSAGE, SERVICE_UNAVAILABLE_MESSAGE } from './error-messages';
+import {
+  ERROR_MESSAGES,
+  NOT_FOUND_MESSAGE,
+  SERVICE_UNAVAILABLE_MESSAGE,
+  tooManyAttemptsMessage,
+} from './error-messages';
 
 const KNOWN_CODES: readonly AppErrorCode[] = [
   'auth.invalid_credentials',
   'auth.unauthorized',
   'auth.email_already_registered',
   'auth.invalid_current_password',
+  'auth.too_many_attempts',
   'task.already_completed',
   'task.not_completed',
   'task.active_limit_reached',
@@ -60,6 +66,17 @@ export function mapHttpErrorToAppError(error: HttpErrorResponse): AppError {
   }
 
   const rawCode = body?.errorCode;
+  if (rawCode === 'auth.too_many_attempts') {
+    // `Retry-After` em segundos (RN-AUTH-13); data HTTP ou ausente → mensagem sem número.
+    const header = Number(error.headers?.get('Retry-After'));
+    const retryAfterSeconds = Number.isFinite(header) && header > 0 ? header : undefined;
+    return {
+      code: rawCode,
+      message: tooManyAttemptsMessage(retryAfterSeconds),
+      status: 429,
+      traceId,
+    };
+  }
   if (isKnownCode(rawCode)) {
     return { code: rawCode, message: ERROR_MESSAGES[rawCode], status: error.status, traceId };
   }

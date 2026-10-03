@@ -154,6 +154,10 @@ services:
       Backends__IdentityGrpcTimeoutSeconds: 10
       Jwt__PublicKeyPath: /run/secrets/jwt_public
       # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway.
+      # Cookie do refresh token (D-42): a VM da demo serve HTTP puro por IP e o
+      # navegador descarta cookie Secure nesse contexto. O .env da VM define
+      # `RefreshCookie__Secure=false`; sem a variável, vale o padrão seguro (true).
+      RefreshCookie__Secure: ${RefreshCookie__Secure:-true}
     # Sem `ports:`: quem publica porta é o `frontend` (nginx), que faz proxy
     # de /api/* para cá pela rede interna — mesma origem para front e API, sem
     # CORS (FD-16/D-40), igual ao compose de dev.

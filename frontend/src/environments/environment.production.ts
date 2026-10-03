@@ -8,5 +8,6 @@
 export const environment = {
   production: true,
   apiBaseUrl: '',
+  refreshSkewSeconds: 30,
   showHttpStatusIndicator: false,
 };

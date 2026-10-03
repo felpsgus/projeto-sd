@@ -24,6 +24,16 @@ public static class AuthErrors
         ErrorType.Unauthorized);
 
     /// <summary>
+    /// BE-10: único erro de refresh — token inexistente, expirado, revogado,
+    /// já consumido (reuso) ou de usuário inativo são indistinguíveis para o
+    /// cliente (CA-16), pela mesma razão de <see cref="InvalidCredentials"/>.
+    /// </summary>
+    public static readonly Error InvalidRefreshToken = new(
+        "auth.invalid_refresh_token",
+        "Sessão inválida ou expirada.",
+        ErrorType.Unauthorized);
+
+    /// <summary>
     /// BE-07, RN-AUTH-02: e-mail já cadastrado. Ao contrário de
     /// <see cref="InvalidCredentials"/>, aqui o vazamento de existência é
     /// aceitável e desejável — o visitante precisa saber que já tem conta
@@ -80,4 +90,17 @@ public static class AuthErrors
         "auth.user_not_found",
         "Usuário não encontrado.",
         ErrorType.Unauthorized);
+
+    /// <summary>Código estável do bloqueio por tentativas (BE-12, RN-AUTH-13).</summary>
+    public const string TooManyAttemptsCode = "auth.too_many_attempts";
+
+    /// <summary>
+    /// BE-12: bloqueio temporário por e-mail. Vale também para e-mail inexistente
+    /// (CA-08, ADR 0002) — o 429 não revela se a conta existe.
+    /// </summary>
+    public static Error TooManyAttempts(TimeSpan retryAfter) => new(
+        TooManyAttemptsCode,
+        "Muitas tentativas de login. Tente novamente mais tarde.",
+        ErrorType.TooManyRequests,
+        retryAfter);
 }

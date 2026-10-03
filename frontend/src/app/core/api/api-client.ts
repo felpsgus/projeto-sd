@@ -24,8 +24,12 @@ export class ApiClient {
     return this.http.get<T>(this.resolve(path), { params: this.buildParams(params) });
   }
 
-  post<T>(path: string, body: unknown): Observable<T> {
-    return this.http.post<T>(this.resolve(path), body);
+  /**
+   * `withCredentials` só para as rotas de `/api/auth/*` que dependem do cookie de refresh
+   * (FD-01, FD-16): sem ele o navegador não anexa o cookie e o sintoma é um 401 enganoso.
+   */
+  post<T>(path: string, body: unknown, options?: { withCredentials?: boolean }): Observable<T> {
+    return this.http.post<T>(this.resolve(path), body, options);
   }
 
   /** Substituição total (semântica de `PUT`) — quem monta `body` decide o que sobrevive. */

@@ -88,6 +88,11 @@ builder.Services.AddScoped<UpdateProfileHandler>();
 builder.Services.AddScoped<ChangePasswordHandler>();
 builder.Services.AddScoped<DeleteAccountHandler>();
 
+// Fase 4 (BE-10/BE-11): sessão completa — mesmo tempo de vida e mesma
+// resolução preguiçosa. RefreshTokenService é registrado em AddIdentitySecurity.
+builder.Services.AddScoped<RefreshSessionHandler>();
+builder.Services.AddScoped<LogoutAllHandler>();
+
 builder.Services.AddScoped<IUserLookup>(sp =>
 {
     var provider = sp.GetRequiredService<IOptions<UserStoreOptions>>().Value.Provider;

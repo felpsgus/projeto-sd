@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TodoList.Identity.Application.Persistence;
+using TodoList.Identity.Domain.Sessions;
 using TodoList.Identity.Domain.Users;
+using TodoList.Identity.Infrastructure.Authentication;
 using TodoList.SharedKernel;
 using TodoList.SharedKernel.Persistence;
 
@@ -11,8 +13,8 @@ namespace TodoList.Identity.Infrastructure.Persistence;
 /// Contexto EF Core do Identity Service (BE-02, D-27). Schema fixo
 /// <see cref="Schema"/> — mapeia só as tabelas do próprio serviço; nunca um
 /// <c>DbSet</c> para entidade do Tasks (CA-13). <see cref="User"/> é a
-/// primeira entidade de negócio mapeada (BE-04); <c>refresh_tokens</c> é
-/// BE-10, <c>login_attempts</c> é BE-12.
+/// primeira entidade de negócio mapeada (BE-04); <see cref="RefreshToken"/>
+/// (<c>refresh_tokens</c>) é BE-10, <c>login_attempts</c> é BE-12.
 ///
 /// <para>
 /// Implementa <see cref="IUnitOfWork"/> diretamente: a assinatura de
@@ -42,6 +44,10 @@ public sealed class IdentityDbContext : DbContext, IUnitOfWork
     }
 
     public DbSet<User> Users => Set<User>();
+
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -13,9 +13,11 @@ using TodoList.Identity.Api.Validation;
 using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Application.Security;
+using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
+using TodoList.Identity.UnitTests.Sessions;
 using TodoList.SharedKernel;
 using Xunit;
 using ProtoChangePasswordRequest = TodoList.Contracts.Identity.V1.ChangePasswordRequest;
@@ -277,7 +279,7 @@ public class IdentityGrpcServiceAccountManagementTests
         var registerHandler = new RegisterUserHandler(_userRepository, _unitOfWork, _passwordHasher, _timeProvider);
         var getProfileHandler = new GetProfileHandler(_userRepository);
         var updateProfileHandler = new UpdateProfileHandler(_userRepository, _unitOfWork, _timeProvider);
-        var changePasswordHandler = new ChangePasswordHandler(_userRepository, _unitOfWork, _passwordHasher, _timeProvider);
+        var changePasswordHandler = new ChangePasswordHandler(_userRepository, _unitOfWork, _passwordHasher, _timeProvider, InMemoryRefreshTokenRepository.CreateService(_timeProvider).Service);
         var deleteAccountHandler = new DeleteAccountHandler(_userRepository, _unitOfWork, _passwordHasher);
 
         var services = new ServiceCollection();

@@ -108,13 +108,13 @@ describe('LoginComponent', () => {
     expect(screen.getByText(/conta criada com sucesso/i)).toBeTruthy();
   });
 
-  it('exibe mensagem de senha alterada quando a sessão foi encerrada por "session_revoked" (FE-12, CA-02)', async () => {
+  it('exibe mensagem de senha alterada quando a sessão foi encerrada por "password_changed" (FE-12, CA-02)', async () => {
     const seededSessionStore = new SessionStore();
     seededSessionStore.startSession(
       { accessToken: 'x', expiresAt: new Date().toISOString() },
       'a@b.com',
     );
-    seededSessionStore.endSession('session_revoked');
+    seededSessionStore.endSession('password_changed');
 
     await render(LoginComponent, {
       providers: [
@@ -125,8 +125,52 @@ describe('LoginComponent', () => {
       ],
     });
 
-    const message = screen.getByText(/senha foi alterada/i);
-    expect(message.textContent).not.toMatch(/todos os dispositivos/i);
+    expect(screen.getByText(/senha foi alterada/i)).toBeTruthy();
+  });
+
+  it.each([
+    ['session_revoked', /sua sessão foi encerrada/i],
+    ['user_logout', /você saiu/i],
+  ] as const)('exibe a mensagem de contexto de "%s" (FE-05, CA-16)', async (reason, pattern) => {
+    const seededSessionStore = new SessionStore();
+    seededSessionStore.startSession(
+      { accessToken: 'x', expiresAt: new Date().toISOString() },
+      'a@b.com',
+    );
+    seededSessionStore.endSession(reason);
+
+    await render(LoginComponent, {
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tasks', children: [] }]),
+        { provide: SessionStore, useValue: seededSessionStore },
+      ],
+    });
+
+    const message = screen.getByRole('status');
+    expect(message.textContent).toMatch(pattern);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('429 do bloqueio por tentativas mostra o tempo de espera em minutos a partir de Retry-After (RN-AUTH-13)', async () => {
+    const { httpMock } = await setup();
+
+    await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
+    await userEvent.type(screen.getByLabelText(/senha/i), 'secret123');
+    await userEvent.click(screen.getByRole('button', { name: /entrar/i }));
+
+    httpMock
+      .expectOne('/api/auth/login')
+      .flush(
+        { errorCode: 'auth.too_many_attempts' },
+        { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '540' } },
+      );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Muitas tentativas. Tente novamente em 9 minutos.');
+    // O botão volta a ficar utilizável: o bloqueio é do servidor, a tela não trava.
+    expect(screen.getByRole('button', { name: /entrar/i })).not.toBeDisabled();
   });
 
   it('exibe mensagem de conta excluída quando a sessão foi encerrada por "account_deleted" (FE-13, CA-11)', async () => {

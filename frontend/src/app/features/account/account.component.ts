@@ -13,6 +13,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { UserApi } from '../../core/api/user-api.service';
 import { ProfileResponse } from '../../core/api/models/user.models';
+import { LogoutService } from '../../core/auth/logout.service';
 import { SessionStore } from '../../core/auth/session-store';
 import { AppError } from '../../core/errors/app-error.model';
 import { TasksStore } from '../tasks/tasks.store';
@@ -59,6 +60,7 @@ export class AccountComponent implements OnInit {
   private readonly session = inject(SessionStore);
   private readonly tasksStore = inject(TasksStore);
   private readonly router = inject(Router);
+  private readonly logoutService = inject(LogoutService);
   private readonly formBuilder = inject(FormBuilder);
 
   @ViewChild(DeleteAccountDialogComponent)
@@ -135,8 +137,12 @@ export class AccountComponent implements OnInit {
   }
 
   protected logout(): void {
-    this.session.endSession('user_logout');
-    void this.router.navigateByUrl('/login', { replaceUrl: true });
+    this.logoutService.logout();
+  }
+
+  /** FE-10, CA-10: revoga as sessões de todos os dispositivos e encerra a local. */
+  protected logoutAll(): void {
+    this.logoutService.logoutAll();
   }
 
   protected openDeleteDialog(): void {

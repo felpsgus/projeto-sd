@@ -4,8 +4,7 @@ import { AppErrorCode } from './app-error.model';
  * Mapa central de código de erro → mensagem pt-BR (FD-03; FE-03, CA-11). Nenhuma tela
  * escreve uma mensagem de erro fora daqui — inclusive a mensagem genérica de fallback.
  *
- * Catálogo restrito ao que o backend do T2 emite: `auth.invalid_credentials` (401 de
- * login) e `auth.unauthorized` (401 de token ausente/inválido/expirado). Um código novo
+ * Catálogo restrito ao que o backend emite e o frontend trata. Um código novo
  * do backend cai automaticamente na mensagem genérica até ser adicionado aqui — nunca é
  * exibido cru ao usuário (CA-03).
  */
@@ -18,6 +17,8 @@ export const ERROR_MESSAGES: Readonly<Record<AppErrorCode, string>> = {
   // FE-12/FE-13 (400 com `errors.currentPassword`/`errors.password`) — usado como
   // mensagem de reserva; a tela sempre prioriza o texto específico do campo (`fieldErrors`).
   'auth.invalid_current_password': 'Senha atual incorreta.',
+  // FE-09 (429, RN-AUTH-13): sem `Retry-After` cai neste texto; com ele, ver `tooManyAttemptsMessage`.
+  'auth.too_many_attempts': 'Muitas tentativas. Tente novamente em alguns minutos.',
   // FE-19 (409, RN-TASK-06): o estado mudou em outro lugar — nunca uma mensagem genérica
   // de falha, porque a ação em si não falhou por engano do usuário.
   'task.already_completed': 'Esta tarefa já foi concluída em outro lugar.',
@@ -28,6 +29,15 @@ export const ERROR_MESSAGES: Readonly<Record<AppErrorCode, string>> = {
   network: 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
   unknown: 'Não foi possível concluir a operação. Tente novamente.',
 };
+
+/** Mensagem de 429 do login: converte `Retry-After` (segundos) em minutos, arredondando para cima. */
+export function tooManyAttemptsMessage(retryAfterSeconds?: number): string {
+  if (retryAfterSeconds === undefined) {
+    return ERROR_MESSAGES['auth.too_many_attempts'];
+  }
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  return `Muitas tentativas. Tente novamente em ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`;
+}
 
 /** Mensagem específica de indisponibilidade temporária (503) — não é um `ApiErrorCode` porque o backend não anexa um. */
 export const SERVICE_UNAVAILABLE_MESSAGE =

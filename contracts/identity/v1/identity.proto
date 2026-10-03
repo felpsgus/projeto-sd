@@ -17,9 +17,30 @@ service IdentityService {
   // persistir a tarefa.
   rpc ValidateUser (ValidateUserRequest) returns (ValidateUserResponse);
 
-  // Login (RN-AUTH-08): troca e-mail + senha por um access token. Recorte
-  // de BE-09 para o T2 (D-36) — só o access token, sem refresh/cookie.
+  // Login (RN-AUTH-08/10): troca e-mail + senha por um access token e por um
+  // refresh token de uma sessão nova (BE-09/BE-10; cada login = uma sessão,
+  // D-15). O cookie `refreshToken` (D-20) é escrito pelo Gateway — o Identity
+  // só devolve o valor opaco.
   rpc Login (LoginRequest) returns (LoginResponse);
+
+  // Renovação de sessão (BE-10, RN-AUTH-14/16/17/18): troca um refresh token
+  // válido por um novo par de tokens, na mesma sessão. O refresh token só
+  // serve uma vez; reapresentar um já usado revoga a sessão inteira. Toda
+  // falha (inexistente, expirado, revogado, reuso, usuário inativo) é
+  // `succeeded=false`, indistinguível — nunca status gRPC de erro por causa do
+  // token, só por falha de infraestrutura.
+  rpc RefreshSession (RefreshSessionRequest) returns (RefreshSessionResponse);
+
+  // Logout da sessão do refresh token apresentado (BE-11, RN-AUTH-12): revoga
+  // a cadeia inteira daquela sessão. Idempotente — token ausente, desconhecido
+  // ou já revogado responde OK. Token de OUTRO usuário não revoga nada (e o
+  // Identity registra um aviso, sem o valor do token).
+  rpc Logout (LogoutRequest) returns (google.protobuf.Empty);
+
+  // "Sair de todos os dispositivos" (BE-11, RN-AUTH-19): revoga todas as
+  // sessões do usuário. O access token já emitido continua válido até
+  // expirar (D-41).
+  rpc LogoutAll (LogoutAllRequest) returns (google.protobuf.Empty);
 
   // Cadastro de usuário (BE-07, RN-AUTH-01/02/03/04/06/07). Extensão
   // aditiva da Fase 3 — o Gateway traduz `POST /api/auth/register` para
@@ -42,9 +63,9 @@ service IdentityService {
   rpc UpdateProfile (UpdateProfileRequest) returns (ProfileResponse);
 
   // Troca a senha do usuário autenticado (BE-15, RN-AUTH-04/21). Exige a
-  // senha atual. A revogação de sessões (RN-AUTH-19) fica para quando
-  // `refresh_tokens` existir (BE-10/BE-11, Fase 4) — ver nota técnica em
-  // ChangePasswordHandler.
+  // senha atual. Em caso de sucesso, revoga todos os refresh tokens do usuário
+  // (RN-AUTH-19, BE-10) no mesmo commit da troca; o access token já emitido
+  // continua válido até expirar (D-41).
   rpc ChangePassword (ChangePasswordRequest) returns (google.protobuf.Empty);
 
   // Exclui a conta do usuário autenticado (BE-16, RN-USER-05). Exige a
@@ -52,7 +73,8 @@ service IdentityService {
   // cascata no banco, pela FK `tasks.tasks.owner_id → identity.users(id)
   // ON DELETE CASCADE` (D-27) — este RPC não enumera nem chama o Tasks
   // Service (CA-05b de BE-16): nenhum RPC novo de exclusão de tarefas
-  // entra no contrato.
+  // entra no contrato. Os refresh tokens do usuário saem na mesma cascata
+  // (`identity.refresh_tokens.user_id`, RN-AUTH-19).
   rpc DeleteAccount (DeleteAccountRequest) returns (google.protobuf.Empty);
 }
 
@@ -99,6 +121,52 @@ message LoginResponse {
   google.protobuf.Timestamp expires_at = 3;
   // Id do usuário autenticado, presente só quando succeeded=true.
   string user_id = 4;
+  // Refresh token opaco da sessão nova (BE-10, RN-AUTH-10), presente só
+  // quando succeeded=true. Credencial de longa duração: o Gateway o entrega
+  // por cookie HttpOnly e nunca o repassa no corpo JSON nem em log (D-20,
+  // RN-AUTH-20).
+  string refresh_token = 5;
+  // Expiração do refresh token, presente só quando succeeded=true — o Gateway
+  // deriva o Max-Age do cookie daqui.
+  google.protobuf.Timestamp refresh_token_expires_at = 6;
+  // Bloqueio temporário por tentativas (BE-12, RN-AUTH-13): verdadeiro quando o
+  // e-mail está bloqueado (existente ou não — ADR 0002); succeeded=false e nenhum
+  // token. O Gateway responde 429 + Retry-After. Extensão aditiva: clientes
+  // antigos enxergam só succeeded=false.
+  bool locked_out = 7;
+  // Segundos até poder tentar de novo (>= 1), presente só quando locked_out=true.
+  int32 retry_after_seconds = 8;
+}
+
+message RefreshSessionRequest {
+  // Valor opaco lido do cookie pelo Gateway. Nunca em log.
+  string refresh_token = 1;
+}
+
+message RefreshSessionResponse {
+  // Falso para qualquer falha de renovação — as causas são indistinguíveis.
+  bool succeeded = 1;
+  // Novo access token, presente só quando succeeded=true.
+  string access_token = 2;
+  // Expiração do novo access token, presente só quando succeeded=true.
+  google.protobuf.Timestamp expires_at = 3;
+  // Novo refresh token (rotação, RN-AUTH-16), presente só quando succeeded=true.
+  string refresh_token = 4;
+  // Expiração do novo refresh token, presente só quando succeeded=true.
+  google.protobuf.Timestamp refresh_token_expires_at = 5;
+}
+
+message LogoutRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
+  // Refresh token da sessão a encerrar, lido do cookie. Pode vir vazio
+  // (logout sem cookie é idempotente). Nunca em log.
+  string refresh_token = 2;
+}
+
+message LogoutAllRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
 }
 
 message RegisterRequest {

@@ -1,7 +1,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using TodoList.Identity.Application.Security;
+using TodoList.Identity.Application.Sessions;
+using TodoList.SharedKernel;
 
 namespace TodoList.Identity.Infrastructure.Security;
 
@@ -60,6 +63,14 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<RsaSigningKeyProvider>();
         services.AddSingleton<ITokenService, JwtTokenService>();
+
+        // BE-10: Scoped (depende do repositório, que depende do DbContext). A
+        // duração vem de Jwt:RefreshTokenDays, já validada no start (1–90).
+        services.AddScoped(provider => new RefreshTokenService(
+            provider.GetRequiredService<IRefreshTokenRepository>(),
+            provider.GetRequiredService<IUnitOfWork>(),
+            provider.GetRequiredService<TimeProvider>(),
+            TimeSpan.FromDays(provider.GetRequiredService<IOptions<JwtOptions>>().Value.RefreshTokenDays)));
 
         return services;
     }

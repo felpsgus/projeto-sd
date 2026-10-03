@@ -61,26 +61,35 @@ Um usuário ativo troca e-mail + senha por um par de tokens (access + refresh) e
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Login com credenciais corretas retorna **200** com `accessToken` e `expiresAt` preenchidos, e emite o cookie `refreshToken`.
-- [ ] **CA-01b** — O corpo da resposta **não contém** o refresh token em nenhum campo (**D-20**, RN-AUTH-20).
-- [ ] **CA-01c** — O cookie vem com `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/api/auth` — os quatro atributos verificados no cabeçalho `Set-Cookie`.
-- [ ] **CA-01d** — O `Max-Age`/`Expires` do cookie corresponde a `Jwt:RefreshTokenDays`.
+- [x] **CA-01** — Login com credenciais corretas retorna **200** com `accessToken` e `expiresAt` preenchidos, e emite o cookie `refreshToken`.
+- [x] **CA-01b** — O corpo da resposta **não contém** o refresh token em nenhum campo (**D-20**, RN-AUTH-20).
+- [x] **CA-01c** — O cookie vem com `HttpOnly`, `Secure`, `SameSite=Strict` e `Path=/api/auth` — os quatro atributos verificados no cabeçalho `Set-Cookie`.
+- [x] **CA-01d** — O `Max-Age`/`Expires` do cookie corresponde a `Jwt:RefreshTokenDays`.
 - [ ] **CA-02** — O `accessToken` retornado é aceito por um endpoint protegido.
-- [ ] **CA-03** — O login funciona com o e-mail em qualquer combinação de maiúsculas/minúsculas.
-- [ ] **CA-04** — Senha incorreta retorna **401** com código `auth.invalid_credentials`.
-- [ ] **CA-05** — E-mail inexistente retorna **401** com **corpo byte a byte idêntico** ao de CA-04.
-- [ ] **CA-06** — Usuário inativo, com senha **correta**, retorna **401** com o mesmo corpo de CA-04 e CA-05 — nunca 403, nunca mensagem sobre conta desativada (RN-USER-04 + RN-AUTH-09).
-- [ ] **CA-07** — A resposta de erro **não** revela se o e-mail existe, em nenhum campo (`detail`, `title`, `type`, cabeçalho).
-- [ ] **CA-08** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — verificado por teste comparando medianas de N execuções com tolerância larga, ou por asserção de que o caminho de hash dummy foi invocado.
+- [x] **CA-03** — O login funciona com o e-mail em qualquer combinação de maiúsculas/minúsculas.
+- [x] **CA-04** — Senha incorreta retorna **401** com código `auth.invalid_credentials`.
+- [x] **CA-05** — E-mail inexistente retorna **401** com **corpo byte a byte idêntico** ao de CA-04.
+- [x] **CA-06** — Usuário inativo, com senha **correta**, retorna **401** com o mesmo corpo de CA-04 e CA-05 — nunca 403, nunca mensagem sobre conta desativada (RN-USER-04 + RN-AUTH-09).
+- [x] **CA-07** — A resposta de erro **não** revela se o e-mail existe, em nenhum campo (`detail`, `title`, `type`, cabeçalho).
+- [x] **CA-08** — O tempo de resposta para e-mail inexistente é da mesma ordem de grandeza do tempo para senha incorreta (hash dummy executado) — verificado por teste comparando medianas de N execuções com tolerância larga, ou por asserção de que o caminho de hash dummy foi invocado.
 - [ ] **CA-09** — A resposta **não** contém hash de senha nem qualquer campo além do contrato acima.
-- [ ] **CA-10** — Cada login cria uma **nova** sessão/refresh token; dois logins do mesmo usuário produzem refresh tokens diferentes e **ambos válidos** (D-15, múltiplas sessões).
-- [ ] **CA-10b** — Respostas de **falha** (401, 429) **não** emitem `Set-Cookie` — só o login bem-sucedido cria sessão.
-- [ ] **CA-11** — Requisição com `email` ou `password` ausentes retorna **400** (validação), distinguível do 401.
-- [ ] **CA-12** — Nenhum log produzido pelo login contém a senha.
-- [ ] **CA-13** — A resposta traz `Cache-Control: no-store`.
+- [x] **CA-10** — Cada login cria uma **nova** sessão/refresh token; dois logins do mesmo usuário produzem refresh tokens diferentes e **ambos válidos** (D-15, múltiplas sessões).
+- [x] **CA-10b** — Respostas de **falha** (401, 429) **não** emitem `Set-Cookie` — só o login bem-sucedido cria sessão.
+- [x] **CA-11** — Requisição com `email` ou `password` ausentes retorna **400** (validação), distinguível do 401.
+- [x] **CA-12** — Nenhum log produzido pelo login contém a senha.
+- [x] **CA-13** — A resposta traz `Cache-Control: no-store`.
 
 ## Testes obrigatórios
 
 - Unidade: `LoginHandler` — CA-04, CA-05, CA-06, CA-10, e a invocação do hash dummy (CA-08).
 - Integração: CA-01 a CA-03, CA-07, CA-09, CA-11 a CA-13.
 - **Teste explícito comparando os corpos de resposta** dos três cenários de falha (CA-05/CA-06) — é o guardião de RN-AUTH-09.
+
+## Emenda (03/10/2026) — Fase 4, onda A1: o que mudou pela arquitetura gRPC
+
+- **Onde cada parte vive.** `POST /api/auth/login` é do **Gateway** (D-32/D-36): recebe o JSON, chama o RPC `Login` do Identity e traduz a resposta. O Identity não expõe REST de autenticação; o `LoginHandler` (Application) emite o access token **e** abre uma sessão nova (`IRefreshTokenService.IssueAsync` sem `sessionId`, D-15).
+- **O cookie é escrito pelo Gateway**, não pelo Identity. O RPC devolve `refresh_token` e `refresh_token_expires_at` (só em sucesso); o Gateway os transforma em `Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age=...` por um único componente (`RefreshCookie`). O `Max-Age` sai da expiração devolvida pelo Identity (= `Jwt:RefreshTokenDays`), sem segunda chave no Gateway.
+- **`Secure` é configurável** (`RefreshCookie:Secure`, padrão `true`) — a VM da demo serve HTTP puro por IP, onde o navegador descarta cookie `Secure`. Ver **D-42**. Em `localhost` (compose local) o padrão funciona.
+- **Corpo da resposta** continua `{ "accessToken", "expiresAt" }` (compatível com o frontend do T2). O objeto `user` do contrato original **não** foi implementado — o perfil sai de `GET /api/me`. Por isso **CA-09** (que cita "o contrato acima") e **CA-02** (sem teste automatizado ponta a ponta contra o Identity real; coberto pelo `smoke.sh`) seguem abertos.
+- **Fora desta onda:** bloqueio por tentativas (BE-12); CA-10b cobre só o 401 — o 429 não existe ainda.
+- Evidência: `SessionEndpointsTests` (Gateway), `LoginHandlerTests` e `IdentityGrpcServiceTests` (Identity).

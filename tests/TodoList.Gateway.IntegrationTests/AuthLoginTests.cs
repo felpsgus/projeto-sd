@@ -53,6 +53,30 @@ public class AuthLoginTests : IClassFixture<GatewayApiFactory>
         body.Should().NotContain(email, "o corpo não deve variar por causa/credencial");
     }
 
+    [Fact] // BE-12 CA-03: 429 + Retry-After em segundos + errorCode, sem cookie, no-store
+    public async Task Login_Bloqueado_Retorna429ComRetryAfterSemCookie()
+    {
+        _factory.Identity.LoginLockedOutRetryAfterSeconds = 840;
+
+        try
+        {
+            var client = _factory.CreateClient();
+
+            var response = await client.PostAsJsonAsync(
+                new Uri("/api/auth/login", UriKind.Relative), new LoginHttpRequest("user@example.com", "senha123"));
+
+            response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(840));
+            response.Headers.Contains("Set-Cookie").Should().BeFalse();
+            response.Headers.CacheControl!.NoStore.Should().BeTrue();
+            (await response.Content.ReadAsStringAsync()).Should().Contain("auth.too_many_attempts");
+        }
+        finally
+        {
+            _factory.Identity.LoginLockedOutRetryAfterSeconds = null;
+        }
+    }
+
     [Fact] // CA-24
     public async Task Login_IdentityIndisponivel_Retorna503ComRetryAfterNunca401()
     {

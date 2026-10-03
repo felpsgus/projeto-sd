@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet } from '@angular/router';
 
+import { LogoutService } from '../../../core/auth/logout.service';
 import { SessionStore } from '../../../core/auth/session-store';
 
 /**
@@ -29,7 +30,7 @@ import { SessionStore } from '../../../core/auth/session-store';
 })
 export class AppShellComponent {
   protected readonly session = inject(SessionStore);
-  private readonly router = inject(Router);
+  private readonly logoutService = inject(LogoutService);
 
   /**
    * Nome de exibição quando já conhecido (perfil carregado por `/account`, FE-11), com
@@ -41,10 +42,6 @@ export class AppShellComponent {
   );
 
   protected logout(): void {
-    // Logout local (FE-10, recorte do T2): sem POST /api/auth/logout — o backend do T2
-    // não expõe esse endpoint (D-36). `replaceUrl` evita que "voltar" reexiba a tela
-    // autenticada a partir do cache do roteador.
-    this.session.endSession('user_logout');
-    void this.router.navigateByUrl('/login', { replaceUrl: true });
+    this.logoutService.logout();
   }
 }

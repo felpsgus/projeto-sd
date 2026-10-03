@@ -206,6 +206,33 @@ describe('AccountComponent (FE-11)', () => {
       httpMock.expectNone('/api/auth/logout');
     });
 
+    it('"Sair de todos os dispositivos" chama POST /api/auth/logout-all e encerra a sessão local (FE-10, CA-10)', async () => {
+      const { httpMock, session } = await setup();
+      await loadProfile(httpMock);
+      await screen.findByDisplayValue('Ana');
+
+      await userEvent.click(screen.getByRole('button', { name: /sair de todos os dispositivos/i }));
+
+      const req = httpMock.expectOne('/api/auth/logout-all');
+      expect(req.request.withCredentials).toBe(true);
+      expect(req.request.body).toBeNull();
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      expect(session.isAuthenticated()).toBe(false);
+      expect(session.lastEndReason()).toBe('user_logout');
+    });
+
+    it('"Sair" chama POST /api/auth/logout; falha da API não impede a saída nem mostra erro (FE-10, CA-08/CA-09)', async () => {
+      const { httpMock, session } = await setup();
+      await loadProfile(httpMock);
+      await screen.findByDisplayValue('Ana');
+
+      await userEvent.click(screen.getByRole('button', { name: /^sair$/i }));
+
+      httpMock.expectOne('/api/auth/logout').flush({}, { status: 500, statusText: 'Server Error' });
+      expect(session.isAuthenticated()).toBe(false);
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('senha incorreta (400) mostra erro dentro do diálogo, que permanece aberto, e nada é excluído (CA-16/CA-17)', async () => {
       const { httpMock, session } = await setup();
       await loadProfile(httpMock);

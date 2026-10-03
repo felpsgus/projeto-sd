@@ -48,9 +48,9 @@ O usuário autenticado troca a própria senha informando a senha atual, e a troc
 - [ ] **CA-04** — Senha atual incorreta retorna erro com código `auth.invalid_current_password` e **não altera** o hash no banco.
 - [ ] **CA-05** — Nova senha fora da política (< 8 caracteres, sem letra, sem número) retorna **400** com os erros por campo (RN-AUTH-04).
 - [ ] **CA-06** — Nova senha **igual** à atual é rejeitada com **400**.
-- [ ] **CA-07** — Após a troca, **todos** os refresh tokens do usuário ficam revogados: nenhum renova (RN-AUTH-19).
-- [ ] **CA-08** — A revogação cobre sessões de **outros dispositivos**, não apenas a que fez a troca.
-- [ ] **CA-09** — Os tokens revogados têm `RevokedReason == PasswordChanged` no banco.
+- [x] **CA-07** — Após a troca, **todos** os refresh tokens do usuário ficam revogados: nenhum renova (RN-AUTH-19).
+- [x] **CA-08** — A revogação cobre sessões de **outros dispositivos**, não apenas a que fez a troca.
+- [x] **CA-09** — Os tokens revogados têm `RevokedReason == PasswordChanged` no banco.
 - [ ] **CA-10** — Sessões de **outros usuários** não são afetadas.
 - [ ] **CA-11** — Se a persistência do novo hash falhar, nenhuma sessão é revogada (atomicidade — testado forçando falha na transação).
 - [ ] **CA-12** — Se a revogação falhar, a senha **não** é alterada (mesma transação).
@@ -67,3 +67,7 @@ O usuário autenticado troca a própria senha informando a senha atual, e a troc
 ## Decisões em aberto
 
 - **D-04** — "Esqueci minha senha" fora do escopo. Se entrar, vira task nova, não extensão desta.
+
+## Emenda (03/10/2026) — Fase 4, onda A1
+
+**CA-07, CA-08 e CA-09 atendidos.** `ChangePasswordHandler` chama `IRefreshTokenService.RevokeAllForUserAsync(userId, PasswordChanged)` **antes** do `SaveChangesAsync` que grava o novo hash: o hash e a revogação saem do mesmo commit. Cobertura: `ChangePasswordHandlerTests` (revoga antes de salvar; nenhuma revogação nas três falhas) e `RefreshTokenSqliteTests`/`RefreshTokenPostgresTests.ChangePassword_RevogaTodasAsSessoes` (várias sessões, motivo `PasswordChanged`; o de Postgres exige Docker e não foi executado nesta onda). **CA-11/CA-12** (atomicidade) valem por construção — o mesmo `SaveChangesAsync` —, mas não há teste que force a falha da transação; seguem abertos.

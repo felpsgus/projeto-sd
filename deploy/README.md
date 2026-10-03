@@ -200,7 +200,11 @@ sudo nano /opt/todolist/docker/.env
 ```
 
 Preencha `<IP_PRIVADO_CLOUDSQL>` (`10.30.240.3`), a senha real (troque os `TROQUE_ESTA_SENHA`) e
-`IMAGE_TAG` (a tag da seção 4). Depois:
+`IMAGE_TAG` (a tag da seção 4). Confira também `RefreshCookie__Secure=false`: a VM serve **HTTP
+puro por IP**, e o navegador descarta um cookie `Secure` recebido por HTTP fora de `localhost` — sem
+essa linha o login funciona, mas o cookie do refresh token (`refreshToken`, D-20) nunca é guardado e a
+sessão morre quando o access token expira (15 min). Um `.env` criado antes da Fase 4 não tem a linha:
+acrescente-a. Com HTTPS na frente, remova-a (o padrão do Gateway é `true`). Depois:
 
 ```bash
 sudo systemctl start todolist.service

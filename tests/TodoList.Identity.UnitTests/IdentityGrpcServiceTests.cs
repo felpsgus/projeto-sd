@@ -14,7 +14,9 @@ using TodoList.Identity.Application.Security;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Security;
+using TodoList.Identity.UnitTests.Authentication;
 using TodoList.Identity.UnitTests.Security;
+using TodoList.Identity.UnitTests.Sessions;
 using Xunit;
 
 namespace TodoList.Identity.UnitTests;
@@ -144,6 +146,19 @@ public class IdentityGrpcServiceTests : IDisposable
         response.AccessToken.Should().NotBeNullOrEmpty();
         response.UserId.Should().Be(_registeredUser.Id.ToString());
         response.ExpiresAt.Should().NotBeNull();
+        response.RefreshToken.Should().NotBeNullOrEmpty("BE-10: cada login abre uma sessão com refresh token");
+        response.RefreshTokenExpiresAt.ToDateTimeOffset().Should().Be(_timeProvider.GetUtcNow().AddDays(7));
+    }
+
+    [Fact] // BE-10/BE-09 CA-10b — falha de login nunca carrega refresh token
+    public async Task Login_Falha_NaoCarregaRefreshToken()
+    {
+        var sut = CreateService();
+
+        var response = await sut.Login(new LoginRequest { Email = RegisteredEmail, Password = "senha-errada" }, new FakeServerCallContext());
+
+        response.RefreshToken.Should().BeEmpty();
+        response.RefreshTokenExpiresAt.Should().BeNull();
     }
 
     [Fact] // BE-33, CA-02/CA-03 — senha errada e e-mail inexistente produzem a mesma resposta negativa
@@ -182,7 +197,8 @@ public class IdentityGrpcServiceTests : IDisposable
         logger.Messages.Should().OnlyContain(message =>
             !message.Contains(RegisteredEmail, StringComparison.Ordinal)
             && !message.Contains(CorrectPassword, StringComparison.Ordinal)
-            && !message.Contains(response.AccessToken, StringComparison.Ordinal));
+            && !message.Contains(response.AccessToken, StringComparison.Ordinal)
+            && !message.Contains(response.RefreshToken, StringComparison.Ordinal));
     }
 
     [Fact] // BE-33, CA-11 — UserStore:Provider=InMemory nunca consulta o repositório
@@ -208,7 +224,9 @@ public class IdentityGrpcServiceTests : IDisposable
         var signingKeyProvider = new RsaSigningKeyProvider(jwtOptions);
         var tokenService = new JwtTokenService(jwtOptions, _timeProvider, signingKeyProvider);
         var dummyPasswordHash = new DummyPasswordHash(_passwordHasher);
-        var loginHandler = new LoginHandler(_userRepository, _passwordHasher, tokenService, dummyPasswordHash);
+        var (refreshTokens, _) = InMemoryRefreshTokenRepository.CreateService(_timeProvider);
+        var loginHandler = new LoginHandler(
+            _userRepository, _passwordHasher, tokenService, dummyPasswordHash, refreshTokens, new InMemoryLoginAttemptStore(), new LockoutOptions(), _timeProvider);
         var userStoreOptions = Options.Create(new UserStoreOptions { Provider = provider });
 
         // IdentityGrpcService resolve LoginHandler preguiçosamente via

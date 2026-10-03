@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using TodoList.Gateway.Api.Configuration;
 
@@ -15,6 +16,21 @@ namespace TodoList.Gateway.Api.Http;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>Cookie do refresh token (D-20): opções (<c>RefreshCookie:Secure</c>) validadas no start + o escritor único do cookie.</summary>
+    public static IServiceCollection AddRefreshCookie(this IServiceCollection services, IConfiguration configuration)
+    {
+        services
+            .AddOptions<RefreshCookieOptions>()
+            .Bind(configuration.GetSection(RefreshCookieOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<RefreshCookie>();
+
+        return services;
+    }
+
     public static IServiceCollection AddGatewayForwardedHeaders(this IServiceCollection services, IConfiguration configuration)
     {
         services

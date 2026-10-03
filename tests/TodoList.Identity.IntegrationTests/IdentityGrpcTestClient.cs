@@ -17,6 +17,9 @@ internal sealed class IdentityGrpcTestClient : IDisposable
 {
     private static readonly Method<ValidateUserRequest, ValidateUserResponse> _validateUserMethod = CreateMethod<ValidateUserRequest, ValidateUserResponse>("ValidateUser");
     private static readonly Method<LoginRequest, LoginResponse> _loginMethod = CreateMethod<LoginRequest, LoginResponse>("Login");
+    private static readonly Method<RefreshSessionRequest, RefreshSessionResponse> _refreshSessionMethod = CreateMethod<RefreshSessionRequest, RefreshSessionResponse>("RefreshSession");
+    private static readonly Method<LogoutRequest, Empty> _logoutMethod = CreateMethod<LogoutRequest, Empty>("Logout");
+    private static readonly Method<LogoutAllRequest, Empty> _logoutAllMethod = CreateMethod<LogoutAllRequest, Empty>("LogoutAll");
     private static readonly Method<RegisterRequest, RegisterResponse> _registerMethod = CreateMethod<RegisterRequest, RegisterResponse>("Register");
     private static readonly Method<GetProfileRequest, ProfileResponse> _getProfileMethod = CreateMethod<GetProfileRequest, ProfileResponse>("GetProfile");
     private static readonly Method<UpdateProfileRequest, ProfileResponse> _updateProfileMethod = CreateMethod<UpdateProfileRequest, ProfileResponse>("UpdateProfile");
@@ -37,6 +40,15 @@ internal sealed class IdentityGrpcTestClient : IDisposable
 
     public AsyncUnaryCall<LoginResponse> LoginAsync(LoginRequest request) =>
         _invoker.AsyncUnaryCall(_loginMethod, host: null, new CallOptions(), request);
+
+    public AsyncUnaryCall<RefreshSessionResponse> RefreshSessionAsync(RefreshSessionRequest request) =>
+        _invoker.AsyncUnaryCall(_refreshSessionMethod, host: null, new CallOptions(), request);
+
+    public AsyncUnaryCall<Empty> LogoutAsync(LogoutRequest request) =>
+        _invoker.AsyncUnaryCall(_logoutMethod, host: null, new CallOptions(), request);
+
+    public AsyncUnaryCall<Empty> LogoutAllAsync(LogoutAllRequest request) =>
+        _invoker.AsyncUnaryCall(_logoutAllMethod, host: null, new CallOptions(), request);
 
     public AsyncUnaryCall<RegisterResponse> RegisterAsync(RegisterRequest request) =>
         _invoker.AsyncUnaryCall(_registerMethod, host: null, new CallOptions(), request);

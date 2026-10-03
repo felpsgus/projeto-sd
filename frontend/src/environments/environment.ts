@@ -9,6 +9,8 @@
 export const environment = {
   production: false,
   apiBaseUrl: '',
+  /** Renova o access token quando ele expira em menos de N segundos (FE-06, FD-13). */
+  refreshSkewSeconds: 30,
   /** Mostra, num canto discreto da tela, o método/rota/status da última chamada HTTP (FE-03, recorte T2). */
   showHttpStatusIndicator: true,
 };

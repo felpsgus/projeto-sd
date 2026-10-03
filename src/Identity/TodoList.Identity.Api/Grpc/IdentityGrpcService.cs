@@ -8,7 +8,7 @@ using TodoList.Contracts.Identity.V1;
 using TodoList.Identity.Api.Configuration;
 using TodoList.Identity.Api.ResultMapping;
 using TodoList.Identity.Application.Authentication;
-using TodoList.Identity.Application.Security;
+using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
 using TodoList.SharedKernel;
 using ApplicationChangePasswordRequest = TodoList.Identity.Application.Authentication.ChangePasswordRequest;
@@ -84,8 +84,8 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     }
 
     /// <summary>
-    /// Login mínimo via gRPC (BE-33, recorte de BE-09 — D-36): troca e-mail e
-    /// senha por um access token. Nunca lança nem devolve status gRPC de erro
+    /// Login via gRPC (BE-33/BE-09/BE-10): troca e-mail e senha por um access
+    /// token e um refresh token de uma sessão nova. Nunca lança nem devolve status gRPC de erro
     /// por conteúdo do request (CA-12) — inclusive e-mail vazio, malformado
     /// ou senha vazia resultam em <c>succeeded=false</c>, como qualquer
     /// credencial inválida.
@@ -107,15 +107,109 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
 
         if (_userStoreOptions.Value.Provider == UserStoreOptions.InMemoryProvider)
         {
-            return RespondLoginAndLog(succeeded: false, userId: null, accessToken: null, stopwatch.Elapsed, traceId);
+            return RespondLoginAndLog(login: null, retryAfter: null, stopwatch.Elapsed, traceId);
         }
 
         var loginHandler = _serviceProvider.GetRequiredService<LoginHandler>();
         var result = await loginHandler.HandleAsync(request.Email, request.Password, context.CancellationToken);
 
-        return result.IsSuccess
-            ? RespondLoginAndLog(succeeded: true, result.Value.UserId, result.Value.AccessToken, stopwatch.Elapsed, traceId)
-            : RespondLoginAndLog(succeeded: false, userId: null, accessToken: null, stopwatch.Elapsed, traceId);
+        return RespondLoginAndLog(result.IsSuccess ? result.Value : null, LockoutRetryAfter(result), stopwatch.Elapsed, traceId);
+    }
+
+    /// <summary>BE-12: tempo restante quando a falha é o bloqueio por tentativas; senão <c>null</c>.</summary>
+    private static TimeSpan? LockoutRetryAfter(Result<LoginResult> result) =>
+        result.IsFailure && result.Error.Code == AuthErrors.TooManyAttemptsCode ? result.Error.RetryAfter : null;
+
+    /// <summary>
+    /// Renovação de sessão (BE-10). Qualquer falha — inclusive provider
+    /// InMemory, que não tem sessões — é <c>succeeded=false</c>, nunca status
+    /// de erro por causa do token (RN-AUTH-17, CA-16).
+    /// </summary>
+    public override async Task<RefreshSessionResponse> RefreshSession(RefreshSessionRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
+
+        RefreshSessionResult? refreshed = null;
+
+        if (_userStoreOptions.Value.Provider != UserStoreOptions.InMemoryProvider)
+        {
+            var handler = _serviceProvider.GetRequiredService<RefreshSessionHandler>();
+            var result = await handler.HandleAsync(request.RefreshToken, context.CancellationToken);
+            refreshed = result.IsSuccess ? result.Value : null;
+        }
+
+        // Nunca o token (nem o novo, nem o apresentado) no log (RN-AUTH-20).
+        Log.RefreshSessionCalled(_logger, refreshed is not null, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return refreshed is null
+            ? new RefreshSessionResponse { Succeeded = false }
+            : new RefreshSessionResponse
+            {
+                Succeeded = true,
+                AccessToken = refreshed.AccessToken.Token,
+                ExpiresAt = Timestamp.FromDateTimeOffset(refreshed.AccessToken.ExpiresAt),
+                RefreshToken = refreshed.RefreshToken.Value,
+                RefreshTokenExpiresAt = Timestamp.FromDateTimeOffset(refreshed.RefreshToken.ExpiresAt),
+            };
+    }
+
+    /// <summary>
+    /// Logout da sessão do refresh token (BE-11, RN-AUTH-12). Idempotente. Token
+    /// de outro usuário não revoga nada e gera um aviso sem o valor (CA-09/CA-10).
+    /// </summary>
+    public override async Task<Empty> Logout(LogoutRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
+
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            var invalid = AuthErrors.UserNotFound.ToRpcException();
+            Log.LogoutCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalid;
+        }
+
+        if (_userStoreOptions.Value.Provider != UserStoreOptions.InMemoryProvider)
+        {
+            var refreshTokens = _serviceProvider.GetRequiredService<RefreshTokenService>();
+            var outcome = await refreshTokens.RevokeSessionOfTokenAsync(userId, request.RefreshToken, context.CancellationToken);
+
+            if (outcome == RevokeSessionOutcome.OwnedByAnotherUser)
+            {
+                Log.LogoutWithForeignToken(_logger, userId, traceId);
+            }
+        }
+
+        Log.LogoutCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return new Empty();
+    }
+
+    /// <summary>Revoga todas as sessões do usuário (BE-11, RN-AUTH-19).</summary>
+    public override async Task<Empty> LogoutAll(LogoutAllRequest request, ServerCallContext context)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var traceId = context.RequestHeaders.GetValue("traceparent") ?? string.Empty;
+
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            var invalid = AuthErrors.UserNotFound.ToRpcException();
+            Log.LogoutAllCalled(_logger, invalid.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+            throw invalid;
+        }
+
+        if (_userStoreOptions.Value.Provider != UserStoreOptions.InMemoryProvider)
+        {
+            var handler = _serviceProvider.GetRequiredService<LogoutAllHandler>();
+            await handler.HandleAsync(userId, context.CancellationToken);
+        }
+
+        Log.LogoutAllCalled(_logger, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+
+        return new Empty();
     }
 
     /// <summary>
@@ -232,9 +326,8 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
     }
 
     /// <summary>
-    /// Troca de senha do usuário autenticado (BE-15, RN-AUTH-04/21). A
-    /// revogação de sessões (RN-AUTH-19) fica para a Fase 4 (BE-10/BE-11) —
-    /// ver nota técnica de <see cref="ChangePasswordHandler"/>.
+    /// Troca de senha do usuário autenticado (BE-15, RN-AUTH-04/21). Revoga as
+    /// sessões do usuário (RN-AUTH-19) — ver <see cref="ChangePasswordHandler"/>.
     /// </summary>
     public override async Task<Empty> ChangePassword(ProtoChangePasswordRequest request, ServerCallContext context)
     {
@@ -353,21 +446,28 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         return response;
     }
 
-    private LoginResponse RespondLoginAndLog(bool succeeded, Guid? userId, AccessToken? accessToken, TimeSpan elapsed, string traceId)
+    private LoginResponse RespondLoginAndLog(LoginResult? login, TimeSpan? retryAfter, TimeSpan elapsed, string traceId)
     {
-        var response = succeeded
+        var response = login is not null
             ? new LoginResponse
             {
                 Succeeded = true,
-                AccessToken = accessToken!.Token,
-                ExpiresAt = Timestamp.FromDateTimeOffset(accessToken.ExpiresAt),
-                UserId = userId!.Value.ToString(),
+                AccessToken = login.AccessToken.Token,
+                ExpiresAt = Timestamp.FromDateTimeOffset(login.AccessToken.ExpiresAt),
+                UserId = login.UserId.ToString(),
+                RefreshToken = login.RefreshToken.Value,
+                RefreshTokenExpiresAt = Timestamp.FromDateTimeOffset(login.RefreshToken.ExpiresAt),
             }
-            : new LoginResponse { Succeeded = false };
+            : new LoginResponse
+            {
+                Succeeded = false,
+                LockedOut = retryAfter is not null,
+                RetryAfterSeconds = retryAfter is { } wait ? (int)Math.Max(1, Math.Ceiling(wait.TotalSeconds)) : 0,
+            };
 
-        // CA-06 de BE-33: nunca e-mail, senha, hash ou token no log — só
-        // userId (quando resolvido), succeeded e duração.
-        Log.LoginCalled(_logger, succeeded, userId, elapsed.TotalMilliseconds, traceId);
+        // CA-06 de BE-33/CA-14 de BE-12: nunca senha, hash ou token (access ou
+        // refresh) no log — só userId (quando resolvido), succeeded, bloqueio e duração.
+        Log.LoginCalled(_logger, login is not null, retryAfter is not null, login?.UserId, elapsed.TotalMilliseconds, traceId);
 
         return response;
     }
@@ -381,8 +481,30 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
 
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "Login: succeeded={Succeeded}, userId={UserId}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void LoginCalled(ILogger logger, bool succeeded, Guid? userId, double durationMs, string traceId);
+            Message = "Login: succeeded={Succeeded}, lockedOut={LockedOut}, userId={UserId}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void LoginCalled(ILogger logger, bool succeeded, bool lockedOut, Guid? userId, double durationMs, string traceId);
+
+        // BE-10/BE-11: nunca o valor de um refresh token no log.
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "RefreshSession: succeeded={Succeeded}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void RefreshSessionCalled(ILogger logger, bool succeeded, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "Logout: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void LogoutCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+
+        [LoggerMessage(
+            Level = LogLevel.Information,
+            Message = "LogoutAll: statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
+        public static partial void LogoutAllCalled(ILogger logger, StatusCode statusCode, double durationMs, string traceId);
+
+        // BE-11 CA-10: um usuário tentou encerrar a sessão de outro. Só o id de quem tentou.
+        [LoggerMessage(
+            Level = LogLevel.Warning,
+            Message = "Logout com refresh token de outro usuário ignorado: userId={UserId}, traceId={TraceId}")]
+        public static partial void LogoutWithForeignToken(ILogger logger, Guid userId, string traceId);
 
         // BE-07/14/15/16: nunca e-mail, senha, hash ou displayName no log —
         // só o status gRPC e a duração, mesmo padrão dos RPCs acima.

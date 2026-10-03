@@ -54,7 +54,7 @@ Estas saíram do estado provisório. Estão aqui como registro; as tasks já ref
 |---|---|---|---|---|---|
 | **D-01** | Auto-cadastro liberado | Sim | [BE-07](BE-07-cadastro-usuario.md) | — | Exigir convite/aprovação: nova regra no caso de uso de cadastro |
 | **D-02** | Duração do access token | 15 min | [BE-08](BE-08-emissao-jwt.md) | `Jwt:AccessTokenMinutes` | Só configuração |
-| **D-03** | Bloqueio por tentativas | 5 → 15 min | [BE-12](BE-12-bloqueio-tentativas-login.md) | `Lockout:MaxAttempts`, `Lockout:WindowMinutes` | Só configuração |
+| **D-03** ✅ | Bloqueio por tentativas (fechada em [D-43](#d-43--bloqueio-de-login-5-falhas--15-min-por-e-mail-normalizado-inclusive-e-mails-inexistentes-03102026)) | 5 → 15 min | [BE-12](BE-12-bloqueio-tentativas-login.md) | `Lockout:MaxAttempts`, `Lockout:LockoutMinutes`, `Lockout:AttemptWindowMinutes`, `Lockout:Enabled` | Só configuração |
 | **D-04** | "Esqueci minha senha" | Fora do escopo | — | — | Nova task (BE-25+): token de reset, expiração, envio |
 | **D-05** | Exclusão de conta | Apagar conta + tarefas | [BE-16](BE-16-exclusao-conta.md) | — | Anonimizar: troca o handler, mantém contrato do endpoint |
 | **D-06** | Vencimento no passado | Aceita, marca atrasada | [BE-05](BE-05-dominio-tarefa.md), [BE-17](BE-17-criar-tarefa.md) | — | Recusar: vira regra de validação no request |
@@ -72,7 +72,7 @@ Não constam do documento de regras e precisam de resposta do time. Cada uma tem
 |---|---|---|---|
 | **D-12** | Período de retenção de tarefa soft-deleted antes do expurgo definitivo (RN-TASK-13 diz "período definido", sem valor) | **30 dias**, em `Tasks:SoftDeleteRetentionDays` | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
 | **D-13** | O expurgo roda como job in-process (`BackgroundService`) ou tarefa externa agendada? | `BackgroundService` com intervalo configurável | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
-| **D-14** | O bloqueio por tentativas (D-03) conta por e-mail, por IP ou por ambos? | Por e-mail (como está escrito na RN-AUTH-13) | [BE-12](BE-12-bloqueio-tentativas-login.md) |
+| **D-14** ✅ | O bloqueio por tentativas (D-03) conta por e-mail, por IP ou por ambos? (fechada: por e-mail, ver D-43) | Por e-mail (como está escrito na RN-AUTH-13) | [BE-12](BE-12-bloqueio-tentativas-login.md) |
 | **D-15** | Um refresh token pode existir por dispositivo (várias sessões simultâneas) ou é sessão única? | Múltiplas sessões: cada login cria uma cadeia própria | [BE-10](BE-10-refresh-token-rotacao.md) |
 | **D-16** | Busca textual (RN-LIST-05) inclui a descrição? A RN diz "opcionalmente" | Sim, título **e** descrição, case-insensitive | [BE-22](BE-22-listagem-tarefas.md) |
 | **D-17** | Banco de dados alvo | **PostgreSQL** (Npgsql + Testcontainers) | [BE-02](BE-02-persistencia-base.md) |
@@ -350,3 +350,35 @@ navegador ──HTTP/JSON──▶ nginx :80 ──┬─ estático (Angular)
 **Consequência na VM:** a porta pública passa a ser **80** (nginx); **8080** (Gateway) fecha para tráfego externo e passa a escutar só em `127.0.0.1`. `ForwardedHeaders` no Gateway com `KnownProxies=127.0.0.1`.
 
 **Afeta:** [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md), [BE-42](BE-42-nginx-mesma-origem.md). Do lado do frontend, ver **FD-16**/**FD-01**.
+
+### D-41 ✅ — O logout não invalida o access token já emitido (03/10/2026)
+
+**Decisão:** logout, logout-all, troca de senha e exclusão de conta revogam os **refresh tokens**; o **access token** já emitido continua válido até expirar (`Jwt:AccessTokenMinutes`, 15 por padrão). É a "opção 1" da decisão 1 de [PLANO-REGRAS-RESTANTES](../PLANO-REGRAS-RESTANTES.md): aceitar e documentar.
+
+**Motivo:** desde D-38 o Gateway valida a assinatura do JWT **localmente** e não consulta o Identity por requisição. Invalidar o access token exigiria uma blocklist consultada a cada chamada — o custo de rede que a BE-40 removeu de propósito. A janela de 15 minutos (RN-AUTH-11) é a mitigação; encurtá-la (opção 2) é só mudar `Jwt:AccessTokenMinutes`, sem código.
+
+**Consequência:** depois do logout, um access token roubado ainda abre a API por até 15 minutos; o que o atacante **não** consegue é renová-lo. Há teste que registra a expectativa (`AccessTokenEmitidoAntesDoLogout_ContinuaAceitoAteExpirar`, BE-11 CA-11), para que uma mudança futura seja consciente. Registro completo em [ADR-0001](../../docs/adr/0001-logout-nao-invalida-access-token.md).
+
+**Afeta:** [BE-11](BE-11-logout-revogacao.md), RN-AUTH-12 ([REGRAS-DE-NEGOCIO.md](../../REGRAS-DE-NEGOCIO.md)).
+
+### D-42 ✅ — `Secure` do cookie do refresh token é configuração (03/10/2026)
+
+**Decisão:** o Gateway lê `RefreshCookie:Secure` (padrão `true` em `appsettings.json`). `HttpOnly`, `SameSite=Strict` e `Path=/api/auth` (D-20, D-21) continuam fixos no código; o `Secure` é o único atributo que varia por ambiente. Escrita e remoção do cookie passam pelo mesmo método (`RefreshCookie`), para que os atributos sejam idênticos — é o que faz o `Set-Cookie` de expiração realmente apagar o cookie.
+
+**Motivo:** a VM da demo serve **HTTP puro por IP** (não `localhost`), contexto em que o navegador descarta um cookie `Secure`. Com o padrão `true` o login funcionaria e a sessão morreria em 15 minutos, sem erro visível. `http://localhost` é contexto seguro, então o `docker-compose.yml` local não precisa mudar.
+
+**Como usar:** na VM, `RefreshCookie__Secure=false` no `.env` (`deploy/todolist.env.example`, repassado pelo `docker-compose.prod.yml`). Com HTTPS na frente, remover a linha. Desligar `Secure` é decisão explícita de ambiente, nunca o padrão.
+
+**Também decidido nesta onda:** o `Max-Age` do cookie sai da expiração que o Identity devolve no RPC (`refresh_token_expires_at`, derivada de `Jwt:RefreshTokenDays`), não de uma segunda chave no Gateway; e um redeem que **perde a corrida** de dois pedidos paralelos é tratado como reuso (RN-AUTH-17) — a sessão inteira é revogada, nunca sobram dois tokens ativos derivados do mesmo pai.
+
+**Afeta:** [BE-09](BE-09-login.md), [BE-10](BE-10-refresh-token-rotacao.md), [BE-11](BE-11-logout-revogacao.md), [BE-37](BE-37-deploy-t2-vm.md).
+
+### D-43 ✅ — Bloqueio de login: 5 falhas → 15 min, por e-mail normalizado, inclusive e-mails inexistentes (03/10/2026)
+
+**Fecha D-03 e D-14.** **Decisão:** `Lockout:MaxAttempts=5`, `Lockout:LockoutMinutes=15`, `Lockout:AttemptWindowMinutes=15`, `Lockout:Enabled=true` (seção `Lockout` do Identity). A contagem é por **e-mail normalizado** (não por IP), persistida em `identity.login_attempts` e incrementada por upsert atômico **antes** de verificar a senha. E-mails que não existem contam igual; e-mail malformado não conta.
+
+**Motivo:** responder 429 só para contas reais denunciaria a existência da conta (RN-AUTH-09). Contar os inexistentes também mantém o 429 indistinguível. Registro completo em [ADR-0002](../../docs/adr/0002-bloqueio-de-login-conta-e-email-inexistente.md).
+
+**Sinalização na arquitetura gRPC:** `LoginResponse` ganhou `locked_out` e `retry_after_seconds` (extensão aditiva); o Gateway responde **429** + `Retry-After` + `errorCode` `auth.too_many_attempts`.
+
+**Afeta:** [BE-12](BE-12-bloqueio-tentativas-login.md), [BE-09](BE-09-login.md).
