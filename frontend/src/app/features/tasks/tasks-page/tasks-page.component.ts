@@ -100,12 +100,16 @@ export class TasksPageComponent {
 
   private readonly pendingIdsSignal = signal<ReadonlySet<string>>(new Set());
   private readonly itemErrorsSignal = signal<Readonly<Record<string, string>>>({});
+  /** Aviso de 404 (item já sumiu da lista): fica na página, não no item removido. */
+  private readonly pageNoticeSignal = signal<string | null>(null);
+  protected readonly pageNotice = this.pageNoticeSignal.asReadonly();
 
   constructor() {
     // Carrega a lista sempre que página/filtros da URL mudarem — deep link, F5, "voltar" e
     // navegação normal passam todos por aqui, sem lógica duplicada (FE-16, CA-15/CA-16).
     effect(() => {
       const state = this.queryState();
+      this.pageNoticeSignal.set(null);
       this.store.load(state.page, this.store.pageSize(), state.filters);
     });
 
@@ -225,6 +229,7 @@ export class TasksPageComponent {
     }
     this.setPending(taskId, true);
     this.clearError(taskId);
+    this.pageNoticeSignal.set(null);
 
     request.subscribe({
       next: () => {
@@ -233,7 +238,11 @@ export class TasksPageComponent {
       },
       error: (error: AppError) => {
         this.setPending(taskId, false);
-        this.setError(taskId, error.message);
+        if (error.status === 404) {
+          this.pageNoticeSignal.set(error.message);
+        } else {
+          this.setError(taskId, error.message);
+        }
       },
     });
   }

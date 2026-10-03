@@ -66,7 +66,7 @@ Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela re
 ### Conflitos e erros
 
 - [x] **CA-13** — Resposta **409** reverte o otimismo e exibe mensagem indicando que o estado mudou em outro lugar — não uma mensagem de falha genérica.
-- [ ] **CA-14** — Resposta **404** exibe "Tarefa não encontrada" e remove o item da lista (RN-AUTZ-03).
+- [x] **CA-14** — Resposta **404** exibe "Tarefa não encontrada" e remove o item da lista (RN-AUTZ-03). *(Atendido em 03/10/2026, issue #9: a mensagem vai para um aviso da página, que continua visível depois que o item sai. Coberto por `tasks-page.component.spec.ts`.)*
 - [x] **CA-15** — O 404 tem a mesma mensagem para tarefa alheia e tarefa inexistente — a tela não distingue.
 - [x] **CA-16** — Erro de rede reverte o otimismo e exibe mensagem de conectividade.
 - [x] **CA-17** — Cliques repetidos rápidos no mesmo item disparam **uma** requisição; o controle fica bloqueado enquanto ela está em voo.

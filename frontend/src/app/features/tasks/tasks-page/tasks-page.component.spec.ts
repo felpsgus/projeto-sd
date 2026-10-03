@@ -671,4 +671,103 @@ describe('TasksPageComponent', () => {
       expect(await screen.findByText('Estudar para a prova')).toBeTruthy();
     });
   });
+
+  describe('404 em concluir/reabrir/remover (issue #9)', () => {
+    const NOT_FOUND = 'Tarefa não encontrada.';
+    const notFound = { status: 404, statusText: 'Not Found' };
+
+    async function loadTasks(items: TaskResponse[]) {
+      const ctx = await setup();
+      firstListRequest(ctx.httpMock).flush({
+        items,
+        page: 1,
+        pageSize: 20,
+        totalCount: items.length,
+      });
+      await screen.findByText('Estudar para a prova');
+      return ctx;
+    }
+
+    it('concluir com 404 tira o item e avisa na página', async () => {
+      const { httpMock } = await loadTasks([
+        makeTask({ id: '1' }),
+        makeTask({ id: '2', title: 'Segunda' }),
+      ]);
+      await userEvent.click(
+        screen.getByRole('checkbox', { name: 'Concluir: Estudar para a prova' }),
+      );
+      httpMock.expectOne('/api/tasks/1/complete').flush({}, notFound);
+
+      expect(await screen.findByText(NOT_FOUND)).toBeTruthy();
+      expect(screen.queryByText('Estudar para a prova')).toBeNull();
+    });
+
+    it('reabrir com 404 tira o item e avisa na página', async () => {
+      const { httpMock } = await loadTasks([
+        makeTask({ id: '1', status: 'Completed', completedAt: '2026-01-02T00:00:00Z' }),
+        makeTask({ id: '2', title: 'Segunda' }),
+      ]);
+      await userEvent.click(
+        screen.getByRole('checkbox', { name: 'Reabrir: Estudar para a prova' }),
+      );
+      httpMock.expectOne('/api/tasks/1/reopen').flush({}, notFound);
+
+      expect(await screen.findByText(NOT_FOUND)).toBeTruthy();
+      expect(screen.queryByText('Estudar para a prova')).toBeNull();
+    });
+
+    it('remover com 404 tira o item e avisa na página', async () => {
+      const { httpMock } = await loadTasks([
+        makeTask({ id: '1' }),
+        makeTask({ id: '2', title: 'Segunda' }),
+      ]);
+      await userEvent.click(screen.getAllByRole('button', { name: /remover/i })[0]!);
+      await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+      httpMock.expectOne('/api/tasks/1').flush({}, notFound);
+
+      expect(await screen.findByText(NOT_FOUND)).toBeTruthy();
+      expect(screen.queryByText('Estudar para a prova')).toBeNull();
+    });
+
+    it('404 no único item deixa a lista vazia e o aviso continua visível', async () => {
+      const { httpMock } = await loadTasks([makeTask({ id: '1' })]);
+      await userEvent.click(screen.getByRole('checkbox', { name: /concluir/i }));
+      httpMock.expectOne('/api/tasks/1/complete').flush({}, notFound);
+
+      expect(await screen.findByText('Você ainda não tem tarefas.')).toBeTruthy();
+      expect(screen.getByText(NOT_FOUND)).toBeTruthy();
+    });
+
+    it('iniciar outra ação limpa o aviso', async () => {
+      const { httpMock } = await loadTasks([
+        makeTask({ id: '1' }),
+        makeTask({ id: '2', title: 'Segunda' }),
+      ]);
+      await userEvent.click(
+        screen.getByRole('checkbox', { name: 'Concluir: Estudar para a prova' }),
+      );
+      httpMock.expectOne('/api/tasks/1/complete').flush({}, notFound);
+      await screen.findByText(NOT_FOUND);
+
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Segunda' }));
+      httpMock
+        .expectOne('/api/tasks/2/complete')
+        .flush({ errorCode: 'task.already_completed' }, { status: 409, statusText: 'Conflict' });
+
+      await waitFor(() => expect(screen.queryByText(NOT_FOUND)).toBeNull());
+    });
+
+    it('erro 500 continua na linha do item, não no aviso da página', async () => {
+      const { httpMock } = await loadTasks([makeTask({ id: '1' })]);
+      await userEvent.click(screen.getByRole('checkbox', { name: /concluir/i }));
+      httpMock
+        .expectOne('/api/tasks/1/complete')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+
+      const alert = await screen.findByRole('alert');
+      expect(alert.closest('app-task-item')).not.toBeNull();
+      expect(screen.getAllByRole('alert')).toHaveLength(1);
+      expect(screen.getByText('Estudar para a prova')).toBeTruthy();
+    });
+  });
 });

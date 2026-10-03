@@ -167,3 +167,12 @@
     font-size: var(--font-size-sm);
   }
 }
+
+.tasks-page__notice {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  border-left: 2px solid var(--color-danger);
+  font-size: var(--font-size-sm);
+}

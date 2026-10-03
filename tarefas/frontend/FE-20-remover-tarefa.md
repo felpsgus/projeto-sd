@@ -65,7 +65,7 @@ O usuário remove uma tarefa sua com uma confirmação no caminho, e ela desapar
 
 ### Erros
 
-- [ ] **CA-15** — Resposta **404** exibe "Tarefa não encontrada" e o item é retirado da lista.
+- [x] **CA-15** — Resposta **404** exibe "Tarefa não encontrada" e o item é retirado da lista. *(Atendido em 03/10/2026, issue #9: mesmo aviso da página usado por concluir e reabrir.)*
 - [x] **CA-16** — O 404 tem a mesma mensagem para tarefa alheia e inexistente (RN-AUTZ-03).
 - [x] **CA-17** — Erro de rede exibe mensagem e a tarefa **permanece** na lista — a interface não mente sobre o que aconteceu.
 - [ ] **CA-18** — Após um erro, tentar remover de novo funciona.

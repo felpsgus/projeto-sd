@@ -73,6 +73,10 @@
     }
   </form>
 
+  @if (pageNotice(); as notice) {
+    <p class="tasks-page__notice" role="alert">{{ notice }}</p>
+  }
+
   @switch (store.status()) {
     @case ('loading') {
       <app-loading label="Carregando tarefas…" />
