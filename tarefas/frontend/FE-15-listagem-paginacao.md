@@ -77,7 +77,7 @@ A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, pa
 - [ ] **CA-15** — Na primeira página, "anterior" está desabilitado; na última, "próxima" está desabilitado.
 - [x] **CA-16** — Com uma única página, os controles são ocultados ou desabilitados, não exibidos como interativos inúteis.
 - [ ] **CA-17** — O `pageSize` usado é o retornado pela API, não uma constante no frontend.
-- [ ] **CA-18** — Mudar de página move o foco para o início da lista e anuncia a mudança a leitor de tela.
+- [x] **CA-18** — Mudar de página move o foco para o início da lista e anuncia a mudança a leitor de tela. *(Atendido em 03/10/2026, issue #10: Anterior/Próxima focam o título do primeiro item da página carregada e "Página X de Y" virou `role="status"`. Voltar/avançar do navegador não movem o foco.)*
 
 ### Estados
 

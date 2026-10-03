@@ -76,7 +76,7 @@ Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela re
 
 - [x] **CA-19** — O controle tem rótulo acessível que identifica a tarefa (ex.: "Concluir: Comprar pão"), não apenas "Concluir".
 - [x] **CA-20** — A mudança de estado é anunciada a leitor de tela.
-- [ ] **CA-21** — O controle é acionável pelo teclado e o foco não se perde quando o item muda de posição ou sai da lista.
+- [x] **CA-21** — O controle é acionável pelo teclado e o foco não se perde quando o item muda de posição ou sai da lista. *(Atendido em 03/10/2026, issue #10: quando o item sai (404 ou filtro ativo), o foco vai para o título do vizinho; na mudança de posição o `track task.id` preserva o nó. Coberto por `tasks-page.component.spec.ts` em jsdom.)*
 - [x] **CA-22** — O estado não é comunicado apenas por cor ou ícone: há texto.
 
 ## Testes obrigatórios

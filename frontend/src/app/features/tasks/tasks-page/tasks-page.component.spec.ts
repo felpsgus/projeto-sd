@@ -770,4 +770,126 @@ describe('TasksPageComponent', () => {
       expect(screen.getByText('Estudar para a prova')).toBeTruthy();
     });
   });
+
+  describe('foco quando o item sai da lista e na troca de página (issue #10)', () => {
+    const three = [
+      makeTask({ id: '1', title: 'Primeira' }),
+      makeTask({ id: '2', title: 'Segunda' }),
+      makeTask({ id: '3', title: 'Terceira' }),
+    ];
+
+    async function loadList(items: TaskResponse[], route = 'tasks', totalCount = items.length) {
+      const ctx = await setup(route);
+      firstListRequest(ctx.httpMock).flush({ items, page: 1, pageSize: 20, totalCount });
+      await screen.findByText(items[0]!.title);
+      return ctx;
+    }
+
+    async function removeItem(title: string) {
+      await userEvent.click(screen.getByRole('button', { name: `Remover: ${title}` }));
+      await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+    }
+
+    const title = (text: string) => screen.getByRole('heading', { name: text });
+    const noReload = (httpMock: HttpTestingController) =>
+      httpMock
+        .match((r) => r.url === '/api/tasks' && r.method === 'GET')
+        .forEach((r) => r.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 }));
+
+    it('remover o item do meio leva o foco ao título do seguinte', async () => {
+      const { httpMock } = await loadList(three);
+      await removeItem('Segunda');
+      httpMock.expectOne('/api/tasks/2').flush(null, { status: 204, statusText: 'No Content' });
+
+      await waitFor(() => expect(document.activeElement).toBe(title('Terceira')));
+    });
+
+    it('remover o último leva o foco ao título do anterior', async () => {
+      const { httpMock } = await loadList(three);
+      await removeItem('Terceira');
+      httpMock.expectOne('/api/tasks/3').flush(null, { status: 204, statusText: 'No Content' });
+
+      await waitFor(() => expect(document.activeElement).toBe(title('Segunda')));
+    });
+
+    it('remover o único item leva o foco ao <h1>', async () => {
+      const { httpMock } = await loadList([makeTask({ id: '1', title: 'Única' })]);
+      await removeItem('Única');
+      httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
+
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 })),
+      );
+    });
+
+    it('concluir com 404 leva o foco ao título do seguinte', async () => {
+      const { httpMock } = await loadList(three);
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      httpMock
+        .expectOne('/api/tasks/1/complete')
+        .flush({}, { status: 404, statusText: 'Not Found' });
+
+      await waitFor(() => expect(document.activeElement).toBe(title('Segunda')));
+    });
+
+    it('com filtro Pendentes, concluir tira o item e leva o foco ao título do seguinte', async () => {
+      const { httpMock } = await loadList(three, 'tasks?status=pending');
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      httpMock.expectOne('/api/tasks/1/complete').flush({
+        ...three[0]!,
+        status: 'Completed',
+        completedAt: '2026-01-02T00:00:00Z',
+      });
+
+      await waitFor(() => expect(document.activeElement).toBe(title('Segunda')));
+      noReload(httpMock);
+    });
+
+    it('sem filtro, concluir não move o foco do checkbox', async () => {
+      const { httpMock } = await loadList(three);
+      const checkbox = screen.getByRole('checkbox', { name: 'Concluir: Primeira' });
+      await userEvent.click(checkbox);
+      httpMock.expectOne('/api/tasks/1/complete').flush({
+        ...three[0]!,
+        status: 'Completed',
+        completedAt: '2026-01-02T00:00:00Z',
+      });
+      await screen.findAllByText('Concluída');
+
+      expect(document.activeElement).toBe(checkbox);
+      noReload(httpMock);
+    });
+
+    it('trocar de página leva o foco ao primeiro item novo e anuncia a página', async () => {
+      const { httpMock } = await loadList(three, 'tasks', 60);
+      await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+      const req = await waitFor(() =>
+        httpMock.expectOne((r) => r.url === '/api/tasks' && r.params.get('page') === '2'),
+      );
+      req.flush({
+        items: [makeTask({ id: '4', title: 'Quarta' }), makeTask({ id: '5', title: 'Quinta' })],
+        page: 2,
+        pageSize: 20,
+        totalCount: 60,
+      });
+
+      await waitFor(() => expect(document.activeElement).toBe(title('Quarta')));
+      expect(screen.getByText(/página 2 de 3/i).getAttribute('role')).toBe('status');
+    });
+
+    it('carga inicial e mudança de filtro não roubam o foco', async () => {
+      const { httpMock } = await loadList(three);
+      const isTarget = () => ['H1', 'H2'].includes(document.activeElement?.tagName ?? '');
+      expect(isTarget()).toBe(false);
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Pendentes' }));
+      const req = await waitFor(() =>
+        httpMock.expectOne((r) => r.url === '/api/tasks' && r.params.get('status') === 'pending'),
+      );
+      req.flush({ items: three, page: 1, pageSize: 20, totalCount: 3 });
+      await screen.findByText('Primeira');
+
+      expect(isTarget()).toBe(false);
+    });
+  });
 });

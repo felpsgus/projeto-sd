@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   ViewChild,
   effect,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -49,6 +51,8 @@ export class TaskItemComponent {
 
   @ViewChild(ConfirmDialogComponent) private readonly removeDialog?: ConfirmDialogComponent;
 
+  private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
+
   protected readonly liveMessage = signal('');
 
   private previousStatus: TaskStatus | null = null;
@@ -63,6 +67,11 @@ export class TaskItemComponent {
       }
       this.previousStatus = current;
     });
+  }
+
+  /** Move o foco para o título — alvo quando o item vizinho sai da lista (FE-20, CA-20). */
+  focusTitle(): void {
+    this.title().nativeElement.focus();
   }
 
   protected priorityLabel(): string {

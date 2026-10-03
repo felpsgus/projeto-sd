@@ -1,11 +1,16 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
   computed,
   effect,
   inject,
   signal,
   untracked,
+  viewChild,
+  viewChildren,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -69,6 +74,12 @@ export class TasksPageComponent {
   protected readonly store = inject(TasksStore);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly injector = inject(Injector);
+
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly taskItems = viewChildren(TaskItemComponent);
+  /** Marca de "troquei de página": consumida quando a nova página termina de carregar. */
+  private focusOnPageLoad = false;
 
   protected readonly priorityOptions: readonly TaskPriorityFilter[] = ['low', 'medium', 'high'];
   protected readonly priorityLabels = PRIORITY_FILTER_LABELS;
@@ -111,6 +122,15 @@ export class TasksPageComponent {
       const state = this.queryState();
       this.pageNoticeSignal.set(null);
       this.store.load(state.page, this.store.pageSize(), state.filters);
+    });
+
+    // Troca de página: quando a nova página termina de carregar, o foco vai para o primeiro item
+    // (ou o <h1>) — o botão Próxima/Anterior some durante o carregamento (FE-15, CA-18).
+    effect(() => {
+      if (this.store.status() === 'success' && this.focusOnPageLoad) {
+        this.focusOnPageLoad = false;
+        this.focusItemAt(0);
+      }
     });
 
     // Mantém o campo de busca em sincronia quando a URL muda por fora da digitação (voltar,
@@ -195,6 +215,7 @@ export class TasksPageComponent {
 
   protected clearFilters(): void {
     this.searchInputSignal.set('');
+    this.focusOnPageLoad = false;
     void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
   }
 
@@ -207,15 +228,19 @@ export class TasksPageComponent {
   }
 
   protected onComplete(task: TaskResponse): void {
-    this.runItemAction(task.id, this.store.complete(task.id));
+    this.runItemAction(task.id, () => this.store.complete(task.id));
   }
 
   protected onReopen(task: TaskResponse): void {
-    this.runItemAction(task.id, this.store.reopen(task.id));
+    this.runItemAction(task.id, () => this.store.reopen(task.id));
   }
 
   protected onRemove(task: TaskResponse): void {
-    this.runItemAction(task.id, this.store.remove(task.id), () => this.afterRemove());
+    this.runItemAction(
+      task.id,
+      () => this.store.remove(task.id),
+      () => this.afterRemove(),
+    );
   }
 
   /**
@@ -223,7 +248,11 @@ export class TasksPageComponent {
    * clique — nenhuma ação duplicada, e ids diferentes seguem em paralelo sem se atrapalhar
    * (CA-18).
    */
-  private runItemAction<T>(taskId: string, request: Observable<T>, onSuccess?: () => void): void {
+  private runItemAction<T>(
+    taskId: string,
+    start: () => Observable<T>,
+    onSuccess?: () => void,
+  ): void {
     if (this.isPending(taskId)) {
       return;
     }
@@ -231,13 +260,30 @@ export class TasksPageComponent {
     this.clearError(taskId);
     this.pageNoticeSignal.set(null);
 
+    // Índice capturado ANTES de chamar o store: concluir/reabrir com filtro ativo tira o item
+    // da lista de forma síncrona (patch otimista). Quando o item sai, o foco vai para quem
+    // ocupou o lugar dele (FE-20, CA-20) — senão cairia no <body>.
+    const index = this.store.items().findIndex((item) => item.id === taskId);
+    let focusMoved = false;
+    const moveFocusIfLeft = (): void => {
+      if (focusMoved || this.focusOnPageLoad || this.store.items().some((i) => i.id === taskId)) {
+        return;
+      }
+      focusMoved = true;
+      this.focusItemAt(index);
+    };
+
+    const request = start();
+    moveFocusIfLeft();
     request.subscribe({
       next: () => {
         this.setPending(taskId, false);
         onSuccess?.();
+        moveFocusIfLeft();
       },
       error: (error: AppError) => {
         this.setPending(taskId, false);
+        moveFocusIfLeft();
         if (error.status === 404) {
           this.pageNoticeSignal.set(error.message);
         } else {
@@ -260,8 +306,28 @@ export class TasksPageComponent {
     }
   }
 
+  /**
+   * Depois da renderização, foca o título do item em `index`; sem ele, o do anterior; sem
+   * nenhum, o <h1> (FE-15 CA-18, FE-19 CA-21, FE-20 CA-20).
+   */
+  private focusItemAt(index: number): void {
+    afterNextRender(
+      () => {
+        const items = this.taskItems();
+        const target = items[index] ?? items[index - 1];
+        if (target) {
+          target.focusTitle();
+        } else {
+          this.heading()?.nativeElement.focus();
+        }
+      },
+      { injector: this.injector },
+    );
+  }
+
   /** Muda de página navegando (histórico completo, ao contrário de um filtro — CA-19). */
   private goToPage(page: number): void {
+    this.focusOnPageLoad = true;
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: buildTasksQueryParams({ page, filters: this.queryState().filters }),
@@ -272,6 +338,7 @@ export class TasksPageComponent {
   /** Aplica um novo conjunto de filtros: sempre volta para a página 1 (CA-21) e usa
    * `replaceUrl` para não entupir o histórico (CA-19). */
   private applyFilters(filters: TasksFilters): void {
+    this.focusOnPageLoad = false;
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: buildTasksQueryParams({ page: 1, filters }),

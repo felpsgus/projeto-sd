@@ -9,7 +9,7 @@
 
   <div class="task-item__body">
     <div class="task-item__heading">
-      <h2 class="task-item__title">{{ task().title }}</h2>
+      <h2 #title class="task-item__title" tabindex="-1">{{ task().title }}</h2>
 
       <div class="task-item__due-group" [class.task-item__due-group--overdue]="task().isOverdue">
         <p class="task-item__due tabular-nums">

@@ -228,6 +228,13 @@ select {
   outline: none;
 }
 
+/* Foco movido por código na lista de tarefas (item removido, troca de página): o título/<h1>
+   focado precisa de contorno, ao contrário do <h1> de mudança de rota. */
+.tasks-page h1[tabindex='-1']:focus-visible,
+.task-item__title[tabindex='-1']:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+}
+
 /* Alvos de toque >= 44 px em tela pequena ou toque (FE-21 CA-19). Checkbox/radio: o alvo é o
    <label> que os envolve. */
 @media (max-width: 40rem), (pointer: coarse) {
