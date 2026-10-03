@@ -1,0 +1,7 @@
+// Fixo: o indicador de rota lazy não desloca o layout a cada navegação.
+.route-loading {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 1000;
+  background: var(--color-surface, #fff);
+}

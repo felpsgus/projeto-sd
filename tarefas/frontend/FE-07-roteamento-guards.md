@@ -75,8 +75,8 @@ Rotas autenticadas são inacessíveis a visitantes, rotas públicas não são ex
 ### Lazy loading
 
 - [x] **CA-11** — O bundle inicial **não** contém o código das features `tasks` e `account` (verificado no relatório de build).
-- [ ] **CA-12** — Cada feature é carregada no primeiro acesso à sua rota, e o carregamento exibe indicador em vez de tela em branco.
-- [ ] **CA-13** — Falha ao carregar um chunk (rede caiu) exibe mensagem com opção de tentar novamente, não uma tela morta.
+- [x] **CA-12** — Cada feature é carregada no primeiro acesso à sua rota, e o carregamento exibe indicador em vez de tela em branco. *(Atendido em 03/10/2026, issue #13: o componente raiz mostra `<app-loading>` entre `RouteConfigLoadStart` e o fim da carga. Coberto por `app.spec.ts`.)*
+- [x] **CA-13** — Falha ao carregar um chunk (rede caiu) exibe mensagem com opção de tentar novamente, não uma tela morta. *(Atendido em 03/10/2026, issue #13: em `NavigationError` o componente raiz mostra a mensagem e "Tentar novamente", que refaz a navegação para a mesma URL. Não exercitado em navegador com a rede cortada.)*
 
 ### Navegação
 

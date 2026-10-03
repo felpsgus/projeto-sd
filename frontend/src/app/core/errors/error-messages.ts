@@ -57,3 +57,7 @@ export const SERVICE_UNAVAILABLE_MESSAGE =
  * específico em vez de um genérico "recurso" (FE-03, tabela de mensagens).
  */
 export const NOT_FOUND_MESSAGE = 'Tarefa não encontrada.';
+
+/** FE-07 CA-13: o chunk de uma rota lazy não baixou (rede caiu); a tela oferece tentar de novo. */
+export const ROUTE_LOAD_ERROR_MESSAGE =
+  'Não foi possível carregar esta página. Verifique sua conexão e tente novamente.';

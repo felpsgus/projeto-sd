@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
@@ -93,5 +94,118 @@ describe('App', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement?.id).toBe('main-content');
+  });
+});
+
+@Component({ selector: 'app-test-ok', template: '<h1>Tela ok</h1>' })
+class OkComponent {}
+
+@Component({ selector: 'app-test-lazy', template: '<h1>Tela lazy</h1>' })
+class LazyComponent {}
+
+/** FE-07 CA-12/CA-13: indicador durante o download do chunk e retry quando ele falha. */
+describe('App — carregamento de rota lazy (FE-07)', () => {
+  let loader: ReturnType<typeof vi.fn>;
+  let pending: { resolve: () => void; reject: (e: Error) => void };
+
+  function arm(): void {
+    loader.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          pending = { resolve: () => resolve(LazyComponent), reject };
+        }),
+    );
+  }
+
+  function setup() {
+    loader = vi.fn();
+    arm();
+    TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        provideRouter([
+          { path: 'lazy', loadComponent: loader as () => Promise<typeof LazyComponent> },
+          { path: 'ok', component: OkComponent },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
+    });
+    TestBed.inject(SessionStore).finishBootstrap();
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const router = TestBed.inject(Router);
+    const el: HTMLElement = fixture.nativeElement;
+    const settle = async () => {
+      // sem whenStable: a navegação pendente mantém o app "instável" até o chunk resolver.
+      await new Promise((r) => setTimeout(r, 0));
+      fixture.detectChanges();
+    };
+    return { router, el, settle };
+  }
+
+  const failure = () => new Error('Failed to fetch dynamically imported module');
+  const FAIL_TEXT = 'Não foi possível carregar esta página';
+
+  it('mostra o indicador enquanto o chunk carrega e o remove ao resolver (CA-12)', async () => {
+    const { router, el, settle } = setup();
+    const nav = router.navigateByUrl('/lazy');
+    await settle();
+    expect(el.textContent).toContain('Carregando');
+
+    pending.resolve();
+    await nav;
+    await settle();
+    expect(el.textContent).not.toContain('Carregando');
+    expect(el.textContent).toContain('Tela lazy');
+  });
+
+  it('mostra mensagem e "Tentar novamente" quando o chunk falha (CA-13)', async () => {
+    const { router, el, settle } = setup();
+    const nav = router.navigateByUrl('/lazy').catch(() => undefined);
+    await settle();
+    pending.reject(failure());
+    await nav;
+    await settle();
+
+    expect(el.textContent).toContain(FAIL_TEXT);
+    expect(el.textContent).toContain('Tentar novamente');
+    expect(el.textContent).not.toContain('Carregando');
+  });
+
+  it('"Tentar novamente" refaz a mesma URL e, se der certo, limpa a mensagem (CA-13)', async () => {
+    const { router, el, settle } = setup();
+    const nav = router.navigateByUrl('/lazy').catch(() => undefined);
+    await settle();
+    pending.reject(failure());
+    await nav;
+    await settle();
+
+    arm();
+    el.querySelector<HTMLButtonElement>('button.error-state__retry')!.click();
+    await settle();
+    expect(loader).toHaveBeenCalledTimes(2);
+    pending.resolve();
+    await settle();
+    await settle();
+
+    expect(router.url).toBe('/lazy');
+    expect(el.textContent).not.toContain(FAIL_TEXT);
+    expect(el.textContent).toContain('Tela lazy');
+  });
+
+  it('navegar para outra rota depois da falha some com a mensagem (CA-13)', async () => {
+    const { router, el, settle } = setup();
+    const nav = router.navigateByUrl('/lazy').catch(() => undefined);
+    await settle();
+    pending.reject(failure());
+    await nav;
+    await settle();
+    expect(el.textContent).toContain(FAIL_TEXT);
+
+    await router.navigateByUrl('/ok');
+    await settle();
+    expect(el.textContent).not.toContain(FAIL_TEXT);
+    expect(el.textContent).toContain('Tela ok');
   });
 });
