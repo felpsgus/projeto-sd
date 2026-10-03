@@ -56,6 +56,30 @@ public class OpenApiDocumentTests : IClassFixture<GatewayApiFactory>
         operations["put /api/tasks/{id}"].GetProperty("description").GetString().Should().Contain("SUBSTITUIÇÃO").And.Contain("omitidos viram null");
     }
 
+    [Fact] // BE-08 CA-12 — o Scalar só oferece "Authorize" se o documento declara o esquema Bearer
+    public async Task Esquema_bearer_e_exigido_so_nas_operacoes_autenticadas()
+    {
+        var document = await LoadDocumentAsync();
+        string[] anonymous = ["post /api/auth/login", "post /api/auth/refresh", "post /api/auth/register", "get /health", "get /health/live"];
+
+        var scheme = document.GetProperty("components").GetProperty("securitySchemes").GetProperty("Bearer");
+        scheme.GetProperty("type").GetString().Should().Be("http");
+        scheme.GetProperty("scheme").GetString().Should().Be("bearer");
+        scheme.GetProperty("bearerFormat").GetString().Should().Be("JWT");
+
+        var operations = Operations(document).ToList();
+        operations.Select(operation => $"{operation.Method} {operation.Path}").Should().Contain(["post /api/tasks", "get /api/tasks", "get /api/me", "post /api/auth/logout", "post /api/auth/logout-all"]);
+
+        foreach (var (path, method, operation) in operations)
+        {
+            var name = $"{method} {path}";
+            var hasBearer = operation.TryGetProperty("security", out var security)
+                && security.EnumerateArray().Any(requirement => requirement.TryGetProperty("Bearer", out _));
+
+            hasBearer.Should().Be(!anonymous.Contains(name), "{0}: Bearer só nas rotas autenticadas", name);
+        }
+    }
+
     private static IEnumerable<string> Statuses(JsonElement operation) =>
         operation.GetProperty("responses").EnumerateObject().Select(response => response.Name);
 

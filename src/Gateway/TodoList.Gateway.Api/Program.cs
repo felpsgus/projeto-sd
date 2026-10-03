@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using TodoList.Gateway.Api.Authentication;
 using TodoList.Gateway.Api.Backends;
@@ -81,7 +82,27 @@ builder.Services.AddAuthorizationBuilder()
         .Build());
 
 // ── OpenAPI/Scalar (Development, CA-14) ──────────────────────────────────
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    // BE-08 CA-12: sem o esquema Bearer o Scalar não oferece autorização. A decisão vem do metadado do endpoint (AllowAnonymous).
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes = new Dictionary<string, IOpenApiSecurityScheme>
+        {
+            ["Bearer"] = new OpenApiSecurityScheme { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT" },
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        if (!context.Description.ActionDescriptor.EndpointMetadata.OfType<IAllowAnonymous>().Any())
+        {
+            operation.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = [] }];
+        }
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
 
