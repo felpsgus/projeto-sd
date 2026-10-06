@@ -85,7 +85,7 @@ Existe uma solution .NET 10 compilando, com **dois serviços** (Identity e Tasks
 - [x] **CA-01** — `dotnet build` na raiz conclui **sem warnings**, compilando os dois serviços.
 - [x] **CA-02** — `dotnet format --verify-no-changes` passa sem alterações pendentes.
 - [x] **CA-03** — `dotnet run --project src/Identity/TodoList.Identity.Api` e `dotnet run --project src/Tasks/TodoList.Tasks.Api` sobem **as duas** aplicações simultaneamente, sem conflito de porta, e `GET /health` responde **200** em cada uma.
-- [ ] **CA-04** — Em ambiente `Development`, a UI de OpenAPI está acessível nos dois serviços e lista o respectivo endpoint de health.
+- [x] **CA-04** — Em ambiente `Development`, a UI de OpenAPI está acessível nos dois serviços e lista o respectivo endpoint de health. *(06/10/2026: os "dois serviços" com OpenAPI hoje são Identity e Gateway; o Tasks é só gRPC (D-35). No Identity o health não aparecia no documento, porque `MapHealthChecks` não expõe método HTTP ao gerador; corrigido em `HealthEndpoints`. Coberto por `OpenApiUiTests` nos dois projetos de integração, que também confere que fora de Development nada é servido.)*
 - [x] **CA-05** — Em **cada** serviço o grafo de dependências é exatamente `Api → Infrastructure → Application → Domain → SharedKernel`; nenhuma seta aponta no sentido inverso.
 - [x] **CA-06** — `TodoList.Identity.Domain.csproj` e `TodoList.Tasks.Domain.csproj` não declaram nenhum `PackageReference` e declaram **um único** `ProjectReference`: `TodoList.SharedKernel`.
 - [x] **CA-06b** — `TodoList.SharedKernel.csproj` não declara nenhum `PackageReference` nem `ProjectReference`.

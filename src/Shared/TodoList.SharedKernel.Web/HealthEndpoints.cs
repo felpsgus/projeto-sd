@@ -13,7 +13,8 @@ public static class HealthEndpoints
 {
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/health").WithTags("Health");
+        // MapHealthChecks não declara método HTTP nem MethodInfo; sem os dois o gerador de OpenAPI ignora o endpoint.
+        var group = endpoints.MapGroup("/health").WithTags("Health").WithMetadata(new HttpMethodMetadata(["GET"]), ((Action)OpenApiHandlerStub).Method);
 
         // Liveness: nunca executa nenhum health check registrado (Predicate
         // sempre falso) — não depende de banco, cache ou serviço externo, só
@@ -40,5 +41,9 @@ public static class HealthEndpoints
             .AllowAnonymous();
 
         return endpoints;
+    }
+
+    private static void OpenApiHandlerStub()
+    {
     }
 }
