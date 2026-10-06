@@ -5,6 +5,7 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using TodoList.Contracts.Identity.V1;
 using TodoList.Identity.Api.ResultMapping;
 using TodoList.Identity.Infrastructure.Persistence;
@@ -34,6 +35,7 @@ public class DeleteAccountGrpcTests : IAsyncLifetime
 {
     private readonly PostgresContainerFixture _fixture;
     private WebApplicationFactory<Program> _factory = null!;
+    private readonly FailingSaveChangesInterceptor _failing = new();
 
     public DeleteAccountGrpcTests(PostgresContainerFixture fixture)
     {
@@ -63,7 +65,8 @@ public class DeleteAccountGrpcTests : IAsyncLifetime
                 {
                     [$"ConnectionStrings:{ServiceCollectionExtensions.ConnectionStringName}"] = _fixture.ConnectionString,
                     ["UserStore:Provider"] = "Persisted",
-                })));
+                }))
+            .ConfigureServices(services => services.ConfigureDbContext<IdentityDbContext>(options => options.AddInterceptors(_failing))));
     }
 
     public Task DisposeAsync()
@@ -182,6 +185,47 @@ public class DeleteAccountGrpcTests : IAsyncLifetime
 
         newUser.Id.Should().NotBe(user.Id);
         newUser.Email.Should().Be(email);
+    }
+
+    [Fact] // CA-08: as sessões (refresh tokens) de outro usuário sobrevivem à exclusão
+    [Trait("Category", "Docker")]
+    public async Task DeleteAccount_NaoRevogaRefreshTokenDeOutroUsuario()
+    {
+        using var client = CreateClient();
+        const string password = "senha-correta-123";
+        var userA = await client.RegisterAsync(new RegisterRequest { Email = "sessao-a@exemplo.com", Password = password, DisplayName = "" });
+        await client.RegisterAsync(new RegisterRequest { Email = "sessao-b@exemplo.com", Password = password, DisplayName = "" });
+        var loginB = await client.LoginAsync(new LoginRequest { Email = "sessao-b@exemplo.com", Password = password });
+
+        await client.DeleteAccountAsync(new DeleteAccountRequest { UserId = userA.Id, Password = password });
+
+        (await client.RefreshSessionAsync(new RefreshSessionRequest { RefreshToken = loginB.RefreshToken })).Succeeded.Should().BeTrue();
+    }
+
+    [Fact] // CA-11: falha na persistência -> nada é apagado (conta, sessão e tarefas)
+    [Trait("Category", "Docker")]
+    public async Task DeleteAccount_FalhaNaPersistencia_NaoApagaNada()
+    {
+        using var client = CreateClient();
+        const string password = "senha-correta-123";
+        var user = await client.RegisterAsync(new RegisterRequest { Email = "falha-exclusao@exemplo.com", Password = password, DisplayName = "" });
+        var userId = Guid.Parse(user.Id);
+        var login = await client.LoginAsync(new LoginRequest { Email = "falha-exclusao@exemplo.com", Password = password });
+        await using (var tasksContext = CreateTasksProbeContext())
+        {
+            await SeedTaskAsync(tasksContext, userId, softDeleted: false);
+        }
+
+        _failing.Armed = true;
+        var act = async () => await client.DeleteAccountAsync(new DeleteAccountRequest { UserId = user.Id, Password = password });
+        await act.Should().ThrowAsync<RpcException>();
+        _failing.Armed = false;
+
+        await using var identityContext = CreateIdentityProbeContext();
+        (await identityContext.Users.AnyAsync(u => u.Id == userId)).Should().BeTrue();
+        await using var tasksContextDepois = CreateTasksProbeContext();
+        (await tasksContextDepois.Tasks.CountAsync(t => t.OwnerId == userId)).Should().Be(1);
+        (await client.RefreshSessionAsync(new RefreshSessionRequest { RefreshToken = login.RefreshToken })).Succeeded.Should().BeTrue();
     }
 
     private static async Task SeedTaskAsync(TasksDbContext context, Guid ownerId, bool softDeleted)

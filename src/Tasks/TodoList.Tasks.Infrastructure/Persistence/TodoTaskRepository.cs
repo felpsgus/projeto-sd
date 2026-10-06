@@ -29,9 +29,6 @@ public sealed class TodoTaskRepository : ITodoTaskRepository
         _context = context;
     }
 
-    public Task<TodoTask?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        Query().SingleOrDefaultAsync(task => task.Id == id, cancellationToken);
-
     public void Add(TodoTask task) => _context.Tasks.Add(task);
 
     public void Remove(TodoTask task) => _context.Tasks.Remove(task);
@@ -39,7 +36,7 @@ public sealed class TodoTaskRepository : ITodoTaskRepository
     public Task<int> CountActiveByOwnerAsync(Guid ownerId, CancellationToken cancellationToken = default) =>
         Query().CountAsync(task => task.OwnerId == ownerId && task.Status == TodoTaskStatus.Pending, cancellationToken);
 
-    public IQueryable<TodoTask> Query() => _context.Tasks;
+    private DbSet<TodoTask> Query() => _context.Tasks;
 
     public async Task<(IReadOnlyList<TodoTask> Items, int TotalCount)> ListByOwnerAsync(
         Guid ownerId, int page, int pageSize, TaskListFilter filter, CancellationToken cancellationToken = default)

@@ -191,4 +191,18 @@ public class ArchitectureTests
         result.FailingTypeNames is null
             ? "sem detalhes disponíveis"
             : string.Join(", ", result.FailingTypeNames);
+
+    [Fact] // BE-02 CA-14
+    public void CodigoDoIdentityNaoReferenciaOSchemaDoOutroServicoForaDeMigrations()
+    {
+        // Só literais de string (comentários podem citar o outro schema; "identity.unavailable" é código de erro, não schema).
+        var padrao = new System.Text.RegularExpressions.Regex(@"""tasks""|""[^""]*\btasks\.tasks\b");
+        var violacoes = Directory.EnumerateFiles(Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Identity"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(f => File.ReadLines(f).Any(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal) && padrao.IsMatch(l)));
+
+        violacoes.Should().BeEmpty("cada serviço só conhece o próprio schema (D-27)");
+    }
 }

@@ -56,6 +56,20 @@ public class ArchitectureTests
         result.IsSuccessful.Should().BeTrue(DescreverFalhas(result));
     }
 
+    [Fact] // BE-18 CA-10
+    public void ITodoTaskRepository_NenhumMetodoQueCarregaTodoTaskDispensaOParametroDeDono()
+    {
+        var semDono = typeof(TodoList.Tasks.Application.Persistence.ITodoTaskRepository).GetMethods()
+            .Where(m => ReferenciaTodoTask(m.ReturnType) && !m.GetParameters().Any(p => p.Name == "ownerId"))
+            .Select(m => m.Name);
+
+        semDono.Should().BeEmpty("carregar tarefa sem filtrar pelo dono abre brecha de autorização (RN-AUTZ-02)");
+    }
+
+    private static bool ReferenciaTodoTask(Type type) =>
+        type == typeof(TodoList.Tasks.Domain.Tasks.TodoTask)
+        || (type.IsGenericType && type.GetGenericArguments().Any(ReferenciaTodoTask));
+
     [Fact] // CA-06
     public void Domain_NaoTemPackageReference_ETemApenasProjectReferenceParaSharedKernel()
     {
@@ -302,4 +316,18 @@ public class ArchitectureTests
         result.FailingTypeNames is null
             ? "sem detalhes disponíveis"
             : string.Join(", ", result.FailingTypeNames);
+
+    [Fact] // BE-02 CA-14
+    public void CodigoDoTasksNaoReferenciaOSchemaDoOutroServicoForaDeMigrations()
+    {
+        // Só literais de string (comentários podem citar o outro schema; "identity.unavailable" é código de erro, não schema).
+        var padrao = new System.Text.RegularExpressions.Regex(@"""identity""|""[^""]*\bidentity\.(users|refresh_tokens|login_attempts)\b");
+        var violacoes = Directory.EnumerateFiles(Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Tasks"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(f => File.ReadLines(f).Any(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal) && padrao.IsMatch(l)));
+
+        violacoes.Should().BeEmpty("cada serviço só conhece o próprio schema (D-27)");
+    }
 }

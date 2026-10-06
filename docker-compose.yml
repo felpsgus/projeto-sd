@@ -159,6 +159,9 @@ services:
     environment:
       Backends__IdentityGrpcAddress: http://identity:8080
       Backends__TasksGrpcAddress: http://tasks:8080
+      # PBKDF2 leva ~0,5-0,9 s por hash e a troca de senha faz dois: o padrão de 2 s estoura (503)
+      # com a suíte E2E em paralelo. Mesmo valor do compose de produção.
+      Backends__IdentityGrpcTimeoutSeconds: 10
       Jwt__PublicKeyPath: /run/secrets/jwt_public
       # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway — só a
       # chave pública precisa ser apontada aqui (BE-40, D-38).

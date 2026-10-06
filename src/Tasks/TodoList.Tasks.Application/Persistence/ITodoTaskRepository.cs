@@ -19,12 +19,6 @@ namespace TodoList.Tasks.Application.Persistence;
 /// </summary>
 public interface ITodoTaskRepository
 {
-    /// <summary>
-    /// Busca por id respeitando o filtro global de soft delete (BE-02,
-    /// CA-06) — uma tarefa removida não é encontrada por aqui.
-    /// </summary>
-    public Task<TodoTask?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-
     /// <summary>Passa a rastrear <paramref name="task"/> como nova — só é persistida no próximo <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
     public void Add(TodoTask task);
 
@@ -44,12 +38,6 @@ public interface ITodoTaskRepository
     /// uso, não do domínio — ver BE-17).
     /// </summary>
     public Task<int> CountActiveByOwnerAsync(Guid ownerId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Consulta composável (filtro, ordenação, paginação) para os casos de
-    /// uso de listagem (BE-22). Já respeita o filtro global de soft delete.
-    /// </summary>
-    public IQueryable<TodoTask> Query();
 
     /// <summary>
     /// Página de tarefas do dono, não removidas, filtradas por

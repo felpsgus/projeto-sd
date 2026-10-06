@@ -3,6 +3,7 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using TodoList.Contracts.Identity.V1;
 using TodoList.Identity.Api.ResultMapping;
 using TodoList.Identity.Infrastructure.Persistence;
@@ -19,6 +20,7 @@ public class AccountManagementGrpcTests : IAsyncLifetime
 {
     private readonly PostgresContainerFixture _fixture;
     private WebApplicationFactory<Program> _factory = null!;
+    private readonly FailingSaveChangesInterceptor _failing = new();
 
     public AccountManagementGrpcTests(PostgresContainerFixture fixture)
     {
@@ -41,7 +43,8 @@ public class AccountManagementGrpcTests : IAsyncLifetime
                 {
                     [$"ConnectionStrings:{ServiceCollectionExtensions.ConnectionStringName}"] = _fixture.ConnectionString,
                     ["UserStore:Provider"] = "Persisted",
-                })));
+                }))
+            .ConfigureServices(services => services.ConfigureDbContext<IdentityDbContext>(options => options.AddInterceptors(_failing))));
     }
 
     public Task DisposeAsync()
@@ -150,6 +153,38 @@ public class AccountManagementGrpcTests : IAsyncLifetime
         await using var contextDepois = CreateProbeContext();
         var hashDepois = (await contextDepois.Users.SingleAsync(u => u.Id == Guid.Parse(user.Id))).PasswordHash;
         hashDepois.Should().Be(hashAntes);
+    }
+
+    [Fact] // BE-15, CA-10: o refresh token de B continua válido depois que A troca a senha
+    [Trait("Category", "Docker")]
+    public async Task ChangePassword_NaoRevogaRefreshTokenDeOutroUsuario()
+    {
+        using var client = CreateClient();
+        var userA = await client.RegisterAsync(new RegisterRequest { Email = "a3@exemplo.com", Password = "senha-a-123", DisplayName = "" });
+        await client.RegisterAsync(new RegisterRequest { Email = "b3@exemplo.com", Password = "senha-b-123", DisplayName = "" });
+        var loginB = await client.LoginAsync(new LoginRequest { Email = "b3@exemplo.com", Password = "senha-b-123" });
+
+        await client.ChangePasswordAsync(new ChangePasswordRequest { UserId = userA.Id, CurrentPassword = "senha-a-123", NewPassword = "senha-a-nova-456" });
+
+        (await client.RefreshSessionAsync(new RefreshSessionRequest { RefreshToken = loginB.RefreshToken })).Succeeded.Should().BeTrue();
+    }
+
+    [Fact] // BE-15, CA-11/CA-12: falha na persistência -> hash intacto E sessões não revogadas (mesmo SaveChanges)
+    [Trait("Category", "Docker")]
+    public async Task ChangePassword_FalhaNaPersistencia_NaoMudaHashNemRevogaSessoes()
+    {
+        using var client = CreateClient();
+        var user = await client.RegisterAsync(new RegisterRequest { Email = "falha@exemplo.com", Password = "senha-antiga-123", DisplayName = "" });
+        var login = await client.LoginAsync(new LoginRequest { Email = "falha@exemplo.com", Password = "senha-antiga-123" });
+        _failing.Armed = true;
+
+        var act = async () => await client.ChangePasswordAsync(
+            new ChangePasswordRequest { UserId = user.Id, CurrentPassword = "senha-antiga-123", NewPassword = "senha-nova-456" });
+        await act.Should().ThrowAsync<RpcException>();
+        _failing.Armed = false;
+
+        (await client.LoginAsync(new LoginRequest { Email = "falha@exemplo.com", Password = "senha-antiga-123" })).Succeeded.Should().BeTrue("hash não mudou");
+        (await client.RefreshSessionAsync(new RefreshSessionRequest { RefreshToken = login.RefreshToken })).Succeeded.Should().BeTrue("sessão não foi revogada");
     }
 
     private IdentityGrpcTestClient CreateClient()

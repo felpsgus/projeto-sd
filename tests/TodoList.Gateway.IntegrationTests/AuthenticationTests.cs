@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using Microsoft.IdentityModel.Tokens;
 using TodoList.Gateway.Api.Contracts;
 using Xunit;
 
@@ -85,6 +87,32 @@ public class AuthenticationTests : IClassFixture<GatewayApiFactory>
         var token = JwtTestTokens.CreateWithWrongAudience(_factory.SigningKey, Subject);
 
         var response = await PostWithTokenAsync(token, _payloadValido);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact] // BE-08 CA-10 / BE-13 CA-04 — payload adulterado, assinatura original
+    public async Task CreateTask_PayloadAdulteradoComAssinaturaOriginal_Retorna401()
+    {
+        var partes = JwtTestTokens.CreateValid(_factory.SigningKey, Subject).Split('.');
+        var payload = Encoding.UTF8.GetString(Base64UrlEncoder.DecodeBytes(partes[1]));
+        var adulterado = Base64UrlEncoder.Encode(payload.Replace(Subject, "22222222-2222-2222-2222-222222222222", StringComparison.Ordinal));
+        adulterado.Should().NotBe(partes[1]);
+
+        var response = await PostWithTokenAsync($"{partes[0]}.{adulterado}.{partes[2]}", _payloadValido);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory] // BE-13 CA-04 — lixo no Bearer é 401, nunca 500
+    [InlineData("isto-nao-e-um-jwt")]
+    [InlineData("")]
+    public async Task CreateTask_BearerMalformadoOuVazio_Retorna401(string token)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {token}");
+
+        var response = await client.PostAsJsonAsync(new Uri("/api/tasks", UriKind.Relative), _payloadValido);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
