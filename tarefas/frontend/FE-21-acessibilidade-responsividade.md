@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma de negócio |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **só o básico já exigido por [FE-04](FE-04-layout-design-base.md)** (skip link, landmarks, foco por navegação, contraste dos tokens) nas três telas do recorte (login, lista, criar tarefa). A auditoria transversal completa desta task — `axe-core` integrado ao CI, auditoria manual de leitor de tela, verificação nas três larguras de referência, `docs/acessibilidade.md` — fica para depois; não há CI completo no T2 ([FE-23](FE-23-ci-build-seguranca.md) também parcial) para hospedar os gates. Sem dependência de backend.
+
 ## Objetivo
 
 A aplicação inteira é utilizável por teclado, por leitor de tela e em telas pequenas — verificado por auditoria automatizada no CI, não por inspeção pontual.
@@ -44,44 +46,55 @@ A aplicação inteira é utilizável por teclado, por leitor de tela e em telas 
 
 ### Automatizado
 
-- [ ] **CA-01** — `axe-core` roda em todas as telas listadas e **zero** violações críticas ou sérias permanecem.
-- [ ] **CA-02** — A auditoria está integrada ao CI: uma violação nova **falha** o build — comprovado introduzindo uma violação uma vez.
-- [ ] **CA-03** — Violações de nível moderado que não forem corrigidas estão registradas com justificativa em `docs/acessibilidade.md`.
+- [x] **CA-01** — `axe-core` roda em todas as telas listadas e **zero** violações críticas ou sérias permanecem.
+- [x] **CA-02** — A auditoria está integrada ao CI: uma violação nova **falha** o build — comprovado introduzindo uma violação uma vez. *(PR descartável de 06/10/2026, #19, run 37540911839: um `h1` com contraste insuficiente no login derrubou o job `e2e`; o axe acusou `color-contrast (serious): h1` em `a11y.spec.ts`, nos dois perfis.)*
+- [x] **CA-03** — Violações de nível moderado que não forem corrigidas estão registradas com justificativa em `docs/acessibilidade.md`.
 
 ### Teclado
 
-- [ ] **CA-04** — Todo fluxo (cadastro, login, criar, editar, concluir, remover, filtrar, trocar senha, excluir conta, sair) é completável **apenas pelo teclado**.
-- [ ] **CA-05** — A ordem de tabulação segue a ordem visual em todas as telas.
-- [ ] **CA-06** — O indicador de foco é visível em **todos** os elementos interativos, com contraste suficiente.
-- [ ] **CA-07** — Não existe armadilha de foco fora de diálogo modal.
-- [ ] **CA-08** — Todo diálogo prende o foco, fecha com `Esc` e devolve o foco ao elemento de origem.
-- [ ] **CA-09** — O skip link funciona e é o primeiro elemento focável.
+- [x] **CA-04** — Todo fluxo (cadastro, login, criar, editar, concluir, remover, filtrar, trocar senha, excluir conta, sair) é completável **apenas pelo teclado**.
+- [x] **CA-05** — A ordem de tabulação segue a ordem visual em todas as telas. *(04/10/2026: verificação automática por posição dos elementos, com tolerância de 8 px.)*
+- [x] **CA-06** — O indicador de foco é visível em **todos** os elementos interativos, com contraste suficiente.
+- [x] **CA-07** — Não existe armadilha de foco fora de diálogo modal.
+- [x] **CA-08** — Todo diálogo prende o foco, fecha com `Esc` e devolve o foco ao elemento de origem.
+- [x] **CA-09** — O skip link funciona e é o primeiro elemento focável.
 
 ### Leitor de tela
 
-- [ ] **CA-10** — Mudança de rota é anunciada (foco no cabeçalho da nova página).
+- [x] **CA-10** — Mudança de rota é anunciada (foco no cabeçalho da nova página).
 - [ ] **CA-11** — Mensagens de erro e sucesso são anunciadas com `aria-live` apropriado.
 - [ ] **CA-12** — Cada campo de formulário é anunciado com seu label e, quando inválido, com a mensagem de erro.
 - [ ] **CA-13** — Ações de item de lista são anunciadas identificando **qual** tarefa.
 - [ ] **CA-14** — A lista anuncia a quantidade de itens; a mudança de resultado após filtrar é anunciada.
-- [ ] **CA-15** — Nenhuma informação é transmitida **apenas** por cor ou ícone (prioridade, estado, atrasada).
-- [ ] **CA-16** — Cada página tem um `<h1>` único e hierarquia de cabeçalhos sem saltos.
+- [x] **CA-15** — Nenhuma informação é transmitida **apenas** por cor ou ícone (prioridade, estado, atrasada).
+- [x] **CA-16** — Cada página tem um `<h1>` único e hierarquia de cabeçalhos sem saltos.
 
 ### Visual
 
-- [ ] **CA-17** — Contraste ≥ **4.5:1** para texto normal e ≥ **3:1** para texto grande, em todos os estados.
-- [ ] **CA-18** — Em 360 px, nenhuma tela tem rolagem horizontal.
-- [ ] **CA-19** — Em 360 px, todos os alvos de toque têm ao menos 44×44 px.
-- [ ] **CA-20** — Em 768 px e 1440 px, o layout se adapta sem conteúdo cortado nem linhas excessivamente longas.
-- [ ] **CA-21** — Zoom de texto a 200% não corta conteúdo nem impede nenhuma ação.
-- [ ] **CA-22** — Com `prefers-reduced-motion`, animações e transições são reduzidas ou eliminadas.
+- [x] **CA-17** — Contraste ≥ **4.5:1** para texto normal e ≥ **3:1** para texto grande, em todos os estados. *(04/10/2026: axe nos temas claro e escuro, com tarefa concluída, atrasada e erros de formulário; `:hover`, `::selection` e elementos desabilitados não são medidos.)*
+- [x] **CA-18** — Em 360 px, nenhuma tela tem rolagem horizontal.
+- [x] **CA-19** — Em 360 px, todos os alvos de toque têm ao menos 44×44 px. *(04/10/2026: links em linha dentro de frase, como "Cadastre-se", ficam de fora pela isenção da WCAG 2.5.8.)*
+- [x] **CA-20** — Em 768 px e 1440 px, o layout se adapta sem conteúdo cortado nem linhas excessivamente longas.
+- [x] **CA-21** — Zoom de texto a 200% não corta conteúdo nem impede nenhuma ação. *(04/10/2026: zoom de texto, `font-size` da raiz a 200%; o zoom de página do navegador não foi testado.)*
+- [x] **CA-22** — Com `prefers-reduced-motion`, animações e transições são reduzidas ou eliminadas.
 
 ### Registro
 
-- [ ] **CA-23** — `docs/acessibilidade.md` documenta o que foi auditado, com qual ferramenta/leitor, o que foi corrigido e o que ficou pendente.
+- [x] **CA-23** — `docs/acessibilidade.md` documenta o que foi auditado, com qual ferramenta/leitor, o que foi corrigido e o que ficou pendente.
 
 ## Testes obrigatórios
 
 - `axe-core` em testes de componente e em E2E — CA-01, CA-02.
 - Testes automatizados de foco: CA-08, CA-10 (reaproveitando o de [FE-04](FE-04-layout-design-base.md)) e o foco após remoção de item ([FE-20](FE-20-remover-tarefa.md)/CA-20).
 - CA-04, CA-05 e a auditoria de leitor de tela são **manuais e documentadas** — a ausência do registro em `docs/acessibilidade.md` reprova a task.
+
+## Nota de 03/10/2026 — auditoria automatizada
+
+Registro completo em [`docs/acessibilidade.md`](../../docs/acessibilidade.md). Marcados só os CAs verificados por teste automatizado (`frontend/e2e/a11y.spec.ts`, Chromium desktop e 360 px) ou por código/documento.
+
+- **Pendente (manual ou de CI):** CA-02 (axe no CI); CA-04/05/06/07 (auditoria manual de teclado completa — só o fluxo login -> criar -> concluir foi automatizado); CA-11 a CA-14 (leitor de tela NVDA/VoiceOver **não** foi feito); CA-15 e CA-16 (cor/ícone; `<h1>` único — o axe não reportou, mas não há asserção explícita); CA-17 (contraste: sem violações do axe, mas sem planilha de todos os pares/estados nem do tema escuro); CA-19 (alvos >= 44 px medidos para botões e `<label>` de checkbox/radio; links de texto em linha não medidos); CA-20 (768/1440 px não verificados); CA-21 (zoom 200% não testado).
+- CA-22: a regra `prefers-reduced-motion` em `src/styles.scss` já existia; não há teste dela.
+
+## Nota de execução — 03/10/2026 (CI)
+
+workflow escrito e cada passo executado localmente; falta a primeira execução real no GitHub e a prova de falha em PR descartável. CA-02 segue aberto: o axe roda dentro da suíte E2E do job `e2e`.

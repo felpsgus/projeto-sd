@@ -12,8 +12,14 @@
 *.service       text eol=lf
 *.env.example   text eol=lf
 *.yml           text eol=lf
+*.conf          text eol=lf
 *.yaml          text eol=lf
 Dockerfile      text eol=lf
+
+# Frontend: LF em tudo. O Prettier usa `endOfLine: "lf"` por padrão, então com
+# CRLF no checkout o `npm run format:check` falharia num clone novo — e a mesma
+# árvore é buildada em container Linux (BE-42).
+frontend/**     text eol=lf
 
 # Precisam de CRLF: o .editorconfig exige, e `dotnet format --verify-no-changes`
 # falha se o arquivo chegar com LF.

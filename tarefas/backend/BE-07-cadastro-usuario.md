@@ -52,21 +52,21 @@ Um visitante consegue criar a própria conta com e-mail e senha, e a conta nasce
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `POST /api/auth/register` com dados válidos retorna **201** e o corpo contém `id`, `email` (normalizado), `displayName` e `createdAt`.
-- [ ] **CA-02** — O usuário criado existe no banco com `IsActive == true` e `PasswordHash` preenchido (RN-AUTH-06).
-- [ ] **CA-03** — O `PasswordHash` gravado **não** é igual à senha enviada.
-- [ ] **CA-04** — A resposta **não contém** nenhum campo de senha ou hash, em nenhum cenário (sucesso ou erro).
-- [ ] **CA-05** — Cadastrar um e-mail já existente retorna **409** com código de erro estável (ex.: `auth.email_already_registered`).
-- [ ] **CA-06** — Cadastrar `JOAO@Exemplo.com` quando já existe `joao@exemplo.com` também retorna **409** (RN-AUTH-02, case-insensitive).
-- [ ] **CA-07** — E-mail com formato inválido retorna **400** apontando o campo `email` (RN-AUTH-03).
-- [ ] **CA-08** — Senha fora da política retorna **400** apontando o campo `password`, com a lista de violações (RN-AUTH-04).
-- [ ] **CA-09** — Cadastro sem `displayName` produz o nome igual à parte antes do `@` (RN-AUTH-07) — verificado na resposta e no banco.
-- [ ] **CA-10** — Cadastro com `displayName: "   "` recebe o mesmo tratamento de ausente.
-- [ ] **CA-11** — Cadastro com `displayName` válido preserva o valor informado.
-- [ ] **CA-12** — Duas requisições concorrentes com o mesmo e-mail resultam em **exatamente um** usuário criado; a outra recebe **409**, nunca 500 (teste de integração com execução paralela).
-- [ ] **CA-13** — O endpoint é acessível **sem** token de autenticação.
-- [ ] **CA-14** — Nenhum log gerado durante o cadastro contém a senha enviada.
-- [ ] **CA-15** — O endpoint aparece na especificação OpenAPI com os status 201, 400 e 409 documentados.
+- [x] **CA-01** — `POST /api/auth/register` com dados válidos retorna **201** e o corpo contém `id`, `email` (normalizado), `displayName` e `createdAt`.
+- [x] **CA-02** — O usuário criado existe no banco com `PasswordHash` preenchido (RN-AUTH-06). *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-03** — O `PasswordHash` gravado **não** é igual à senha enviada.
+- [x] **CA-04** — A resposta **não contém** nenhum campo de senha ou hash, em nenhum cenário (sucesso ou erro).
+- [x] **CA-05** — Cadastrar um e-mail já existente retorna **409** com código de erro estável (ex.: `auth.email_already_registered`).
+- [x] **CA-06** — Cadastrar `JOAO@Exemplo.com` quando já existe `joao@exemplo.com` também retorna **409** (RN-AUTH-02, case-insensitive).
+- [x] **CA-07** — E-mail com formato inválido retorna **400** apontando o campo `email` (RN-AUTH-03).
+- [x] **CA-08** — Senha fora da política retorna **400** apontando o campo `password`, com a lista de violações (RN-AUTH-04).
+- [x] **CA-09** — Cadastro sem `displayName` produz o nome igual à parte antes do `@` (RN-AUTH-07) — verificado na resposta e no banco.
+- [x] **CA-10** — Cadastro com `displayName: "   "` recebe o mesmo tratamento de ausente.
+- [x] **CA-11** — Cadastro com `displayName` válido preserva o valor informado.
+- [x] **CA-12** — Duas requisições concorrentes com o mesmo e-mail resultam em **exatamente um** usuário criado; a outra recebe **409**, nunca 500 (teste de integração com execução paralela).
+- [x] **CA-13** — O endpoint é acessível **sem** token de autenticação.
+- [x] **CA-14** — Nenhum log gerado durante o cadastro contém a senha enviada.
+- [x] **CA-15** — O endpoint aparece na especificação OpenAPI com os status 201, 400 e 409 documentados.
 
 ## Testes obrigatórios
 
@@ -77,3 +77,11 @@ Um visitante consegue criar a própria conta com e-mail e senha, e a conta nasce
 ## Decisões em aberto
 
 - **D-01** — Auto-cadastro liberado a qualquer visitante. Padrão adotado: sim.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 15 de 15.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O usuário recém-cadastrado não "nasce ativo": não há mais estado `IsActive` (issue #16). Onde o texto acima diz "ativa"/"ativo" (RN-AUTH-06), leia "apto a autenticar". O CA-02 foi emendado.

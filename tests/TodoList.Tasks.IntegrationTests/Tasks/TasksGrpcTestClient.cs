@@ -1,0 +1,144 @@
+using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Grpc.Health.V1;
+using Grpc.Net.Client;
+using TodoList.Contracts.Tasks.V1;
+
+namespace TodoList.Tasks.IntegrationTests.Tasks;
+
+/// <summary>
+/// Cliente gRPC mínimo para os testes de integração de <c>CreateTask</c>
+/// (BE-35) — mesmo padrão de
+/// <c>TodoList.Identity.IntegrationTests.IdentityGrpcTestClient</c>: como
+/// <c>tasks.proto</c> é compilado com <c>GrpcServices="Server"</c> só no
+/// <c>TodoList.Tasks.Api</c> (D-29), não existe stub de cliente gerado — o RPC
+/// é invocado direto pelo <see cref="CallInvoker"/>, com os mesmos tipos de
+/// mensagem gerados para o servidor. O health check usa o cliente já pronto
+/// de <c>Grpc.HealthCheck</c> (<see cref="Health.HealthClient"/>), trazido
+/// transitivamente por <c>Grpc.AspNetCore.HealthChecks</c> (BE-35, D-37).
+/// </summary>
+internal sealed class TasksGrpcTestClient : IDisposable
+{
+    /// <summary>Nome da metadata gRPC que carrega o dono da tarefa (D-34).</summary>
+    public const string OwnerHeaderName = "x-user-id";
+
+    /// <summary>Nome da metadata gRPC com a data local do usuário (D-18/D-34).</summary>
+    public const string ClientDateHeaderName = "x-client-date";
+
+    private static readonly Method<CreateTaskRequest, TaskReply> _createTaskMethod =
+        CreateMethod<CreateTaskRequest, TaskReply>("CreateTask");
+
+    private static readonly Method<ListTasksRequest, ListTasksReply> _listTasksMethod =
+        CreateMethod<ListTasksRequest, ListTasksReply>("ListTasks");
+
+    private static readonly Method<GetTaskRequest, TaskReply> _getTaskMethod =
+        CreateMethod<GetTaskRequest, TaskReply>("GetTask");
+
+    private static readonly Method<UpdateTaskRequest, TaskReply> _updateTaskMethod =
+        CreateMethod<UpdateTaskRequest, TaskReply>("UpdateTask");
+
+    private static readonly Method<CompleteTaskRequest, TaskReply> _completeTaskMethod =
+        CreateMethod<CompleteTaskRequest, TaskReply>("CompleteTask");
+
+    private static readonly Method<ReopenTaskRequest, TaskReply> _reopenTaskMethod =
+        CreateMethod<ReopenTaskRequest, TaskReply>("ReopenTask");
+
+    private static readonly Method<DeleteTaskRequest, Empty> _deleteTaskMethod =
+        CreateMethod<DeleteTaskRequest, Empty>("DeleteTask");
+
+    private readonly GrpcChannel _channel;
+    private readonly CallInvoker _invoker;
+    private readonly Health.HealthClient _healthClient;
+
+    public TasksGrpcTestClient(HttpMessageHandler httpHandler, Uri address)
+    {
+        _channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions { HttpHandler = httpHandler });
+        _invoker = _channel.CreateCallInvoker();
+        _healthClient = new Health.HealthClient(_channel);
+    }
+
+    /// <summary>Monta a metadata <c>x-user-id</c> (e opcionalmente <c>x-client-date</c>) de uma chamada.</summary>
+    public static Metadata OwnerHeaders(string? ownerId, string? clientDate = null)
+    {
+        var metadata = new Metadata();
+
+        if (ownerId is not null)
+        {
+            metadata.Add(OwnerHeaderName, ownerId);
+        }
+
+        if (clientDate is not null)
+        {
+            metadata.Add(ClientDateHeaderName, clientDate);
+        }
+
+        return metadata;
+    }
+
+    public AsyncUnaryCall<TaskReply> CreateTaskAsync(
+        CreateTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _createTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>BE-41: mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>ListTasks</c>.</summary>
+    public AsyncUnaryCall<ListTasksReply> ListTasksAsync(
+        ListTasksRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _listTasksMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>BE-41: mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>GetTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> GetTaskAsync(
+        GetTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _getTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-19): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>UpdateTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> UpdateTaskAsync(
+        UpdateTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _updateTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-20): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>CompleteTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> CompleteTaskAsync(
+        CompleteTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _completeTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-20): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>ReopenTask</c>.</summary>
+    public AsyncUnaryCall<TaskReply> ReopenTaskAsync(
+        ReopenTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _reopenTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>Fase 1 do PLANO-REGRAS-RESTANTES (BE-21): mesmo padrão de <see cref="CreateTaskAsync"/>, para o RPC <c>DeleteTask</c>.</summary>
+    public AsyncUnaryCall<Empty> DeleteTaskAsync(
+        DeleteTaskRequest request, Metadata? headers = null, DateTime? deadline = null) =>
+        _invoker.AsyncUnaryCall(
+            _deleteTaskMethod, host: null, new CallOptions(headers: headers ?? new Metadata(), deadline: deadline), request);
+
+    /// <summary>gRPC Health Checking Protocol (BE-35, D-37, CA-14) — sem <c>service</c> específico, o mesmo que o probe do Cloud Run consulta.</summary>
+    public AsyncUnaryCall<HealthCheckResponse> CheckHealthAsync() =>
+        _healthClient.CheckAsync(new HealthCheckRequest());
+
+    public void Dispose() => _channel.Dispose();
+
+    private static Method<TRequest, TResponse> CreateMethod<TRequest, TResponse>(string name)
+        where TRequest : IMessage<TRequest>, new()
+        where TResponse : IMessage<TResponse>, new() =>
+        new(
+            MethodType.Unary,
+            "tasks.v1.TasksService",
+            name,
+            Marshallers.Create<TRequest>(static message => message.ToByteArray(), CreateParser<TRequest>()),
+            Marshallers.Create<TResponse>(static message => message.ToByteArray(), CreateParser<TResponse>()));
+
+    private static Func<byte[], T> CreateParser<T>()
+        where T : IMessage<T>, new() =>
+        bytes =>
+        {
+            var message = new T();
+            message.MergeFrom(bytes);
+            return message;
+        };
+}

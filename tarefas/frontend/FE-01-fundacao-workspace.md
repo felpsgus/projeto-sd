@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma diretamente (habilita todas) |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **integral**, incluindo o `.nvmrc` fixando Node 22 LTS ou 24 LTS (o Node local hoje é v16 — atualizar antes de começar) e, como acréscimo do T2, o `proxy.conf.json` de desenvolvimento apontando `/api` para `http://localhost:8080` (mesma origem que o nginx reproduzirá em produção — ver emenda de **FD-16** em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md)). Ver [README](README.md#recorte-do-t2-entrega-de-22102026).
+
 ## Objetivo
 
 Existe um workspace Angular 22 zoneless que compila, roda, passa no lint e executa testes — com as versões de ferramenta fixadas e a estrutura de pastas definida.
@@ -54,21 +56,21 @@ Existe um workspace Angular 22 zoneless que compila, roda, passa no lint e execu
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `npm ci && npm run build` conclui **sem warnings**.
-- [ ] **CA-02** — `npm run lint` e `npm run format:check` passam.
-- [ ] **CA-03** — `npm start` sobe a aplicação e ela renderiza sem erro no console do navegador.
-- [ ] **CA-04** — `npm test` executa via Vitest e passa.
-- [ ] **CA-05** — `npm run test:coverage` gera relatório de cobertura em `coverage/`.
-- [ ] **CA-06** — A aplicação roda **zoneless**: `zone.js` não está nos polyfills e `provideZonelessChangeDetection()` está registrado. Uma busca por `zone.js` no bundle não encontra nada.
-- [ ] **CA-07** — Um componente com signal atualizando fora de evento do Angular (ex.: `setTimeout`) **re-renderiza** corretamente — prova de que a reatividade por signals está funcionando sem zone.
-- [ ] **CA-08** — Tentar usar `any` sem comentário de justificativa **falha** o lint.
-- [ ] **CA-09** — Um erro de tipo em template (`strictTemplates`) **falha** o build — comprovado uma vez com um binding inválido.
-- [ ] **CA-10** — Nenhum `NgModule` existe na base de código.
-- [ ] **CA-11** — A versão do Node está fixada em `.nvmrc` e casa com a usada no CI.
-- [ ] **CA-12** — `@angular/core` e `@angular/cli` estão no mesmo major (**22.x**) e o TypeScript está em `~5.9`.
-- [ ] **CA-13** — Nenhum segredo, chave ou URL de produção com credencial está versionado em `environments/`.
-- [ ] **CA-14** — Navegar para uma rota inexistente exibe a página 404, não uma tela em branco.
-- [ ] **CA-15** — O `README.md` do frontend permite a uma pessoa nova instalar, rodar e testar seguindo apenas o que está escrito.
+- [x] **CA-01** — `npm ci && npm run build` conclui **sem warnings**.
+- [x] **CA-02** — `npm run lint` e `npm run format:check` passam.
+- [x] **CA-03** — `npm start` sobe a aplicação e ela renderiza sem erro no console do navegador. *(04/10/2026: provado pelo E2E contra o build de produção atrás do nginx, não contra `npm start`: nenhum `console.error`, `pageerror` nem violação de CSP nas telas.)*
+- [x] **CA-04** — `npm test` executa via Vitest e passa.
+- [x] **CA-05** — `npm run test:coverage` gera relatório de cobertura em `coverage/`.
+- [x] **CA-06** — A aplicação roda **zoneless**: `zone.js` não está nos polyfills e `provideZonelessChangeDetection()` está registrado. Uma busca por `zone.js` no bundle não encontra nada.
+- [x] **CA-07** — Um componente com signal atualizando fora de evento do Angular (ex.: `setTimeout`) **re-renderiza** corretamente — prova de que a reatividade por signals está funcionando sem zone.
+- [x] **CA-08** — Tentar usar `any` sem comentário de justificativa **falha** o lint.
+- [x] **CA-09** — Um erro de tipo em template (`strictTemplates`) **falha** o build — comprovado uma vez com um binding inválido.
+- [x] **CA-10** — Nenhum `NgModule` existe na base de código.
+- [x] **CA-11** — A versão do Node está fixada em `.nvmrc` e casa com a usada no CI.
+- [x] ~~**CA-12** — `@angular/core` e `@angular/cli` estão no mesmo major (**22.x**) e o TypeScript está em `~5.9`.~~ **Substituído (06/10/2026)**: `@angular/core` e `@angular/cli` estão em 22.x, mas o `@angular/compiler-cli` 22.2.1 exige `typescript >=6.0 <6.1`, então `~5.9` não é mais instalável; o projeto usa `~6.0.2`.
+- [x] **CA-13** — Nenhum segredo, chave ou URL de produção com credencial está versionado em `environments/`.
+- [x] **CA-14** — Navegar para uma rota inexistente exibe a página 404, não uma tela em branco.
+- [x] **CA-15** — O `README.md` do frontend permite a uma pessoa nova instalar, rodar e testar seguindo apenas o que está escrito.
 
 ## Testes obrigatórios
 
@@ -79,3 +81,14 @@ Existe um workspace Angular 22 zoneless que compila, roda, passa no lint e execu
 ## Decisões em aberto
 
 - **FD-04** — SSR. Padrão adotado: não.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 15.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-03 | em aberto | Console sem erro no navegador não é verificado por nenhum teste automatizado (o E2E `leak.spec.ts` só coleta console para busca de segredos, não afirma ausência de erro). Verificação manual. |
+| CA-12 | em aberto | `@angular/core`/`cli` estão em 22.x, mas `package.json` fixa `typescript ~6.0.2`, não `~5.9`. Critério desatualizado em relação ao toolchain atual: atualizar o texto ou confirmar a versão exigida pelo Angular 22. |
+
+CA-08 conferido rodando `eslint --stdin` com `const a: any` (erro `no-explicit-any`). CA-09 por `strictTemplates: true` em `tsconfig.json` (não provocado em commit descartável). CA-01 por `npm run build` sem nenhuma ocorrência de warning em 03/10/2026. CA-11 por `.nvmrc` (24.21.0) lido pelo CI via `node-version-file`.

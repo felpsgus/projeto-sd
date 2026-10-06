@@ -1,0 +1,251 @@
+syntax = "proto3";
+
+option csharp_namespace = "TodoList.Contracts.Tasks.V1";
+
+package tasks.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// Fronteira de rede entre o API Gateway (cliente) e o Tasks Service
+// (servidor) — análoga a identity.proto, mas para o domínio de tarefas.
+service TasksService {
+  // Cria uma tarefa (RN-TASK-10) em nome do usuário identificado pela
+  // metadata gRPC "x-user-id" (D-34) — nunca por campo desta mensagem.
+  rpc CreateTask (CreateTaskRequest) returns (TaskReply);
+  // Lista as tarefas do dono identificado por "x-user-id" (BE-22, que
+  // substitui o recorte provisório de BE-41): só as não removidas,
+  // filtráveis por estado/prioridade/atraso, buscáveis por título e
+  // descrição, ordenadas pelo critério fixo de RN-LIST-06 (não mais só por
+  // criação decrescente) e paginadas. Não há parâmetro de ordenação
+  // alternativa — RN-LIST-06 é *a* ordenação.
+  rpc ListTasks (ListTasksRequest) returns (ListTasksReply);
+  // Consulta uma tarefa específica pelo mesmo método único de resolução de
+  // BE-18: filtra por dono e não-removida na própria query. Tarefa
+  // inexistente e tarefa de outro dono devolvem o mesmo NotFound
+  // (RN-AUTZ-03) — nunca um status que distinga os dois casos.
+  rpc GetTask (GetTaskRequest) returns (TaskReply);
+  // Substitui título, descrição, prioridade e vencimento de uma tarefa
+  // própria (BE-19, RN-TASK-11) — semântica de PUT/substituição: um campo
+  // ausente no chamador (Gateway) vira o padrão de substituição, nunca um
+  // "manter o valor atual" implícito. Resolve a tarefa pelo mesmo método
+  // único de BE-18/GetTask; status, dono, createdAt e completedAt não mudam
+  // por este RPC (BE-19, "Não inclui").
+  rpc UpdateTask (UpdateTaskRequest) returns (TaskReply);
+  // Conclui uma tarefa própria Pending (RN-TASK-08). Delega a transição a
+  // TodoTask.Complete (BE-05); repetir sobre uma tarefa já concluída é
+  // FAILED_PRECONDITION (task.already_completed, D-35), não um 200
+  // idempotente (BE-20, nota técnica).
+  rpc CompleteTask (CompleteTaskRequest) returns (TaskReply);
+  // Reabre uma tarefa própria Completed (RN-TASK-09), limpando
+  // completed_at. Delega a transição a TodoTask.Reopen (BE-05); repetir
+  // sobre uma tarefa já Pending é FAILED_PRECONDITION (task.not_completed).
+  rpc ReopenTask (ReopenTaskRequest) returns (TaskReply);
+  // Remove (soft delete, D-07/RN-TASK-13) uma tarefa própria — marca
+  // deleted_at, nunca DELETE físico (BE-21). Devolve google.protobuf.Empty:
+  // a borda REST traduz isso em 204 No Content (nenhum corpo a devolver
+  // depois de remover, mesma semântica de DELETE bem-sucedido), e não há
+  // nenhum dado da tarefa removida que o chamador ainda precise ler depois
+  // desta chamada — quem quiser confirmar o estado final consulta GetTask
+  // antes de remover, não depois.
+  rpc DeleteTask (DeleteTaskRequest) returns (google.protobuf.Empty);
+}
+
+message CreateTaskRequest {
+  // Título da tarefa (RN-TASK-02): 1–200 caracteres, não só espaços.
+  string title = 1;
+  // Descrição opcional (RN-TASK-03): até 2000 caracteres. `optional`
+  // distingue "não informado" de "informado como vazio" — proto3 sem
+  // `optional` não faz essa distinção (ver BE-32).
+  optional string description = 2;
+  // Prioridade (RN-TASK-04). TASK_PRIORITY_UNSPECIFIED equivale a
+  // "não informado" e o servidor aplica o padrão Média.
+  TaskPriority priority = 3;
+  // Data de vencimento opcional, no formato yyyy-MM-dd (RN-TASK-05).
+  // String, não google.type.Date (ver BE-32).
+  optional string due_date = 4;
+}
+
+// Prioridade de uma tarefa (RN-TASK-04). Valor 0 é o padrão do proto3 e significa
+// "não informado" (o servidor aplica Média); nunca aparece numa resposta.
+enum TaskPriority {
+  // Não informado; o servidor aplica Média (RN-TASK-04).
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  // Prioridade Baixa.
+  TASK_PRIORITY_LOW = 1;
+  // Prioridade Média, o padrão.
+  TASK_PRIORITY_MEDIUM = 2;
+  // Prioridade Alta.
+  TASK_PRIORITY_HIGH = 3;
+}
+
+// Estado de uma tarefa (RN-TASK-06): nasce PENDING e alterna só por
+// CompleteTask/ReopenTask. O valor 0 é só o padrão do proto3.
+enum TaskStatus {
+  // Valor padrão do proto3; nunca aparece numa resposta.
+  TASK_STATUS_UNSPECIFIED = 0;
+  // Pendente: estado inicial (RN-TASK-07) e o de uma tarefa reaberta (RN-TASK-09).
+  TASK_STATUS_PENDING = 1;
+  // Concluída (RN-TASK-08); tem `completed_at`.
+  TASK_STATUS_COMPLETED = 2;
+}
+
+// Representação de uma tarefa, devolvida por todos os RPCs que a retornam.
+message TaskReply {
+  // Id gerado pelo Tasks Service.
+  string id = 1;
+  // Título da tarefa, como persistido.
+  string title = 2;
+  // Descrição, se houver. optional para distinguir ausente de vazio.
+  optional string description = 3;
+  // Prioridade efetiva (nunca UNSPECIFIED numa resposta).
+  TaskPriority priority = 4;
+  // Estado atual (RN-TASK-06). Nasce PENDING (RN-TASK-07).
+  TaskStatus status = 5;
+  // Data de vencimento, se houver, no formato yyyy-MM-dd.
+  optional string due_date = 6;
+  // Verdadeiro se vencida e ainda pendente (RN-TASK-16), calculado pelo
+  // Tasks Service a partir de x-client-date (D-18/D-34).
+  bool is_overdue = 7;
+  // Data/hora de conclusão (RN-TASK-08), presente só se status=COMPLETED.
+  // (Ausente quando PENDING.)
+  google.protobuf.Timestamp completed_at = 8;
+  // Data/hora de criação.
+  google.protobuf.Timestamp created_at = 9;
+  // Data/hora da última alteração (RN-TASK-14).
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Request de ListTasks (BE-22 — filtros, busca, ordenação e paginação; a
+// versão anterior deste request, de BE-41, só tinha page/page_size). "Não
+// informado" é distinguido de um valor explícito campo a campo, comentado
+// abaixo em cada um — nenhum dos quatro filtros novos usa o mesmo truque:
+// cada um tem a forma de "ausente" que faz sentido para o próprio tipo.
+message ListTasksRequest {
+  // Página desejada (1-based). 0 (default do proto3 para int32) é "não
+  // informado" — o Tasks Service aplica page=1 nesse caso (D-09). Fora dos
+  // limites (negativo) é erro de validação, nunca truncamento silencioso.
+  int32 page = 1;
+
+  // Tamanho de página desejado. 0 é "não informado" — o Tasks Service
+  // aplica Paging:DefaultPageSize nesse caso (D-09). Fora de
+  // 1–Paging:MaxPageSize é erro de validação.
+  int32 page_size = 2;
+
+  // Filtro de estado (RN-LIST-02). TASK_STATUS_FILTER_UNSPECIFIED (0, o
+  // default do proto3 para enum) e TASK_STATUS_FILTER_ALL têm exatamente o
+  // mesmo efeito — nenhum filtro de estado, devolve pendentes e concluídas
+  // —, mas ALL existe para o chamador expressar a escolha explicitamente
+  // (ex.: um cliente que sempre popula todo campo do formulário de filtro).
+  // Qualquer outro valor (fora do enum) é erro de validação.
+  TaskStatusFilter status = 3;
+
+  // Filtro de prioridade (RN-LIST-03): disjunção entre os valores
+  // informados (equivalente a "priority IN (...)" no SQL). Lista vazia é
+  // "não informado" — todas as prioridades. TASK_PRIORITY_UNSPECIFIED
+  // dentro desta lista não é tratado como "ignorar este elemento": é um
+  // valor de filtro sem sentido (não existe tarefa com prioridade
+  // "não especificada") e por isso é erro de validação, assim como
+  // qualquer outro valor fora do enum de TaskPriority.
+  repeated TaskPriority priority = 4;
+
+  // Filtro de atraso (RN-LIST-04, RN-TASK-16) — derivado no servidor a
+  // partir de status=pending e due_date anterior a "hoje" (x-client-date,
+  // D-18), nunca uma coluna própria. Campo `optional`: a ausência (padrão
+  // proto3 do `optional bool` — `has_overdue=false`) significa "não filtra
+  // por atraso"; `overdue=false` explícito significa "só as NÃO atrasadas".
+  // Sem `optional` os dois casos colidiriam no mesmo valor default (false).
+  optional bool overdue = 5;
+
+  // Busca textual em título e descrição (RN-LIST-05, D-16), case-insensitive
+  // (não necessariamente acento-insensível — depende do collation do
+  // banco). Os curingas de LIKE (`%`, `_`) são escapados pelo Tasks Service
+  // antes de compor o filtro, para que uma busca por esses caracteres
+  // encontre o caractere literal, não funcione como curinga. String vazia
+  // ou só espaços é tratada como "não informado" — proto3 já não distingue
+  // "ausente" de "string vazia" para um campo `string` sem `optional`, o
+  // que aqui é exatamente o comportamento desejado (não há necessidade de
+  // `optional string` como em CreateTaskRequest.description).
+  string search = 6;
+}
+
+// Filtro de estado de ListTasks (BE-22, RN-LIST-02). Não é o mesmo enum de
+// TaskStatus (o estado real de uma tarefa nunca é "ALL") — este é só o
+// vocabulário de filtro, com um terceiro valor que significa "não filtrar".
+enum TaskStatusFilter {
+  // Não informado: não filtra por estado, igual a ALL (RN-LIST-02).
+  TASK_STATUS_FILTER_UNSPECIFIED = 0;
+  // Só as tarefas Pendentes.
+  TASK_STATUS_FILTER_PENDING = 1;
+  // Só as tarefas Concluídas.
+  TASK_STATUS_FILTER_COMPLETED = 2;
+  // Pendentes e Concluídas, sem filtro de estado.
+  TASK_STATUS_FILTER_ALL = 3;
+}
+
+// Reply de ListTasks. total_count é o total de tarefas do dono (não
+// removidas), não o total da página (BE-41, CA-08) — o cliente calcula
+// totalPages a partir dele, se precisar.
+message ListTasksReply {
+  // Tarefas da página, já na ordem de RN-LIST-06.
+  repeated TaskReply items = 1;
+  // Página devolvida (1-based) — a efetiva, depois de aplicado o padrão.
+  int32 page = 2;
+  // Tamanho de página efetivo, depois de aplicado o padrão e o limite máximo.
+  int32 page_size = 3;
+  // Total de tarefas do dono que casam com os filtros, somando todas as páginas.
+  int32 total_count = 4;
+}
+
+// Request de GetTask. Id como string (mesmo formato de TaskReply.id) — o
+// Tasks Service rejeita um valor que não seja um Guid válido como erro de
+// validação; não é papel deste RPC decidir 400 vs. 404 de rota, isso é do
+// Gateway (BE-41, nota técnica).
+message GetTaskRequest {
+  // Id da tarefa (Guid em texto).
+  string id = 1;
+}
+
+// Request de UpdateTask (BE-19) — substituição completa dos campos
+// editáveis. Mesma estrutura de campo de CreateTaskRequest, com "id" à
+// frente (campo 1) para identificar a tarefa; title/description/priority/
+// due_date reaproveitam os mesmos números relativos de CreateTaskRequest
+// para reduzir a distância cognitiva entre as duas mensagens.
+//
+// Semântica de substituição (BE-19, nota técnica): "description" e
+// "due_date" ausentes (proto3 `optional`, HasDescription/HasDueDate=false)
+// viram null — limpam o campo. "priority" ausente
+// (TASK_PRIORITY_UNSPECIFIED) volta ao padrão Média, o mesmo comportamento
+// de CreateTaskRequest. "title" é sempre obrigatório: um valor vazio não é
+// "ausente", é erro de validação (mesma regra de CreateTaskRequest).
+message UpdateTaskRequest {
+  // Id da tarefa a editar (Guid em texto).
+  string id = 1;
+  // Novo título (RN-TASK-02): 1–200 caracteres, não só espaços. Obrigatório.
+  string title = 2;
+  // Nova descrição (RN-TASK-03, até 2000 caracteres); ausente limpa o campo.
+  optional string description = 3;
+  // Nova prioridade (RN-TASK-04); UNSPECIFIED volta ao padrão Média.
+  TaskPriority priority = 4;
+  // Novo vencimento, yyyy-MM-dd (RN-TASK-05); ausente limpa o campo.
+  optional string due_date = 5;
+}
+
+// Request de CompleteTask (BE-20) — só o id; RN-TASK-08 não recebe nenhum
+// outro parâmetro do chamador (completed_at vem do relógio do servidor).
+message CompleteTaskRequest {
+  // Id da tarefa (Guid em texto).
+  string id = 1;
+}
+
+// Request de ReopenTask (BE-20) — só o id; RN-TASK-09 idem.
+message ReopenTaskRequest {
+  // Id da tarefa (Guid em texto).
+  string id = 1;
+}
+
+// Request de DeleteTask (BE-21) — só o id; RN-TASK-12/13 (soft delete).
+message DeleteTaskRequest {
+  // Id da tarefa (Guid em texto).
+  string id = 1;
+}

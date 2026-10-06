@@ -1,0 +1,133 @@
+:host {
+  display: block;
+}
+
+.account {
+  &__section {
+    margin-bottom: var(--space-lg);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3xs);
+    margin-bottom: var(--space-md);
+
+    label,
+    .account__label {
+      font-weight: 500;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    input {
+      padding: var(--space-xs) var(--space-sm);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      transition: border-color 0.12s ease;
+
+      &:hover {
+        border-color: var(--color-text-secondary);
+      }
+
+      &[aria-invalid='true'] {
+        border-color: var(--color-danger);
+      }
+    }
+  }
+
+  &__value {
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--color-text);
+  }
+
+  &__hint {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  &__count {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    align-self: flex-end;
+  }
+
+  &__error {
+    padding: var(--space-xs) var(--space-sm);
+    margin-bottom: var(--space-md);
+    color: var(--color-danger);
+    background: var(--color-danger-surface);
+    border-left: 2px solid var(--color-danger);
+    font-size: var(--font-size-sm);
+  }
+
+  &__save {
+    padding: var(--space-xs) var(--space-md);
+    font-weight: 500;
+    color: var(--color-accent-contrast);
+    background: var(--color-accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  &__link-button {
+    padding: 0;
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    text-decoration: underline;
+  }
+
+  /* Divisor + seção em cor de perigo — a exclusão fica visualmente longe do "Salvar"
+     (FE-11, CA-15; FE-13, notas técnicas). */
+  &__divider {
+    margin: var(--space-lg) 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
+  }
+
+  &__section--danger {
+    padding: var(--space-md);
+    background: var(--color-danger-surface);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-sm);
+
+    h2 {
+      color: var(--color-danger);
+    }
+  }
+
+  &__delete {
+    padding: var(--space-xs) var(--space-md);
+    font-weight: 500;
+    color: var(--color-danger);
+    background: var(--color-surface);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+    }
+  }
+}

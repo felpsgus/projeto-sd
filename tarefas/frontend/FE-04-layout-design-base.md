@@ -8,6 +8,8 @@
 | **Regras cobertas** | nenhuma diretamente |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra **mínimo** — só o necessário para as três telas do recorte (login, lista de tarefas, criar tarefa): `AuthLayout`, `AppShell` simplificado (sem menu de conta com perfil, já que não há perfil no T2 — só "Sair"), tokens de estilo básicos, skip link e foco por navegação. `<app-confirm-dialog>` fica para depois (usado só por FE-13/FE-20, fora do T2). Sem dependência de backend.
+
 ## Objetivo
 
 Existe um esqueleto visual consistente: dois layouts (público e autenticado), tokens de estilo, e um conjunto mínimo de componentes de apresentação que as features reaproveitam em vez de recriar.
@@ -45,22 +47,22 @@ Existe um esqueleto visual consistente: dois layouts (público e autenticado), t
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Rotas públicas (cadastro, login) usam o `AuthLayout`; rotas autenticadas usam o `AppShell`.
-- [ ] **CA-02** — O `AppShell` exibe o nome de exibição do usuário autenticado, vindo do estado de sessão.
-- [ ] **CA-03** — O layout é utilizável em 360 px de largura, sem rolagem horizontal.
-- [ ] **CA-04** — O layout é utilizável em 1920 px, sem linhas de texto excessivamente longas (largura máxima de conteúdo definida).
-- [ ] **CA-05** — Nenhum valor de cor literal (`#fff`, `rgb(...)`) existe fora do arquivo de tokens.
-- [ ] **CA-06** — Todo par texto/fundo do tema atinge contraste **≥ 4.5:1** (verificado com ferramenta e documentado no PR).
-- [ ] **CA-07** — O skip link é o **primeiro** elemento focável e leva ao `<main>`.
-- [ ] **CA-08** — Cada página tem exatamente **um** `<h1>` e um `<main>`.
-- [ ] **CA-09** — Ao navegar entre rotas, o foco vai para o cabeçalho da nova página — verificado por teste automatizado, não só por inspeção.
-- [ ] **CA-10** — O `<title>` do documento muda a cada rota e descreve a página.
-- [ ] **CA-11** — Todo elemento interativo é alcançável e acionável **apenas pelo teclado**, com indicador de foco visível.
-- [ ] **CA-12** — O `<app-confirm-dialog>` prende o foco enquanto aberto, fecha com `Esc` e devolve o foco ao elemento que o abriu.
-- [ ] **CA-13** — `<app-form-field-error>` associa a mensagem ao input via `aria-describedby` e marca o campo com `aria-invalid`.
-- [ ] **CA-14** — Botão em estado de carregando fica desabilitado, marcado com `aria-busy`, e **não** dispara a ação duas vezes em clique duplo.
-- [ ] **CA-15** — Nenhum componente de apresentação injeta serviço de dados (verificado por revisão e lint).
-- [ ] **CA-16** — Todos os componentes desta task são standalone e `OnPush`.
+- [x] **CA-01** — Rotas públicas (cadastro, login) usam o `AuthLayout`; rotas autenticadas usam o `AppShell`.
+- [x] **CA-02** — O `AppShell` exibe o nome de exibição do usuário autenticado, vindo do estado de sessão.
+- [x] **CA-03** — O layout é utilizável em 360 px de largura, sem rolagem horizontal.
+- [x] **CA-04** — O layout é utilizável em 1920 px, sem linhas de texto excessivamente longas (largura máxima de conteúdo definida).
+- [x] **CA-05** — Nenhum valor de cor literal (`#fff`, `rgb(...)`) existe fora do arquivo de tokens.
+- [x] **CA-06** — Todo par texto/fundo do tema atinge contraste **≥ 4.5:1** (verificado com ferramenta e documentado no PR). *(04/10/2026: axe nos temas claro e escuro, registrado em [docs/acessibilidade.md](../../docs/acessibilidade.md); `:hover`, `::selection` e elementos desabilitados não são medidos.)*
+- [x] **CA-07** — O skip link é o **primeiro** elemento focável e leva ao `<main>`.
+- [x] **CA-08** — Cada página tem exatamente **um** `<h1>` e um `<main>`.
+- [x] **CA-09** — Ao navegar entre rotas, o foco vai para o cabeçalho da nova página — verificado por teste automatizado, não só por inspeção.
+- [x] **CA-10** — O `<title>` do documento muda a cada rota e descreve a página.
+- [x] **CA-11** — Todo elemento interativo é alcançável e acionável **apenas pelo teclado**, com indicador de foco visível.
+- [x] **CA-12** — O `<app-confirm-dialog>` prende o foco enquanto aberto, fecha com `Esc` e devolve o foco ao elemento que o abriu.
+- [x] **CA-13** — `<app-form-field-error>` associa a mensagem ao input via `aria-describedby` e marca o campo com `aria-invalid`.
+- [x] **CA-14** — Botão em estado de carregando fica desabilitado, marcado com `aria-busy`, e **não** dispara a ação duas vezes em clique duplo.
+- [x] **CA-15** — Nenhum componente de apresentação injeta serviço de dados (verificado por revisão e lint).
+- [x] **CA-16** — Todos os componentes desta task são standalone e `OnPush`.
 
 ## Testes obrigatórios
 
@@ -74,3 +76,20 @@ Existe um esqueleto visual consistente: dois layouts (público e autenticado), t
 
 - **FD-02** — Angular Material. Padrão provisório.
 - **FD-12** — Tema escuro fora do escopo.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 10 de 16.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-04 | em aberto (não verificável por código) | `--content-max-width: 46rem` existe (`styles.scss`, usado em `app-shell.component.scss`), mas "utilizável em 1920 px" é inspeção visual; nenhum teste em viewport largo. |
+| CA-06 | em aberto | O E2E roda `axe-core` (inclui contraste) só no tema claro; o tema escuro (`prefers-color-scheme`) nunca é emulado e não há medição documentada de contraste. |
+| CA-08 | em aberto | Nenhum teste conta `<h1>`/`<main>` por página (o axe do E2E usa só tags WCAG, sem `page-has-heading-one`/`landmark-one-main`). Pela leitura do código cada layout tem um `<main>` e as telas um `<h1>`. |
+| CA-10 | em aberto | As rotas declaram `title` em `app.routes.ts`, mas nenhum teste (Vitest ou E2E) verifica o `<title>` mudando por rota. |
+| CA-11 | em aberto (não verificável por código) | Há `:focus-visible` global e um fluxo E2E só por teclado (login, criar, concluir), mas "todo elemento interativo" exige auditoria manual. |
+| CA-12 | atendido em outro lugar | Foco preso, `Esc` e retorno do foco cobertos no E2E `a11y.spec.ts` ("diálogo prende o foco, fecha com Esc e devolve o foco"); o spec Vitest do diálogo cobre `Esc`, mas não o retorno de foco. |
+| CA-13 | em aberto | `app-form-field-error` não tem spec; `aria-invalid` é testado (register/create-task), mas `aria-describedby` (ligado nos templates) não é asserido em nenhum teste. |
+| CA-14 | atendido em outro lugar | Não há `<app-button>`; o padrão (disabled + `aria-busy` + guarda `submitting`) está em cada formulário, com teste de clique duplo em `register.component.spec.ts` e `change-password.component.spec.ts`. |
+
+Observações: Angular Material (FD-02) não é usado (UI própria com tokens CSS); `<app-page-header>` e `<app-button>` do escopo não existem. FD-02 está efetivamente superada na implementação, sem registro em `DECISOES-PENDENTES.md`.

@@ -16,7 +16,7 @@ namespace TodoList.Identity.UnitTests;
 public class PersistedUserLookupTests
 {
     [Fact]
-    public async Task FindByIdAsync_UsuarioExistente_RetornaActiveEDisplayNameDoRepositorio()
+    public async Task FindByIdAsync_UsuarioExistente_RetornaDisplayNameDoRepositorio()
     {
         var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var user = User.Create(Email.Create("ativo@exemplo.com").Value, "Usuário Ativo", "hash", timeProvider).Value;
@@ -29,26 +29,7 @@ public class PersistedUserLookupTests
         var result = await sut.FindByIdAsync(user.Id, CancellationToken.None);
 
         result.Should().NotBeNull();
-        result!.Active.Should().BeTrue();
-        result.DisplayName.Should().Be("Usuário Ativo");
-    }
-
-    [Fact]
-    public async Task FindByIdAsync_UsuarioInativo_RetornaActiveFalse()
-    {
-        var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var user = User.Create(Email.Create("inativo@exemplo.com").Value, "Usuário Inativo", "hash", timeProvider).Value;
-        user.Deactivate(timeProvider);
-
-        var repository = Substitute.For<IUserRepository>();
-        repository.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
-
-        var sut = new PersistedUserLookup(repository);
-
-        var result = await sut.FindByIdAsync(user.Id, CancellationToken.None);
-
-        result.Should().NotBeNull();
-        result!.Active.Should().BeFalse();
+        result!.DisplayName.Should().Be("Usuário Ativo");
     }
 
     [Fact]

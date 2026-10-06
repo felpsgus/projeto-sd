@@ -1,15 +1,61 @@
-# docker-compose.yml de desenvolvimento (BE-02). Sobe só o Postgres — os dois
-# serviços continuam rodando com `dotnet run` fora do container (ver README).
+# docker-compose.yml de desenvolvimento (BE-02, BE-38). Por padrão (sem
+# `--profile full`) sobe só o Postgres — os três serviços continuam rodando
+# com `dotnet run` fora do container (ver README, seção "Rodando o T2"). Isso
+# NÃO mudou com BE-38: `docker compose up postgres` continua funcionando
+# exatamente como antes, sem exigir o perfil novo nem nenhuma variável (CA-06).
 #
 # Os schemas "identity" e "tasks" NÃO são criados por nenhum script de
-# inicialização aqui: eles vêm das migrations de cada serviço
-# (`dotnet ef database update`, Identity primeiro — ver README), como o
-# escopo de BE-02 exige.
+# inicialização aqui: eles vêm das migrations de cada serviço. No fluxo
+# `dotnet run`, isso é `dotnet ef database update`, Identity primeiro (ver
+# README). No fluxo em container (perfil `full`, BE-38), é o serviço
+# `migrate` abaixo, aplicando os SQL idempotentes que
+# `scripts/new-migrations-sql.ps1` gera (mesma ordem — a FK cruzada
+# tasks.tasks.owner_id -> identity.users(id) exige Identity primeiro).
 #
 # Credenciais: "postgres/postgres" é uma credencial obviamente de
 # desenvolvimento local, não um segredo real — aceitável neste arquivo (CA-11
 # de BE-02). Nunca usar isso fora da máquina do desenvolvedor; em CI, a
 # connection string vem de variável de ambiente (ver README).
+#
+# Perfil "full" (BE-38, atualizado na Etapa 13): `docker compose --profile
+# full up --build` sobe a stack inteira em container — postgres, migrate,
+# identity, tasks, gateway, frontend — para validar os Dockerfiles antes do
+# T3 (Cloud Run). Pré-requisito: `scripts/new-migrations-sql.ps1` já ter gerado
+# artifacts/sql/{01-identity,02-tasks}.sql (o compose não gera SQL — só
+# aplica). Onda E (T2): o seed de demonstração (DemoUserSeeder,
+# UserStore__SeedDemoUsers/DemoUserPassword) foi removido — não sobra mais
+# segredo nenhum do Identity fora das chaves JWT (via `secrets:`, abaixo);
+# cadastre contas pela API/tela (POST /api/auth/register) ou pelo próprio
+# deploy/smoke.sh (que se cadastra sozinho a cada execução).
+#
+# Desde a Etapa 13, só o `frontend` publica porta no host: o nginx do seu
+# container (frontend/nginx.conf.template)
+# passa a ser a origem HTTP única, servindo o build do Angular como estático e
+# fazendo proxy de /api/* para o `gateway` — mesma origem para front e API, sem
+# CORS (FD-16/D-40). O `gateway` deixou de publicar porta (antes era a única
+# exceção a D-32); agora `identity`, `tasks` e `gateway` só existem na rede
+# interna do compose, alcançáveis apenas pelo `frontend`.
+#
+# Chaves JWT RS256 (BE-40, D-38): montadas via `secrets:` de nível superior, a
+# partir de `.secrets/jwt/{private,public}.pem` na raiz — gere-as com
+# `./scripts/new-jwt-keys.ps1` antes de `--profile full up` (a pasta é
+# ignorada pelo git). `identity` recebe só `jwt_private`; `gateway` recebe só
+# `jwt_public`; `tasks` não recebe nenhuma (ele não sabe nada sobre tokens).
+# Sem Swarm, um secret de arquivo do compose é um bind mount comum: o arquivo
+# aparece em /run/secrets/<nome> DENTRO do container com o dono/permissão do
+# arquivo no HOST, não recriado com outro modo — por isso não adianta um
+# `chmod 0400` no host achando que isso "protege" o container: os três
+# processos já rodam como usuário não-root (`$APP_UID`, ver Dockerfile) e o
+# que importa é esse usuário conseguir ler o arquivo montado, o que um `.pem`
+# criado normalmente (leitura para o dono) já garante.
+#
+# Sem healthcheck HTTP nos três containers .NET: a imagem `aspnet:10.0` não
+# traz `curl`/`wget`, e instalar uma ferramenta só para isso aumentaria a
+# imagem e a superfície sem necessidade — se um backend ainda estiver
+# subindo, o Gateway responde 503 com Retry-After (D-28, fail-closed) e se
+# recupera sozinho quando o backend fica pronto; no Cloud Run (T3), os probes
+# usam o gRPC Health Checking Protocol, sem depender de ferramenta no
+# container (D-37).
 services:
   postgres:
     image: postgres:17-alpine
@@ -28,5 +74,126 @@ services:
       timeout: 5s
       retries: 10
 
+  # --- Perfil "full" (BE-38) -------------------------------------------
+
+  # Vida curta: aplica os dois SQL idempotentes gerados por
+  # `scripts/new-migrations-sql.ps1` (a VM usa os mesmos arquivos) na
+  # ordem exigida pela FK cruzada (identity antes de tasks) e sai. Falha
+  # explicitamente, em vez de "passar" sem aplicar nada, se artifacts/sql/
+  # ainda não existir.
+  migrate:
+    image: postgres:17-alpine
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - ./artifacts/sql:/sql:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        test -f /sql/01-identity.sql && test -f /sql/02-tasks.sql || {
+          echo "artifacts/sql não encontrado — rode scripts/new-migrations-sql.ps1 antes de 'docker compose --profile full up'.";
+          exit 1;
+        };
+        psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d todolist -f /sql/01-identity.sql -f /sql/02-tasks.sql
+
+  identity:
+    build:
+      context: .
+      dockerfile: src/Identity/TodoList.Identity.Api/Dockerfile
+    image: todolist-identity
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    secrets:
+      - jwt_private
+    environment:
+      ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=todolist;Username=postgres;Password=postgres
+      UserStore__Provider: Persisted
+      Jwt__PrivateKeyPath: /run/secrets/jwt_private
+      # A chave privada não é variável de ambiente: é o secret montado acima
+      # (BE-40, D-38). Sem `env_file:` — desde que o seed de demonstração
+      # saiu (Onda E), o Identity não tem mais nenhum segredo de texto puro
+      # próprio; a connection string acima é a credencial de desenvolvimento
+      # local de sempre (CA-11 de BE-02), não um segredo real.
+    # Sem `ports:` (D-32): só o gateway é alcançável do host.
+
+  tasks:
+    build:
+      context: .
+      dockerfile: src/Tasks/TodoList.Tasks.Api/Dockerfile
+    image: todolist-tasks
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Sem env_file e sem `secrets:`: o Tasks não recebe nenhuma chave Jwt:*,
+    # nem a privada nem a pública — ele não sabe nada sobre tokens (D-38, D-31,
+    # CA-18 de BE-40).
+    environment:
+      ConnectionStrings__TasksDb: Host=postgres;Port=5432;Database=todolist;Username=postgres;Password=postgres
+      Identity__GrpcAddress: http://identity:8080
+    # Sem `ports:` (D-32): só o gateway é alcançável do host.
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/TodoList.Gateway.Api/Dockerfile
+    image: todolist-gateway
+    profiles: ["full"]
+    depends_on:
+      identity:
+        condition: service_started
+      tasks:
+        condition: service_started
+    secrets:
+      - jwt_public
+    environment:
+      Backends__IdentityGrpcAddress: http://identity:8080
+      Backends__TasksGrpcAddress: http://tasks:8080
+      # PBKDF2 leva ~0,5-0,9 s por hash e a troca de senha faz dois: o padrão de 2 s estoura (503)
+      # com a suíte E2E em paralelo. Mesmo valor do compose de produção.
+      Backends__IdentityGrpcTimeoutSeconds: 10
+      Jwt__PublicKeyPath: /run/secrets/jwt_public
+      # Jwt:Issuer/Jwt:Audience já vêm do appsettings.json do Gateway — só a
+      # chave pública precisa ser apontada aqui (BE-40, D-38).
+      # RefreshCookie:Secure fica no padrão (true): `http://localhost` é contexto
+      # seguro e o navegador aceita cookie Secure nele. Só ao abrir o compose por
+      # IP/nome de host em HTTP puro é preciso `RefreshCookie__Secure: "false"`.
+    # Sem `ports:` desde a Etapa 13 (D-32 revisado): o gateway deixou de ser
+    # alcançável direto do host. Quem publica porta agora é o `frontend` — seu
+    # nginx é a origem única HTTP e repassa /api/* para cá pela rede interna.
+
+  frontend:
+    build:
+      context: ./frontend
+    image: todolist-frontend
+    profiles: ["full"]
+    depends_on:
+      gateway:
+        condition: service_started
+    environment:
+      GATEWAY_UPSTREAM: gateway:8080
+    ports:
+      - "80:8080"
+
 volumes:
   todolist-postgres-data:
+
+# BE-40 (D-38): par RS256 gerado localmente por `./scripts/new-jwt-keys.ps1`
+# em .secrets/jwt/ (pasta ignorada pelo git — nunca versionada). Sem Swarm,
+# estes secrets de compose são bind mounts comuns em /run/secrets/<nome>
+# dentro do container, com a permissão do arquivo do host preservada.
+secrets:
+  jwt_private:
+    file: ./.secrets/jwt/private.pem
+  jwt_public:
+    file: ./.secrets/jwt/public.pem

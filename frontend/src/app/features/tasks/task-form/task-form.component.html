@@ -1,0 +1,85 @@
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate class="task-form">
+  <div class="task-form__field">
+    <label for="title">Título</label>
+    <input
+      id="title"
+      type="text"
+      formControlName="title"
+      [attr.aria-invalid]="hasError('title')"
+      [attr.aria-describedby]="hasError('title') ? 'title-error' : null"
+    />
+    <p class="task-form__count tabular-nums">
+      {{ form.controls.title.value.length }}/{{ titleMaxLength }}
+    </p>
+    <app-form-field-error fieldId="title-error" [messages]="fieldMessages('title')" />
+  </div>
+
+  <div class="task-form__field">
+    <label for="description">Descrição</label>
+    <textarea
+      id="description"
+      formControlName="description"
+      rows="4"
+      [attr.aria-invalid]="hasError('description')"
+      [attr.aria-describedby]="hasError('description') ? 'description-error' : null"
+    ></textarea>
+    <p class="task-form__count tabular-nums">
+      {{ form.controls.description.value.length }}/{{ descriptionMaxLength }}
+    </p>
+    <app-form-field-error fieldId="description-error" [messages]="fieldMessages('description')" />
+  </div>
+
+  <div class="task-form__field">
+    <label for="priority">Prioridade</label>
+    <select
+      id="priority"
+      formControlName="priority"
+      [attr.aria-invalid]="hasError('priority')"
+      [attr.aria-describedby]="hasError('priority') ? 'priority-error' : null"
+    >
+      @for (priority of priorities; track priority) {
+        <option [value]="priority">
+          {{ priority === 'Low' ? 'Baixa' : priority === 'Medium' ? 'Média' : 'Alta' }}
+        </option>
+      }
+    </select>
+    <app-form-field-error fieldId="priority-error" [messages]="fieldMessages('priority')" />
+  </div>
+
+  <div class="task-form__field">
+    <label for="dueDate">Vencimento</label>
+    <input
+      id="dueDate"
+      type="date"
+      formControlName="dueDate"
+      [attr.aria-invalid]="hasError('dueDate')"
+      [attr.aria-describedby]="dueDateDescribedBy()"
+    />
+    <app-form-field-error fieldId="dueDate-error" [messages]="fieldMessages('dueDate')" />
+    @if (dueDateInPast()) {
+      <p id="dueDate-warning" class="task-form__hint" role="status">
+        Esta data já passou: a tarefa ficará atrasada.
+      </p>
+    }
+  </div>
+
+  @if (formError(); as message) {
+    <p class="task-form__error" role="alert" aria-live="assertive" tabindex="-1" #formError>
+      {{ message }}
+    </p>
+  }
+
+  <div class="task-form__actions">
+    <button type="button" class="task-form__cancel" (click)="onCancel()" [disabled]="submitting()">
+      Cancelar
+    </button>
+    <button
+      type="submit"
+      class="task-form__submit"
+      [disabled]="submitting() || noChangesToSave()"
+      [attr.aria-busy]="submitting()"
+    >
+      {{ submitting() ? submittingLabel() : submitLabel() }}
+    </button>
+  </div>
+</form>

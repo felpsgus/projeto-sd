@@ -64,36 +64,36 @@ Existe a entidade `TodoTask` com todas as suas invariantes e transições de est
 
 ### Estrutura e validação
 
-- [ ] **CA-01** — `Create` rejeita título vazio, só-espaços (`"   "`, `"\t"`) e com 201 caracteres; aceita com 1 e com 200.
-- [ ] **CA-02** — O título é persistido com trim: `"  Comprar pão  "` vira `"Comprar pão"`.
-- [ ] **CA-03** — `Create` aceita descrição nula e com 2000 caracteres; rejeita com 2001.
-- [ ] **CA-04** — `Create` sem prioridade produz `Priority == Medium`.
-- [ ] **CA-05** — Prioridade fora de `Low`/`Medium`/`High` é impossível de representar (enum), e um valor de enum inválido vindo de fora (`(TaskPriority)99`) é rejeitado por `Create`.
-- [ ] **CA-06** — `Create` com `DueDate` no passado **sucede** (RN-TASK-05) e a tarefa resultante reporta `IsOverdue == true` para "hoje".
-- [ ] **CA-07** — `Create` sempre produz `Status == Pending` e `CompletedAt == null`, independentemente dos argumentos.
-- [ ] **CA-08** — `OwnerId` é obrigatório: `Create` com `Guid.Empty` falha.
+- [x] **CA-01** — `Create` rejeita título vazio, só-espaços (`"   "`, `"\t"`) e com 201 caracteres; aceita com 1 e com 200.
+- [x] **CA-02** — O título é persistido com trim: `"  Comprar pão  "` vira `"Comprar pão"`.
+- [x] **CA-03** — `Create` aceita descrição nula e com 2000 caracteres; rejeita com 2001.
+- [x] **CA-04** — `Create` sem prioridade produz `Priority == Medium`.
+- [x] **CA-05** — Prioridade fora de `Low`/`Medium`/`High` é impossível de representar (enum), e um valor de enum inválido vindo de fora (`(TaskPriority)99`) é rejeitado por `Create`.
+- [x] **CA-06** — `Create` com `DueDate` no passado **sucede** (RN-TASK-05) e a tarefa resultante reporta `IsOverdue == true` para "hoje".
+- [x] **CA-07** — `Create` sempre produz `Status == Pending` e `CompletedAt == null`, independentemente dos argumentos.
+- [x] **CA-08** — `OwnerId` é obrigatório: `Create` com `Guid.Empty` falha.
 
 ### Ciclo de vida
 
-- [ ] **CA-09** — `Complete()` em tarefa `Pending`: `Status` vira `Completed` e `CompletedAt` recebe o instante do `TimeProvider`.
-- [ ] **CA-10** — `Complete()` em tarefa já `Completed` retorna `Result` de falha com código estável e **não** altera `CompletedAt`.
-- [ ] **CA-11** — `Reopen()` em tarefa `Completed`: `Status` vira `Pending` e `CompletedAt` volta a `null`.
-- [ ] **CA-12** — `Reopen()` em tarefa `Pending` retorna `Result` de falha e não altera nada.
-- [ ] **CA-13** — Nenhuma transição inválida lança exceção — todas retornam `Result` de falha.
+- [x] **CA-09** — `Complete()` em tarefa `Pending`: `Status` vira `Completed` e `CompletedAt` recebe o instante do `TimeProvider`.
+- [x] **CA-10** — `Complete()` em tarefa já `Completed` retorna `Result` de falha com código estável e **não** altera `CompletedAt`.
+- [x] **CA-11** — `Reopen()` em tarefa `Completed`: `Status` vira `Pending` e `CompletedAt` volta a `null`.
+- [x] **CA-12** — `Reopen()` em tarefa `Pending` retorna `Result` de falha e não altera nada.
+- [x] **CA-13** — Nenhuma transição inválida lança exceção — todas retornam `Result` de falha.
 
 ### Auditoria e derivações
 
-- [ ] **CA-14** — `UpdateDetails`, `Complete`, `Reopen` e `SoftDelete` **todos** atualizam `UpdatedAt` (um teste por método, com `TimeProvider` avançando).
-- [ ] **CA-15** — Uma operação que **falha** (ex.: `Complete` duas vezes) **não** altera `UpdatedAt`.
-- [ ] **CA-16** — `IsOverdue` é `true` apenas quando `Pending` **e** `DueDate < hoje`. Verificar: sem `DueDate` → false; `DueDate == hoje` → false; `DueDate` passada mas `Completed` → false.
-- [ ] **CA-17** — `IsOverdue` não é coluna no banco (conferir a migration gerada).
+- [x] **CA-14** — `UpdateDetails`, `Complete`, `Reopen` e `SoftDelete` **todos** atualizam `UpdatedAt` (um teste por método, com `TimeProvider` avançando).
+- [x] **CA-15** — Uma operação que **falha** (ex.: `Complete` duas vezes) **não** altera `UpdatedAt`.
+- [x] **CA-16** — `IsOverdue` é `true` apenas quando `Pending` **e** `DueDate < hoje`. Verificar: sem `DueDate` → false; `DueDate == hoje` → false; `DueDate` passada mas `Completed` → false.
+- [x] **CA-17** — `IsOverdue` não é coluna no banco (conferir a migration gerada).
 
 ### Persistência
 
-- [ ] **CA-18** — Salvar e recarregar uma tarefa preserva todos os campos, inclusive enums e `DueDate` como data (sem componente de hora).
-- [ ] **CA-19** — Uma tarefa com `SoftDelete` aplicado não retorna em consulta normal do repositório e retorna com `IgnoreQueryFilters()`.
-- [ ] **CA-20** — A migration cria os índices `(OwnerId, Status)` e `(OwnerId, DueDate)`.
-- [ ] **CA-21** — A entidade não expõe setters públicos; todo estado muda por método de domínio.
+- [x] **CA-18** — Salvar e recarregar uma tarefa preserva todos os campos, inclusive enums e `DueDate` como data (sem componente de hora).
+- [x] **CA-19** — Uma tarefa com `SoftDelete` aplicado não retorna em consulta normal do repositório e retorna com `IgnoreQueryFilters()`.
+- [x] **CA-20** — A migration cria os índices `(OwnerId, Status)` e `(OwnerId, DueDate)`.
+- [x] **CA-21** — A entidade não expõe setters públicos; todo estado muda por método de domínio.
 
 ## Testes obrigatórios
 
@@ -105,3 +105,7 @@ Existe a entidade `TodoTask` com todas as suas invariantes e transições de est
 
 - **D-06** — Aceitar vencimento no passado. Padrão adotado: aceita.
 - **D-18** — ✅ decidida: "hoje" é a data local do usuário, injetada na borda. O domínio permanece agnóstico a fuso.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 21 de 21.

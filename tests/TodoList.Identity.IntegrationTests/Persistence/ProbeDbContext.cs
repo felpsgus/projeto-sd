@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using TodoList.Identity.Infrastructure.Persistence.Conventions;
+using TodoList.SharedKernel.Persistence;
 
 namespace TodoList.Identity.IntegrationTests.Persistence;
 

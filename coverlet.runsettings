@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exclusões de cobertura do backend (BE-24 CA-12). Cada uma é código sem lógica própria
+     a testar; NÃO amplie esta lista para "maquiar" cobertura — escreva o teste. -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- Só código do produto: nada de pacotes de terceiros nem dos próprios assemblies de teste. -->
+          <Include>[TodoList.*]*</Include>
+          <Exclude>[TodoList.*Tests*]*,[TodoList.*Fakes]*,[*]TodoList.Contracts.*</Exclude>
+          <!-- Program.cs (composição/bootstrap), migrations do EF, saída do Grpc.Tools/geradores em obj/. -->
+          <ExcludeByFile>**/Program.cs,**/Migrations/**,**/obj/**</ExcludeByFile>
+          <!-- Código gerado: protobuf/gRPC, regex/LoggerMessage source generators, membros sintetizados. -->
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+          <DeterministicReport>true</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

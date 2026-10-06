@@ -5,7 +5,7 @@
 | **Domínio** | Identidade / Integração |
 | **Serviço** | Identity (Microsserviço B) |
 | **Depende de** | [BE-25](BE-25-contrato-grpc-identity.md); usa [BE-04](BE-04-dominio-usuario.md) quando disponível |
-| **Bloqueia** | [BE-28](BE-28-validacao-dono-grpc.md), [BE-31](BE-31-verificacao-t1.md) |
+| **Bloqueia** | [BE-28](BE-28-validacao-dono-grpc.md), [BE-31](BE-31-verificacao-t1.md), [BE-34](BE-34-validate-token-real.md) |
 | **Regras cobertas** | RN-USER-01, RN-USER-04, RN-AUTH-06, RN-AUTH-07 |
 | **Estimativa** | M |
 
@@ -53,30 +53,30 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 
 ### Servidor
 
-- [ ] **CA-01** — O Identity sobe e aceita conexões gRPC na porta configurada, em HTTP/2.
-- [ ] **CA-02** — A porta REST e a porta gRPC são endpoints distintos e ambos funcionam simultaneamente.
-- [ ] **CA-03** — Uma ferramenta de linha de comando (`grpcurl` ou cliente de teste) consegue invocar `ValidateUser` e receber resposta — comprovando que o serviço está exposto, não só compilando.
-- [ ] **CA-04** — Nenhum Controller foi introduzido; o registro é `AddGrpc()` + `MapGrpcService<>()` no `Program.cs`.
+- [x] **CA-01** — O Identity sobe e aceita conexões gRPC na porta configurada, em HTTP/2. *(prova manual de 06/10/2026 com processo `dotnet run` real: porta gRPC movida para 16081 por `Kestrel__Endpoints__Grpc__Url`; o log do Identity registra `Request starting HTTP/2 POST .../identity.v1.IdentityService/Register` e `/Login` nessa porta, e uma chamada HTTP/1.1 à mesma porta é recusada com 400.)*
+- [x] **CA-02** — A porta REST e a porta gRPC são endpoints distintos e ambos funcionam simultaneamente. *(mesma execução de 06/10/2026: 16080 (HTTP/1, `/health` 200) e 16081 (gRPC) como dois listeners do mesmo processo, com o health respondendo enquanto o Gateway fazia cadastro, login e criação de tarefa pela porta gRPC. A "porta REST" do Identity hoje serve só o health.)*
+- [x] **CA-03** — Uma ferramenta de linha de comando (`grpcurl` ou cliente de teste) consegue invocar `ValidateUser` e receber resposta — comprovando que o serviço está exposto, não só compilando.
+- [x] **CA-04** — Nenhum Controller foi introduzido; o registro é `AddGrpc()` + `MapGrpcService<>()` no `Program.cs`.
 
 ### `ValidateUser`
 
-- [ ] **CA-05** — Usuário existente e **ativo** → `exists=true`, `active=true`, `display_name` preenchido (RN-USER-01, RN-AUTH-07).
-- [ ] **CA-06** — Usuário existente e **inativo** → `exists=true`, `active=false` (RN-USER-04).
-- [ ] **CA-07** — Usuário inexistente → `exists=false`, `active=false`, `display_name=""` (string vazia, não `null`).
-- [ ] **CA-08** — `user_id` malformado (`"abc"`, string vazia) → mesma resposta negativa do CA-07, **status gRPC `OK`**, sem exceção e sem 500.
-- [ ] **CA-09** — A resposta não contém e-mail, hash de senha nem qualquer campo de usuário além dos três do contrato.
-- [ ] **CA-10** — A chamada gera uma entrada de log estruturado com `userId`, `exists`, `active` e duração — **sem** dado sensível.
+- [x] **CA-05** — Usuário existente → `exists=true`, `display_name` preenchido (RN-USER-01, RN-AUTH-07). *(emendado em 03/10/2026, issue #16)*
+- [x] ~~**CA-06** — Usuário existente e **inativo** → `exists=true`, `active=false` (RN-USER-04).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
+- [x] **CA-07** — Usuário inexistente → `exists=false`, `display_name=""` (string vazia, não `null`). *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-08** — `user_id` malformado (`"abc"`, string vazia) → mesma resposta negativa do CA-07, **status gRPC `OK`**, sem exceção e sem 500.
+- [x] **CA-09** — A resposta não contém e-mail, hash de senha nem qualquer campo de usuário além dos três do contrato.
+- [x] **CA-10** — A chamada gera uma entrada de log estruturado com `userId`, `exists`, `active` e duração — **sem** dado sensível.
 
 ### `ValidateToken` (stub)
 
-- [ ] **CA-11** — `ValidateToken` responde `valid=false`, `user_id=""` para qualquer entrada, inclusive um token válido de verdade.
-- [ ] **CA-12** — Não existe nenhuma lógica de validação de JWT no caminho do stub (verificado em revisão) — o comportamento é declaradamente provisório e está anotado como tal no código.
+- [x] ~~**CA-11** — `ValidateToken` responde `valid=false`, `user_id=""` para qualquer entrada, inclusive um token válido de verdade.~~ **Substituído (04/10/2026)** pela D-38: o RPC `ValidateToken` saiu do contrato; não há stub.
+- [x] ~~**CA-12** — Não existe nenhuma lógica de validação de JWT no caminho do stub (verificado em revisão) — o comportamento é declaradamente provisório e está anotado como tal no código.~~ **Substituído (04/10/2026)** pela D-38: o RPC `ValidateToken` saiu do contrato; não há stub.
 
 ### Store de usuários
 
-- [ ] **CA-13** — Com a persistência ligada, `ValidateUser` reflete o estado real do banco: desativar um usuário muda a resposta de `active=true` para `active=false` sem reiniciar o serviço.
-- [ ] **CA-14** — Com o seed em memória, existem exatamente dois usuários (um ativo, um inativo), com ids fixos e documentados no README.
-- [ ] **CA-15** — Subir com o seed em memória emite log de **aviso** na inicialização deixando explícito que o store persistido não está em uso.
+- [x] **CA-13** — Com a persistência ligada, `ValidateUser` reflete o estado real do banco: excluir um usuário muda a resposta de `exists=true` para `exists=false` sem reiniciar o serviço. *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-14** — Com o seed em memória, existe exatamente um usuário, com id fixo e documentado no README. *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-15** — Subir com o seed em memória emite log de **aviso** na inicialização deixando explícito que o store persistido não está em uso.
 
 ## Testes obrigatórios
 
@@ -84,3 +84,19 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 - Unidade: `ValidateToken` — CA-11.
 - Integração: servidor gRPC real subido por `WebApplicationFactory` com um cliente gRPC de teste — CA-01, CA-03, CA-08, CA-13.
 - CA-08 é obrigatório: id malformado é a entrada mais provável vinda de um cliente externo, e derrubar o servidor com ela seria falha de disponibilidade, não de validação.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 11 de 15.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 | em aberto — não verificável por código | `appsettings.json` do Identity declara o endpoint Kestrel `Grpc` (`http://0.0.0.0:5081`, `Http2`), mas nenhum teste sobe o Kestrel real: `IdentityGrpcTestClient` usa `WebApplicationFactory`/`TestServer` em memória. Prova real é manual (`docker compose`/`deploy/smoke.sh`). |
+| CA-02 | em aberto — não verificável por código | Dois endpoints distintos configurados (`Http` Http1 5080, só `/health`; `Grpc` Http2 5081). A "porta REST" hoje serve apenas health; sem teste que exercite as duas portas simultaneamente. |
+| CA-03 | atendido por cliente de teste | `ValidateUserGrpcTests` invoca `ValidateUser` pelo pipeline real do host (`MapGrpcService<IdentityGrpcService>`); não há `grpcurl`/rede real. |
+| CA-11 | em aberto — superado por BE-34/D-38 | O stub não existe mais: o RPC `ValidateToken` foi removido do contrato; o Gateway valida JWT localmente (RS256). |
+| CA-12 | em aberto — superado por BE-34/D-38 | Idem: não há mais stub de `ValidateToken` para revisar. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+Deixa de valer tudo que distingue usuário ativo de inativo: o campo `active`, a coluna `is_active` e a RN-USER-04 (issue #16). `ValidateUser` responde só `exists` e `display_name`. CA-06 substituído; CA-05, CA-07, CA-13 e CA-14 emendados. A "razão de `exists` e `active` separados" (seção de decisões) não se aplica mais.

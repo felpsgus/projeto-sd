@@ -1,0 +1,142 @@
+<div class="tasks-page">
+  <header class="tasks-page__header">
+    <h1 #heading tabindex="-1">Tarefas</h1>
+    <a routerLink="/tasks/new" class="tasks-page__new">Nova tarefa</a>
+  </header>
+
+  <form class="tasks-page__filters" (submit)="$event.preventDefault()" aria-label="Filtrar tarefas">
+    <fieldset class="tasks-page__filter-group">
+      <legend>Estado</legend>
+      <label>
+        <input
+          type="radio"
+          name="tasks-status"
+          [checked]="isStatusSelected('all')"
+          (change)="onStatusChange('all')"
+        />
+        Todas
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="tasks-status"
+          [checked]="isStatusSelected('pending')"
+          (change)="onStatusChange('pending')"
+        />
+        Pendentes
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="tasks-status"
+          [checked]="isStatusSelected('completed')"
+          (change)="onStatusChange('completed')"
+        />
+        Concluídas
+      </label>
+    </fieldset>
+
+    <fieldset class="tasks-page__filter-group">
+      <legend>Prioridade</legend>
+      @for (priority of priorityOptions; track priority) {
+        <label>
+          <input
+            type="checkbox"
+            [checked]="isPriorityChecked(priority)"
+            (change)="onPriorityToggle(priority)"
+          />
+          {{ priorityLabels[priority] }}
+        </label>
+      }
+    </fieldset>
+
+    <label class="tasks-page__filter-toggle">
+      <input type="checkbox" [checked]="isOverdueChecked()" (change)="onOverdueToggle($event)" />
+      Somente atrasadas
+    </label>
+
+    <label class="tasks-page__filter-search">
+      <span>Buscar</span>
+      <input
+        type="search"
+        name="tasks-search"
+        placeholder="Título ou descrição"
+        [value]="searchInputValue()"
+        (input)="onSearchInput($event)"
+      />
+    </label>
+
+    @if (hasActiveFilters()) {
+      <button type="button" class="tasks-page__clear-filters" (click)="clearFilters()">
+        Limpar filtros
+      </button>
+    }
+  </form>
+
+  @if (pageNotice(); as notice) {
+    <p class="tasks-page__notice" role="alert">{{ notice }}</p>
+  }
+
+  <p class="visually-hidden tasks-page__announcement" aria-live="polite">{{ announcement() }}</p>
+
+  @switch (store.status()) {
+    @case ('loading') {
+      <app-loading label="Carregando tarefas…" />
+    }
+    @case ('error') {
+      <app-error-state [message]="store.error()?.message ?? ''" (retry)="retry()" />
+    }
+    @default {
+      @if (!store.isEmpty()) {
+        <p class="tasks-page__results-status tabular-nums" role="status" aria-live="polite">
+          {{ resultsSummary() }}
+        </p>
+      }
+
+      @if (store.isEmpty()) {
+        <app-empty-state
+          message="Você ainda não tem tarefas."
+          actionLabel="Criar a primeira tarefa"
+          (action)="goToCreate()"
+        />
+      } @else if (store.isFilteredEmpty()) {
+        <app-empty-state
+          message="Nenhuma tarefa encontrada com esses filtros."
+          actionLabel="Limpar filtros"
+          (action)="clearFilters()"
+        />
+      } @else {
+        <ul class="tasks-page__list" role="list" aria-label="Lista de tarefas">
+          @for (task of store.items(); track task.id) {
+            <app-task-item
+              [task]="task"
+              [pending]="isPending(task.id)"
+              [actionError]="errorFor(task.id)"
+              (complete)="onComplete(task)"
+              (reopen)="onReopen(task)"
+              (remove)="onRemove(task)"
+            />
+          }
+        </ul>
+
+        @if (store.totalPages() > 1) {
+          <nav class="tasks-page__pagination" aria-label="Paginação de tarefas">
+            <button type="button" (click)="previousPage()" [disabled]="queryState().page <= 1">
+              Anterior
+            </button>
+            <p class="tasks-page__pagination-status tabular-nums" role="status" aria-live="polite">
+              Página {{ store.page() }} de {{ store.totalPages() }}
+            </p>
+            <button
+              type="button"
+              (click)="nextPage()"
+              [disabled]="queryState().page >= store.totalPages()"
+            >
+              Próxima
+            </button>
+          </nav>
+        }
+      }
+    }
+  }
+</div>

@@ -1,4 +1,4 @@
-using TodoList.Identity.Domain.Common;
+using TodoList.SharedKernel;
 
 namespace TodoList.Identity.IntegrationTests.Persistence;
 

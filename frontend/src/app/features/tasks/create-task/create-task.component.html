@@ -1,0 +1,8 @@
+<h1>Nova tarefa</h1>
+
+<app-task-form
+  submitLabel="Criar tarefa"
+  submittingLabel="Criando…"
+  (save)="onSave($event)"
+  (cancelled)="cancel()"
+/>

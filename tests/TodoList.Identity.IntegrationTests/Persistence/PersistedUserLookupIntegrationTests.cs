@@ -9,8 +9,8 @@ namespace TodoList.Identity.IntegrationTests.Persistence;
 
 /// <summary>
 /// <see cref="PersistedUserLookup"/> sobre Postgres real (BE-26, CA-13):
-/// desativar um usuário no banco muda a resposta de <c>active=true</c> para
-/// <c>active=false</c> <b>sem reiniciar o serviço</b> — cada chamada usa um
+/// excluir um usuário no banco muda a resposta de existente para
+/// inexistente <b>sem reiniciar o serviço</b> — cada chamada usa um
 /// <see cref="UserRepository"/>/<see cref="IdentityDbContext"/> novo (o
 /// equivalente a um novo escopo por requisição), nunca reaproveitando estado
 /// entre elas, provando que não há cache escondido. <b>Requer Docker.</b>
@@ -38,7 +38,7 @@ public class PersistedUserLookupIntegrationTests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "Docker")]
-    public async Task FindByIdAsync_AposDesativarUsuarioNoBanco_RefleteSemReiniciarOServico() // CA-13 de BE-26
+    public async Task FindByIdAsync_AposExcluirUsuarioNoBanco_RefleteSemReiniciarOServico() // CA-13 de BE-26
     {
         var timeProvider = TimeProvider.System;
         Guid userId;
@@ -58,13 +58,12 @@ public class PersistedUserLookupIntegrationTests : IAsyncLifetime
             var antes = await lookup.FindByIdAsync(userId, CancellationToken.None);
 
             antes.Should().NotBeNull();
-            antes!.Active.Should().BeTrue();
         }
 
         await using (var context = CreateContext())
         {
             var user = await context.Users.SingleAsync(u => u.Id == userId);
-            user.Deactivate(timeProvider);
+            context.Users.Remove(user);
             await context.SaveChangesAsync();
         }
 
@@ -76,9 +75,8 @@ public class PersistedUserLookupIntegrationTests : IAsyncLifetime
 
             var depois = await lookup.FindByIdAsync(userId, CancellationToken.None);
 
-            depois.Should().NotBeNull();
-            depois!.Active.Should().BeFalse(
-                "desativar o usuário no banco precisa refletir na próxima chamada, sem reiniciar o serviço (CA-13 de BE-26)");
+            depois.Should().BeNull(
+                "excluir o usuário no banco precisa refletir na próxima chamada, sem reiniciar o serviço (CA-13 de BE-26)");
         }
     }
 

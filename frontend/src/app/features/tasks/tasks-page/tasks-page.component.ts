@@ -1,0 +1,383 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+  viewChildren,
+} from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Observable, debounceTime, distinctUntilChanged } from 'rxjs';
+
+import { TasksStore } from '../tasks.store';
+import { TaskItemComponent } from '../task-item/task-item.component';
+import { LoadingComponent } from '../../../shared/ui/loading/loading.component';
+import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state.component';
+import { ErrorStateComponent } from '../../../shared/ui/error-state/error-state.component';
+import { PRIORITY_FILTER_LABELS } from '../task-labels';
+import {
+  TaskPriorityFilter,
+  TaskResponse,
+  TaskStatusFilter,
+  TasksFilters,
+  hasActiveTaskFilters,
+} from '../../../core/api/models/task.models';
+import { AppError } from '../../../core/errors/app-error.model';
+import { TasksQueryState, buildTasksQueryParams, parseTasksQueryParams } from './tasks-query.util';
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * Listagem, filtros e busca de tarefas (FE-15/FE-16): container que consome `TasksStore`,
+ * trata os três estados (carregando/vazio/erro) com os componentes compartilhados e delega a
+ * apresentação de cada item a `<app-task-item>`.
+ *
+ * **A URL é a única fonte de verdade dos filtros (FE-16, FD-08, CA-20):** este componente não
+ * guarda página nem filtro em signal próprio — `queryState` é só a leitura saneada de
+ * `ActivatedRoute.queryParamMap` (via `toSignal`). Uma assinatura de `queryParamMap` (não um
+ * `effect()`: FE-14, CA-12) chama `TasksStore.load()` a cada emissão — por navegação do usuário, pelo botão
+ * "voltar", por um link colado direto no navegador ou por `F5`. Mudar um filtro **navega**
+ * (com `replaceUrl: true`, para não entupir o histórico a cada tecla ou clique — CA-19);
+ * mudar de página navega normalmente (histórico completo).
+ *
+ * **Busca com debounce e sem corrida (CA-10/CA-11):** o campo de busca escreve num signal
+ * local (`searchInputSignal`), não direto na URL — só depois de ~300 ms sem digitar é que o
+ * valor vira navegação. A proteção contra respostas fora de ordem é a mesma de sempre:
+ * `TasksStore.load()` usa o contador de requisição interno, então uma resposta antiga nunca
+ * sobrescreve uma mais nova, mesmo se chegarem fora de ordem.
+ *
+ * **Estado por item, não por página (FE-18/19/20):** este componente mantém um conjunto de
+ * ids "em voo" (`pendingIds`) e um mapa de erro por id (`itemErrors`) — uma ação sobre um
+ * item nunca troca `store.status` nem o filtro atual.
+ */
+@Component({
+  selector: 'app-tasks-page',
+  imports: [
+    RouterLink,
+    TaskItemComponent,
+    LoadingComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './tasks-page.component.html',
+  styleUrl: './tasks-page.component.scss',
+})
+export class TasksPageComponent {
+  protected readonly store = inject(TasksStore);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly injector = inject(Injector);
+
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly taskItems = viewChildren(TaskItemComponent);
+  /** Marca de "troquei de página": consumida quando a nova página termina de carregar. */
+  private focusOnPageLoad = false;
+
+  protected readonly priorityOptions: readonly TaskPriorityFilter[] = ['low', 'medium', 'high'];
+  protected readonly priorityLabels = PRIORITY_FILTER_LABELS;
+
+  private readonly queryParamMap = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+
+  /** Página + filtros saneados a partir da URL corrente (FE-16) — única fonte de verdade. */
+  protected readonly queryState = computed<TasksQueryState>(() =>
+    parseTasksQueryParams(this.queryParamMap()),
+  );
+
+  protected readonly hasActiveFilters = computed(() =>
+    hasActiveTaskFilters(this.queryState().filters),
+  );
+
+  protected readonly resultsSummary = computed(() => {
+    const total = this.store.totalCount();
+    const base = total === 1 ? '1 tarefa encontrada' : `${total} tarefas encontradas`;
+    return this.hasActiveFilters() ? `${base} com os filtros aplicados` : base;
+  });
+
+  /** Espelho local do campo de busca — só vira navegação depois do debounce (CA-10). */
+  private readonly searchInputSignal = signal(
+    this.route.snapshot.queryParamMap.get('search') ?? '',
+  );
+  protected readonly searchInputValue = this.searchInputSignal.asReadonly();
+
+  private readonly pendingIdsSignal = signal<ReadonlySet<string>>(new Set());
+  private readonly itemErrorsSignal = signal<Readonly<Record<string, string>>>({});
+  /** Aviso de 404 (item já sumiu da lista): fica na página, não no item removido. */
+  private readonly pageNoticeSignal = signal<string | null>(null);
+  protected readonly pageNotice = this.pageNoticeSignal.asReadonly();
+  /** Anúncio a leitor de tela (região viva da página, sempre no DOM): sobrevive à remoção do item. */
+  protected readonly announcement = signal('');
+
+  constructor() {
+    // Carrega a lista a cada emissão da URL — deep link, F5, "voltar" e navegação normal passam
+    // todos por aqui, sem lógica duplicada (FE-16, CA-15/CA-16). Assinatura, não `effect()`:
+    // a rota comanda a chamada (FE-14, CA-12).
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const state = parseTasksQueryParams(params);
+      this.pageNoticeSignal.set(null);
+      this.announcement.set('');
+      this.store.load(state.page, this.store.pageSize(), state.filters);
+    });
+
+    // Troca de página: quando a nova página termina de carregar, o foco vai para o primeiro item
+    // (ou o <h1>) — o botão Próxima/Anterior some durante o carregamento (FE-15, CA-18).
+    effect(() => {
+      if (this.store.status() === 'success' && this.focusOnPageLoad) {
+        this.focusOnPageLoad = false;
+        this.focusItemAt(0);
+      }
+    });
+
+    // Mantém o campo de busca em sincronia quando a URL muda por fora da digitação (voltar,
+    // avançar, deep link, F5) — sem isso, o campo ficaria com o texto de uma busca anterior.
+    // Lê `searchInputSignal` sem criar dependência (senão o próprio `set` abaixo re-disparia
+    // o efeito) — só reage a mudanças da URL.
+    effect(() => {
+      const urlSearch = this.queryState().filters.search;
+      if (urlSearch !== untracked(this.searchInputSignal)) {
+        this.searchInputSignal.set(urlSearch);
+      }
+    });
+
+    // Debounce da busca (FE-16, CA-10): só navega ~300 ms depois da última tecla. Se o valor
+    // já é o que está na URL (por exemplo, acabou de ser sincronizado pelo efeito acima),
+    // não navega de novo.
+    toObservable(this.searchInputSignal)
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((value) => {
+        if (value === this.queryState().filters.search) {
+          return;
+        }
+        this.applyFilters({ ...this.queryState().filters, search: value });
+      });
+  }
+
+  protected retry(): void {
+    const state = this.queryState();
+    this.store.load(state.page, this.store.pageSize(), state.filters);
+  }
+
+  protected previousPage(): void {
+    const state = this.queryState();
+    if (state.page > 1) {
+      this.goToPage(state.page - 1);
+    }
+  }
+
+  protected nextPage(): void {
+    const state = this.queryState();
+    if (state.page < this.store.totalPages()) {
+      this.goToPage(state.page + 1);
+    }
+  }
+
+  protected goToCreate(): void {
+    void this.router.navigateByUrl('/tasks/new');
+  }
+
+  protected isStatusSelected(status: TaskStatusFilter): boolean {
+    return this.queryState().filters.status === status;
+  }
+
+  protected onStatusChange(status: TaskStatusFilter): void {
+    this.applyFilters({ ...this.queryState().filters, status });
+  }
+
+  protected isPriorityChecked(priority: TaskPriorityFilter): boolean {
+    return this.queryState().filters.priority.includes(priority);
+  }
+
+  protected onPriorityToggle(priority: TaskPriorityFilter): void {
+    const current = this.queryState().filters.priority;
+    const next = current.includes(priority)
+      ? current.filter((value) => value !== priority)
+      : [...current, priority];
+    this.applyFilters({ ...this.queryState().filters, priority: next });
+  }
+
+  protected isOverdueChecked(): boolean {
+    return this.queryState().filters.overdue === true;
+  }
+
+  protected onOverdueToggle(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.applyFilters({ ...this.queryState().filters, overdue: checked ? true : null });
+  }
+
+  protected onSearchInput(event: Event): void {
+    this.searchInputSignal.set((event.target as HTMLInputElement).value);
+  }
+
+  protected clearFilters(): void {
+    this.searchInputSignal.set('');
+    this.focusOnPageLoad = false;
+    void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+  }
+
+  protected isPending(taskId: string): boolean {
+    return this.pendingIdsSignal().has(taskId);
+  }
+
+  protected errorFor(taskId: string): string | null {
+    return this.itemErrorsSignal()[taskId] ?? null;
+  }
+
+  protected onComplete(task: TaskResponse): void {
+    this.runItemAction(task.id, () => this.store.complete(task.id));
+  }
+
+  protected onReopen(task: TaskResponse): void {
+    this.runItemAction(task.id, () => this.store.reopen(task.id));
+  }
+
+  protected onRemove(task: TaskResponse): void {
+    this.runItemAction(
+      task.id,
+      () => this.store.remove(task.id),
+      () => {
+        this.announcement.set(`Tarefa "${task.title}" removida.`);
+        this.afterRemove();
+      },
+    );
+  }
+
+  /**
+   * Guarda de pilha de pedidos (FE-19, CA-17): se o id já está em voo, ignora um novo
+   * clique — nenhuma ação duplicada, e ids diferentes seguem em paralelo sem se atrapalhar
+   * (CA-18).
+   */
+  private runItemAction<T>(
+    taskId: string,
+    start: () => Observable<T>,
+    onSuccess?: () => void,
+  ): void {
+    if (this.isPending(taskId)) {
+      return;
+    }
+    this.setPending(taskId, true);
+    this.clearError(taskId);
+    this.pageNoticeSignal.set(null);
+    this.announcement.set('');
+
+    // Índice capturado ANTES de chamar o store: concluir/reabrir com filtro ativo tira o item
+    // da lista de forma síncrona (patch otimista). Quando o item sai, o foco vai para quem
+    // ocupou o lugar dele (FE-20, CA-20) — senão cairia no <body>.
+    const index = this.store.items().findIndex((item) => item.id === taskId);
+    let focusMoved = false;
+    const moveFocusIfLeft = (): void => {
+      if (focusMoved || this.focusOnPageLoad || this.store.items().some((i) => i.id === taskId)) {
+        return;
+      }
+      focusMoved = true;
+      this.focusItemAt(index);
+    };
+
+    const request = start();
+    moveFocusIfLeft();
+    request.subscribe({
+      next: () => {
+        this.setPending(taskId, false);
+        onSuccess?.();
+        moveFocusIfLeft();
+      },
+      error: (error: AppError) => {
+        this.setPending(taskId, false);
+        moveFocusIfLeft();
+        if (error.status === 404) {
+          this.pageNoticeSignal.set(error.message);
+        } else {
+          this.setError(taskId, error.message);
+        }
+      },
+    });
+  }
+
+  /**
+   * Remover pode esvaziar a página atual (FE-20, CA-10/CA-11): se sobrou vazio e não é a
+   * primeira página, recua uma página (navegando, para a URL continuar refletindo a
+   * paginação real) em vez de deixar uma lista vazia no meio da paginação. Na página 1, o
+   * estado vazio (`store.isEmpty()`/`isFilteredEmpty()`) já resolve sozinho.
+   */
+  private afterRemove(): void {
+    const state = this.queryState();
+    if (this.store.items().length === 0 && state.page > 1) {
+      this.goToPage(state.page - 1);
+    }
+  }
+
+  /**
+   * Depois da renderização, foca o título do item em `index`; sem ele, o do anterior; sem
+   * nenhum, o <h1> (FE-15 CA-18, FE-19 CA-21, FE-20 CA-20).
+   */
+  private focusItemAt(index: number): void {
+    afterNextRender(
+      () => {
+        const items = this.taskItems();
+        const target = items[index] ?? items[index - 1];
+        if (target) {
+          target.focusTitle();
+        } else {
+          this.heading()?.nativeElement.focus();
+        }
+      },
+      { injector: this.injector },
+    );
+  }
+
+  /** Muda de página navegando (histórico completo, ao contrário de um filtro — CA-19). */
+  private goToPage(page: number): void {
+    this.focusOnPageLoad = true;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: buildTasksQueryParams({ page, filters: this.queryState().filters }),
+      replaceUrl: false,
+    });
+  }
+
+  /** Aplica um novo conjunto de filtros: sempre volta para a página 1 (CA-21) e usa
+   * `replaceUrl` para não entupir o histórico (CA-19). */
+  private applyFilters(filters: TasksFilters): void {
+    this.focusOnPageLoad = false;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: buildTasksQueryParams({ page: 1, filters }),
+      replaceUrl: true,
+    });
+  }
+
+  private setPending(taskId: string, pending: boolean): void {
+    this.pendingIdsSignal.update((current) => {
+      const next = new Set(current);
+      if (pending) {
+        next.add(taskId);
+      } else {
+        next.delete(taskId);
+      }
+      return next;
+    });
+  }
+
+  private setError(taskId: string, message: string): void {
+    this.itemErrorsSignal.update((current) => ({ ...current, [taskId]: message }));
+  }
+
+  private clearError(taskId: string): void {
+    this.itemErrorsSignal.update((current) => {
+      if (!(taskId in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[taskId];
+      return next;
+    });
+  }
+}

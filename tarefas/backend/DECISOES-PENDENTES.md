@@ -54,7 +54,7 @@ Estas saíram do estado provisório. Estão aqui como registro; as tasks já ref
 |---|---|---|---|---|---|
 | **D-01** | Auto-cadastro liberado | Sim | [BE-07](BE-07-cadastro-usuario.md) | — | Exigir convite/aprovação: nova regra no caso de uso de cadastro |
 | **D-02** | Duração do access token | 15 min | [BE-08](BE-08-emissao-jwt.md) | `Jwt:AccessTokenMinutes` | Só configuração |
-| **D-03** | Bloqueio por tentativas | 5 → 15 min | [BE-12](BE-12-bloqueio-tentativas-login.md) | `Lockout:MaxAttempts`, `Lockout:WindowMinutes` | Só configuração |
+| **D-03** ✅ | Bloqueio por tentativas (fechada em [D-43](#d-43--bloqueio-de-login-5-falhas--15-min-por-e-mail-normalizado-inclusive-e-mails-inexistentes-03102026)) | 5 → 15 min | [BE-12](BE-12-bloqueio-tentativas-login.md) | `Lockout:MaxAttempts`, `Lockout:LockoutMinutes`, `Lockout:AttemptWindowMinutes`, `Lockout:Enabled` | Só configuração |
 | **D-04** | "Esqueci minha senha" | Fora do escopo | — | — | Nova task (BE-25+): token de reset, expiração, envio |
 | **D-05** | Exclusão de conta | Apagar conta + tarefas | [BE-16](BE-16-exclusao-conta.md) | — | Anonimizar: troca o handler, mantém contrato do endpoint |
 | **D-06** | Vencimento no passado | Aceita, marca atrasada | [BE-05](BE-05-dominio-tarefa.md), [BE-17](BE-17-criar-tarefa.md) | — | Recusar: vira regra de validação no request |
@@ -70,9 +70,9 @@ Não constam do documento de regras e precisam de resposta do time. Cada uma tem
 
 | # | Questão | Padrão provisório | Task afetada |
 |---|---|---|---|
-| **D-12** | Período de retenção de tarefa soft-deleted antes do expurgo definitivo (RN-TASK-13 diz "período definido", sem valor) | **30 dias**, em `Tasks:SoftDeleteRetentionDays` | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
+| **D-12** ⏳ | Período de retenção de tarefa soft-deleted antes do expurgo definitivo (RN-TASK-13 diz "período definido", sem valor) | **30 dias**, em `Tasks:SoftDeleteRetentionDays` | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
 | **D-13** | O expurgo roda como job in-process (`BackgroundService`) ou tarefa externa agendada? | `BackgroundService` com intervalo configurável | [BE-23](BE-23-expurgo-tarefas-removidas.md) |
-| **D-14** | O bloqueio por tentativas (D-03) conta por e-mail, por IP ou por ambos? | Por e-mail (como está escrito na RN-AUTH-13) | [BE-12](BE-12-bloqueio-tentativas-login.md) |
+| **D-14** ✅ | O bloqueio por tentativas (D-03) conta por e-mail, por IP ou por ambos? (fechada: por e-mail, ver D-43) | Por e-mail (como está escrito na RN-AUTH-13) | [BE-12](BE-12-bloqueio-tentativas-login.md) |
 | **D-15** | Um refresh token pode existir por dispositivo (várias sessões simultâneas) ou é sessão única? | Múltiplas sessões: cada login cria uma cadeia própria | [BE-10](BE-10-refresh-token-rotacao.md) |
 | **D-16** | Busca textual (RN-LIST-05) inclui a descrição? A RN diz "opcionalmente" | Sim, título **e** descrição, case-insensitive | [BE-22](BE-22-listagem-tarefas.md) |
 | **D-17** | Banco de dados alvo | **PostgreSQL** (Npgsql + Testcontainers) | [BE-02](BE-02-persistencia-base.md) |
@@ -129,7 +129,7 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 **Consequência aceita:** os dois serviços passam a depender do mesmo banco. Uma migration do Identity que altere o tipo de `users.id` quebra a FK do Tasks, e a implantação dos dois precisa ser coordenada. É o mesmo acoplamento que **D-22** já assume entre front e back.
 
-**O que a FK não substitui:** ela garante que o dono **existe**. Não diz se ele está **ativo** (RN-USER-04) nem qual o nome de exibição — isso continua vindo de `ValidateUser` via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)). A FK é a rede de segurança do banco; a chamada gRPC é a regra de negócio, e é ela que produz uma resposta clara em vez de uma violação de constraint.
+**O que a FK não substitui:** ela garante que o dono **existe** no banco. Não devolve o nome de exibição — isso continua vindo de `ValidateUser` via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)). A FK é a rede de segurança do banco; a chamada gRPC é a regra de negócio, e é ela que produz uma resposta clara em vez de uma violação de constraint.
 
 **Se mudar** (voltar a dois bancos): [BE-16](BE-16-exclusao-conta.md) precisa de exclusão coordenada entre serviços, e a validação de dono na criação passa a ser a **única** garantia de integridade.
 
@@ -141,11 +141,13 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 **Padrão adotado:** **recusar**. `503` com `identity.unavailable` e cabeçalho `Retry-After`. Nada é persistido. Deadline de **2 s** em `Identity:GrpcTimeoutSeconds`.
 
-**Por quê, mesmo com a FK de D-27:** a FK impede tarefa de dono inexistente, mas **não** impede tarefa de dono **inativo** (RN-USER-04) — o registro em `identity.users` continua lá. Sem o Identity, o Tasks não tem como saber o estado do usuário, e criar assumindo "ativo" grava uma tarefa que a regra proibia.
+**Por quê, mesmo com a FK de D-27:** a FK é só rede de segurança do banco; o dono pode ter sido excluído há instantes, e só o Identity sabe. O Tasks confirma a existência antes de criar e, sem resposta do Identity, recusa com 503 em vez de criar.
 
-**Consequência aceita:** o Identity fora do ar impede a criação de tarefas, mesmo de usuários perfeitamente válidos. Nesta escala é preferível a violar RN-USER-04 em silêncio.
+> **Nota (03/10/2026, issue #16):** a justificativa original era "a FK não impede dono inativo (RN-USER-04)". O usuário não tem mais estado ativo/inativo; a decisão (fail-closed) permanece, só o motivo mudou.
 
-**Se mudar** (fail-open apoiado só na FK): tarefas de usuário inativo passam a existir, e alguém precisa decidir o que fazer com elas depois.
+**Consequência aceita:** o Identity fora do ar impede a criação de tarefas, mesmo de usuários perfeitamente válidos. Nesta escala é preferível a criar tarefa de dono não confirmado.
+
+**Se mudar** (fail-open apoiado só na FK): tarefas passam a ser criadas sem o dono confirmado, e alguém precisa decidir o que fazer com elas depois.
 
 **Registrar como ADR** ([BE-24](BE-24-observabilidade-ci.md)).
 
@@ -162,6 +164,8 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 **Afeta:** [BE-25](BE-25-contrato-grpc-identity.md), [BE-26](BE-26-identity-servidor-grpc.md), [BE-27](BE-27-tasks-cliente-grpc.md).
 
 ### D-30 — Identidade provisória no Tasks: `X-User-Id` sob flag
+
+> **✅ Fechada no T2.** O gatilho REST foi removido por [BE-35](BE-35-tasks-servidor-grpc.md): o Tasks passou a ser alcançável só por gRPC, e a identidade chega pela metadata `x-user-id` que o Gateway preenche **depois** de validar o token (**D-34**). A flag `Tasks:AllowAnonymousCreate` deixou de existir. O texto abaixo fica como registro.
 
 **Questão:** enquanto não há autenticação na borda do Tasks, de onde vem o dono da tarefa?
 
@@ -195,6 +199,8 @@ Existe **uma** chave estrangeira cruzando os schemas: `tasks.tasks.owner_id → 
 
 **Afeta:** [BE-08](BE-08-emissao-jwt.md), [BE-13](BE-13-protecao-endpoints.md), [BE-25](BE-25-contrato-grpc-identity.md), [BE-26](BE-26-identity-servidor-grpc.md).
 
+> **Emenda (21/09/2026) — ver D-38.** O enunciado do T2 mudou e passou a exigir middleware de JWT **no próprio Gateway** (requisito 6 de `t2.md`), o que é incompatível com HS256 (chave simétrica = quem valida também assina). **D-38** substitui HS256+`ValidateToken` por RS256 com chave assimétrica, mantendo o objetivo original de D-31 ("só o Identity emite") por outro mecanismo. O texto acima permanece como registro histórico do raciocínio até 20/09/2026.
+
 ### D-32 — A origem única passa a ser o API Gateway; os serviços não são alcançáveis pelo navegador
 
 **O problema:** **D-21** / **FD-16** fecharam "front e API na mesma origem", e disso dependem três coisas — `SameSite=Strict` sem token anti-CSRF, ausência de configuração de CORS, e o cookie de refresh com `Path=/api/auth` (**D-20**). Com dois serviços em portas diferentes, o frontend passaria a falar com **duas** origens, e as três premissas caem de uma vez.
@@ -213,3 +219,172 @@ Com isso: `/api/auth/*` e `/api/tasks` voltam a ser rotas da **mesma** origem, `
 **Enquanto o Gateway não existe:** nada a fazer no frontend, que não é tocado nesta etapa. O acesso direto ao Tasks é o gatilho provisório de [BE-29](BE-29-gatilho-http-criar-tarefa.md), em ambiente local. **NÃO DEVE** ser implementado CORS "para funcionar por enquanto" — seria trabalho descartado e mascararia o desenho correto.
 
 **Afeta:** [BE-29](BE-29-gatilho-http-criar-tarefa.md), transversal na etapa do Gateway e na de implantação. Do lado do frontend, ver **FD-16**.
+
+> **Emenda (21/09/2026) — ver D-40.** Com o frontend obrigatório servido por nginx (mesma origem, sem CORS), a origem pública da VM deixa de ser a porta 8080 do Gateway e passa a ser a **porta 80 do nginx** — o Gateway migra para `127.0.0.1:8080`, alcançável só localmente. O princípio de D-32 (única origem pública, backends não expostos) não muda; só o processo que ocupa essa origem única muda, de Gateway para nginx.
+
+---
+
+## Decisões do API Gateway (T2)
+
+A etapa do Gateway — [BE-32](BE-32-contratos-grpc-t2.md) a [BE-39](BE-39-verificacao-t2.md) — materializa o desenho de **D-31** e **D-32** e levantou as decisões abaixo. Todas estão fechadas (10/09/2026).
+
+```
+cliente ──HTTP/JSON──▶ Gateway :8080
+                         ├─ autenticação ──gRPC ValidateToken──▶ Identity :5081
+                         ├─ validação do payload (400)
+                         └─ gRPC CreateTask (metadata x-user-id) ──▶ Tasks :5101
+                                                                     └─gRPC ValidateUser─▶ Identity
+```
+
+### D-33 — O Gateway é um projeto só, sem Domain/Application
+
+**Questão:** a convenção (seção 2.1 de [CONVENCOES-CODIGO.md](../../CONVENCOES-CODIGO.md)) prevê quatro projetos por serviço. O Gateway segue?
+
+**Padrão adotado:** não. `src/Gateway/TodoList.Gateway.Api` é **um** projeto Web, organizado por pasta (`Endpoints/`, `Authentication/`, `Validation/`, `Backends/`, `ErrorHandling/`, `Contracts/`).
+
+**Por quê:** o Gateway não tem regra de negócio nem persistência — ele autentica, valida o formato do payload e traduz protocolo. Domain e Application sairiam vazios, e Infrastructure seria só o registro dos clientes gRPC. Quatro projetos para isso é cerimônia, não arquitetura.
+
+**Limite explícito:** o Gateway **NÃO DEVE** referenciar nenhum projeto do Identity ou do Tasks — nem `SharedKernel`. A única fronteira com os serviços são os `.proto` em `contracts/` (**D-29**). Verificado por teste de arquitetura ([BE-36](BE-36-api-gateway.md)). No dia em que uma regra de negócio aparecer no Gateway, ela está no lugar errado.
+
+**Afeta:** [BE-36](BE-36-api-gateway.md), [BE-38](BE-38-containerizacao.md).
+
+### D-34 — A identidade chega ao Tasks pela metadata gRPC `x-user-id`
+
+**Questão:** o Gateway validou o token e sabe quem é o usuário. Como o Tasks fica sabendo?
+
+**Padrão adotado:** metadata gRPC **`x-user-id`** (o `sub` do token) e **`x-client-date`** (repassado do request, **D-18**), preenchidos por um interceptor de cliente no Gateway. **Nunca** no corpo da mensagem — `tasks.proto` não tem campo de dono.
+
+**Por quê:** é a continuação direta de **D-30**: o dono é identidade, não dado de negócio. Metadata gRPC é header HTTP/2, então a leitura no Tasks é a mesma que o header provisório já fazia via `IHttpContextAccessor` — o `CreateTaskHandler` não muda.
+
+**Risco assumido — o mesmo de D-30, agora permanente:** o Tasks **confia no chamador**. Quem alcançar a porta gRPC do Tasks cria tarefa em nome de qualquer usuário. Por isso o Tasks **NÃO DEVE** ser publicamente acessível (**D-32**): na VM, a porta fica fechada no firewall; no Cloud Run (T3), o serviço é privado (`--no-allow-unauthenticated`) e só a conta de serviço do Gateway pode invocá-lo.
+
+**Se mudar** (confiança zero entre serviços): o Gateway repassa o próprio JWT e o Tasks chama `ValidateToken` — uma chamada de rede a mais por requisição, em troca de não depender do isolamento de rede.
+
+**Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-36](BE-36-api-gateway.md).
+
+### D-35 — Mapeamento de erro gRPC ↔ HTTP, com o `errorCode` no trailer
+
+**Questão:** o Tasks devolve `Result<T>` com `Error(Code, Message, Type)`. Como esse erro atravessa o gRPC e volta a ser um `ProblemDetails` HTTP no Gateway, sem perder o código do catálogo?
+
+**Padrão adotado:**
+
+| `ErrorType` (Tasks) | `StatusCode` gRPC | HTTP (Gateway) |
+|---|---|---|
+| `Validation` | `InvalidArgument` | 400 |
+| `NotFound` | `NotFound` | 404 |
+| `Conflict` | `FailedPrecondition` | 409 |
+| `Unavailable` | `Unavailable` | 503 + `Retry-After` |
+| `Failure` | `Internal` | 500 |
+| — (sem identidade) | `Unauthenticated` | 401 |
+| — (deadline estourado) | `DeadlineExceeded` | 503 + `Retry-After` |
+
+O `Error.Code` (ex.: `task.owner_inactive`) viaja no trailer **`error-code`**; a mensagem, no `Status.Detail`. O Gateway reconstrói o `ProblemDetails` com o mesmo `errorCode` que o Tasks devolvia em REST — o contrato visto pelo cliente não muda.
+
+**Por quê trailer e não `google.rpc.Status` com detalhes tipados:** o rich error model exige `Grpc.StatusProto` e mensagens de detalhe próprias — mais contrato para dois serviços do mesmo repositório. Um trailer string resolve o único dado que falta.
+
+**Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-36](BE-36-api-gateway.md).
+
+### D-36 — O login do T2 é um recorte de BE-09
+
+**Questão:** o T2 exige **401** para token ausente ou inválido — então precisa existir token válido. O fluxo completo de autenticação (BE-06 a BE-12) cabe no prazo?
+
+**Padrão adotado:** um recorte. Entram [BE-06](BE-06-hash-senha.md) (hash, escopo integral), [BE-08](BE-08-emissao-jwt.md) (emissão e validação de JWT, sem o Bearer no pipeline do Identity) e um RPC **`Login`** que troca e-mail + senha por **access token** ([BE-33](BE-33-login-minimo-grpc.md)), exposto pelo Gateway como `POST /api/auth/login`. **Ficam de fora:** refresh token e cookie ([BE-10](BE-10-refresh-token-rotacao.md)), logout ([BE-11](BE-11-logout-revogacao.md)), bloqueio por tentativas ([BE-12](BE-12-bloqueio-tentativas-login.md)) e cadastro ([BE-07](BE-07-cadastro-usuario.md)) — os usuários continuam vindo do seed de demonstração, agora com hash de senha real.
+
+**Por quê login real e não um token de desenvolvimento:** um emissor de token "só para demo" seria mais uma rota provisória a remover — exatamente o tipo de dívida que D-30 acabou de pagar. O recorte é código definitivo: BE-09 completa o que falta **em cima** dele, sem reescrever.
+
+**Consequência aceita:** sem refresh, a sessão dura o access token (15 min, **D-02**) e depois exige novo login. Para a demonstração e para o T3, é suficiente.
+
+**Afeta:** [BE-06](BE-06-hash-senha.md), [BE-08](BE-08-emissao-jwt.md), [BE-09](BE-09-login.md), [BE-33](BE-33-login-minimo-grpc.md), [BE-34](BE-34-validate-token-real.md).
+
+### D-37 — Cada backend tem uma porta HTTP/2 que vira a `$PORT` do Cloud Run
+
+**Questão:** o Cloud Run (T3) roteia **uma** porta por serviço. O Identity hoje escuta em duas (5080 REST, 5081 gRPC) e o Tasks falava REST.
+
+**Padrão adotado:** todo serviço de backend expõe um endpoint Kestrel **`Grpc`** com `Protocols=Http2` — Identity em `5081`, Tasks em `5101` localmente e na VM, e `8080` no container. É por ele que passa todo o tráfego entre serviços. O endpoint `Http` (Http1) continua existindo só para `/health` operado por humano (`curl`); ele não é necessário no Cloud Run. Para os probes, cada backend mapeia o **gRPC Health Checking Protocol** (`Grpc.AspNetCore.HealthChecks`), que o Cloud Run sabe consultar.
+
+**Por quê não `Http1AndHttp2` na mesma porta:** sem TLS não há ALPN, e o Kestrel não negocia HTTP/2 em texto claro numa porta que também aceita HTTP/1.1. No Cloud Run, com `--use-http2`, o tráfego chega ao container como h2c — então a porta de serviço precisa ser `Http2` pura.
+
+**Afeta:** [BE-35](BE-35-tasks-servidor-grpc.md), [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md).
+
+---
+
+## Revisão do T2 — enunciado novo (21/09/2026)
+
+O enunciado do T2 mudou: frontend obrigatório falando só com o Gateway, validação de JWT **no middleware do Gateway**, banco real sem mocks/dados em memória, apresentação de **10 minutos** (era 5). As decisões abaixo materializam essa mudança. Todas fechadas na mesma data.
+
+```
+navegador ──HTTP/JSON──▶ nginx :80 ──┬─ estático (Angular)
+                                      └─ /api/* ──▶ Gateway :8080 (127.0.0.1)
+                                                       ├─ AddJwtBearer local (chave pública RSA)
+                                                       ├─ validação do payload (400)
+                                                       └─ gRPC CreateTask/ListTasks/GetTask ──▶ Tasks
+                                                                                                └─gRPC ValidateUser─▶ Identity
+```
+
+### D-38 — JWT RS256: chave privada só no Identity, pública só no Gateway
+
+**Emenda a D-31.** O problema que D-31 resolvia (HS256 é simétrico; distribuir a chave promove o validador a emissor) continua real, mas o enunciado novo torna a solução anterior (validação só via `ValidateToken` gRPC, nenhuma chave fora do Identity) incompatível com o requisito 6 de `t2.md`: **"middleware/filtro de autenticação configurado no API Gateway para validação de token JWT"** — o Gateway precisa validar, não perguntar.
+
+**Padrão adotado:** `Jwt:PrivateKeyPath` (PEM PKCS8, RSA ≥ 2048 bits) só no Identity; `Jwt:PublicKeyPath` (PEM SPKI, a chave pública correspondente) só no Gateway; **nenhuma** chave `Jwt:*` no Tasks. O Identity assina com RS256; o Gateway valida localmente com `AddJwtBearer` e a chave pública. Detalhado em [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md).
+
+**Por que preserva o objetivo de D-31 mesmo com o mecanismo mudando:** "quem pode emitir é só o Identity" continua verdadeiro — a chave pública não serve para assinar, só para verificar. O que muda é que a verificação deixa de custar uma chamada de rede por requisição e passa a ser local, o que aliás é exigido pelo novo enunciado.
+
+**Consequência:** `ValidateToken` (BE-34) continua existindo no Identity, mas perde o Gateway como consumidor — vira capacidade sem chamador ativo nesta etapa.
+
+**Afeta:** [BE-08](BE-08-emissao-jwt.md), [BE-34](BE-34-validate-token-real.md), [BE-36](BE-36-api-gateway.md), [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md).
+
+### D-39 — Dados de demonstração só do Postgres; `Persisted` é o padrão
+
+**O problema:** o enunciado novo é explícito — **"não serão aceitas simulações de requisições ao banco, mocks, dados estáticos em memória ou respostas fictícias"** — e zera o requisito de banco se isso aparecer na demonstração. O Identity, até esta revisão, tinha `UserStore:Provider=InMemory` como padrão em `appsettings.json`.
+
+**Padrão adotado:** `UserStore:Provider=Persisted` como padrão em todo `appsettings.json`/ambiente de deploy. `InMemory` passa a existir **só** em configuração explícita de teste (`appsettings.Testing.json`, fixtures de `WebApplicationFactory`) — nenhum `.env`/`appsettings.json` usado em VM, compose ou T3 o referencia.
+
+**Por quê não deixar `InMemory` como opção "desligada por padrão":** deixar a opção disponível em configuração de produção é um risco operacional silencioso — basta um `.env` novo esquecer a chave. Restringir ao código de teste torna o erro impossível de cometer por omissão de configuração.
+
+**Afeta:** [BE-40](BE-40-jwt-rs256-e-persisted-padrao.md). Referenciado por [BE-39](BE-39-verificacao-t2.md) como parte do que a demonstração precisa provar (registros no `psql`).
+
+### D-40 — O nginx é servidor estático com proxy, não um segundo gateway
+
+**O problema:** a decisão do usuário de servir o Angular e o `/api` pela mesma origem via nginx (preservando FD-16/FD-01/D-21/D-32) introduz um processo novo na frente do Gateway. É fácil, na prática, começar a colocar lógica nesse processo — um redirect condicional, uma checagem de header — e assim o desenho de "Gateway como única borda com regra" (D-33) esvaziar sem que nenhuma task tenha decidido isso.
+
+**Padrão adotado:** o nginx **só** serve estático e faz `proxy_pass` de `/api/*` para o Gateway (`127.0.0.1:8080`, agora não mais público). Nenhuma regra de negócio, autenticação ou validação nele. O Gateway continua sendo o único ponto de entrada da **API**; o nginx é o único ponto de entrada do **tráfego HTTP** da VM, um nível abaixo — a mesma origem pública muda de dono (do Gateway para o nginx), mas o princípio de D-32 (uma única origem pública, backends não expostos) não muda.
+
+**Consequência na VM:** a porta pública passa a ser **80** (nginx); **8080** (Gateway) fecha para tráfego externo e passa a escutar só em `127.0.0.1`. `ForwardedHeaders` no Gateway com `KnownProxies=127.0.0.1`.
+
+**Afeta:** [BE-37](BE-37-deploy-t2-vm.md), [BE-38](BE-38-containerizacao.md), [BE-42](BE-42-nginx-mesma-origem.md). Do lado do frontend, ver **FD-16**/**FD-01**.
+
+### D-41 ✅ — O logout não invalida o access token já emitido (03/10/2026)
+
+**Decisão:** logout, logout-all, troca de senha e exclusão de conta revogam os **refresh tokens**; o **access token** já emitido continua válido até expirar (`Jwt:AccessTokenMinutes`, 15 por padrão). É a "opção 1" da decisão 1 de [PLANO-REGRAS-RESTANTES](../PLANO-REGRAS-RESTANTES.md): aceitar e documentar.
+
+**Motivo:** desde D-38 o Gateway valida a assinatura do JWT **localmente** e não consulta o Identity por requisição. Invalidar o access token exigiria uma blocklist consultada a cada chamada — o custo de rede que a BE-40 removeu de propósito. A janela de 15 minutos (RN-AUTH-11) é a mitigação; encurtá-la (opção 2) é só mudar `Jwt:AccessTokenMinutes`, sem código.
+
+**Consequência:** depois do logout, um access token roubado ainda abre a API por até 15 minutos; o que o atacante **não** consegue é renová-lo. Há teste que registra a expectativa (`AccessTokenEmitidoAntesDoLogout_ContinuaAceitoAteExpirar`, BE-11 CA-11), para que uma mudança futura seja consciente. Registro completo em [ADR-0001](../../docs/adr/0001-logout-nao-invalida-access-token.md).
+
+**Afeta:** [BE-11](BE-11-logout-revogacao.md), RN-AUTH-12 ([REGRAS-DE-NEGOCIO.md](../../REGRAS-DE-NEGOCIO.md)).
+
+### D-42 ✅ — `Secure` do cookie do refresh token é configuração (03/10/2026)
+
+**Decisão:** o Gateway lê `RefreshCookie:Secure` (padrão `true` em `appsettings.json`). `HttpOnly`, `SameSite=Strict` e `Path=/api/auth` (D-20, D-21) continuam fixos no código; o `Secure` é o único atributo que varia por ambiente. Escrita e remoção do cookie passam pelo mesmo método (`RefreshCookie`), para que os atributos sejam idênticos — é o que faz o `Set-Cookie` de expiração realmente apagar o cookie.
+
+**Motivo:** a VM da demo serve **HTTP puro por IP** (não `localhost`), contexto em que o navegador descarta um cookie `Secure`. Com o padrão `true` o login funcionaria e a sessão morreria em 15 minutos, sem erro visível. `http://localhost` é contexto seguro, então o `docker-compose.yml` local não precisa mudar.
+
+**Como usar:** na VM, `RefreshCookie__Secure=false` no `.env` (`deploy/todolist.env.example`, repassado pelo `docker-compose.prod.yml`). Com HTTPS na frente, remover a linha. Desligar `Secure` é decisão explícita de ambiente, nunca o padrão.
+
+**Também decidido nesta onda:** o `Max-Age` do cookie sai da expiração que o Identity devolve no RPC (`refresh_token_expires_at`, derivada de `Jwt:RefreshTokenDays`), não de uma segunda chave no Gateway; e um redeem que **perde a corrida** de dois pedidos paralelos é tratado como reuso (RN-AUTH-17) — a sessão inteira é revogada, nunca sobram dois tokens ativos derivados do mesmo pai.
+
+**Afeta:** [BE-09](BE-09-login.md), [BE-10](BE-10-refresh-token-rotacao.md), [BE-11](BE-11-logout-revogacao.md), [BE-37](BE-37-deploy-t2-vm.md).
+
+### D-43 ✅ — Bloqueio de login: 5 falhas → 15 min, por e-mail normalizado, inclusive e-mails inexistentes (03/10/2026)
+
+**Fecha D-03 e D-14.** **Decisão:** `Lockout:MaxAttempts=5`, `Lockout:LockoutMinutes=15`, `Lockout:AttemptWindowMinutes=15`, `Lockout:Enabled=true` (seção `Lockout` do Identity). A contagem é por **e-mail normalizado** (não por IP), persistida em `identity.login_attempts` e incrementada por upsert atômico **antes** de verificar a senha. E-mails que não existem contam igual; e-mail malformado não conta.
+
+**Motivo:** responder 429 só para contas reais denunciaria a existência da conta (RN-AUTH-09). Contar os inexistentes também mantém o 429 indistinguível. Registro completo em [ADR-0002](../../docs/adr/0002-bloqueio-de-login-conta-e-email-inexistente.md).
+
+**Sinalização na arquitetura gRPC:** `LoginResponse` ganhou `locked_out` e `retry_after_seconds` (extensão aditiva); o Gateway responde **429** + `Retry-After` + `errorCode` `auth.too_many_attempts`.
+
+**Afeta:** [BE-12](BE-12-bloqueio-tentativas-login.md), [BE-09](BE-09-login.md).
+
+### D-12 / D-13 — Expurgo de dados removidos: padrão provisório aplicado (03/10/2026)
+
+**Aplicadas em [BE-23](BE-23-expurgo-tarefas-removidas.md), com o padrão provisório.** **D-13:** `BackgroundService` in-process, um por serviço (`Retention:IntervalHours=24`, `Retention:BatchSize=500`, `Retention:Enabled=true`). **D-12:** tarefa removida é apagada de vez após `Tasks:SoftDeleteRetentionDays=30`; **continua pendente de confirmação de produto** (a RN-TASK-13 não define o valor) — trocar o número é só configuração. Retenção de refresh token vencido/revogado: `Auth:TokenRetentionDays=30`. Registro em [ADR-0003](../../docs/adr/0003-soft-delete-e-retencao.md).

@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-LIST-01, RN-LIST-06, RN-LIST-07, RN-TASK-14, RN-TASK-16 |
 | **Estimativa** | G |
 
+> **Recorte do T2 (21/09/2026):** entra com **paginação simples, sem filtros** — [FE-16](FE-16-filtros-busca-url.md) (filtros, busca, sincronia com URL) fica fora do T2. O restante entra integral: ordenação vinda do servidor (o cliente não reordena), selo "Atrasada" via `isOverdue` da API (FD-09), paginação clássica (FD-10). As ações de editar ([FE-18](FE-18-editar-tarefa.md)), concluir/reabrir ([FE-19](FE-19-concluir-reabrir.md)) e remover ([FE-20](FE-20-remover-tarefa.md)) ficam fora do T2 — cada item exibe só os dados, sem esses botões. Depende de [BE-41](../backend/BE-41-listar-e-consultar-tarefas-grpc.md) (listagem/consulta).
+
 ## Objetivo
 
 A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, paginadas, com as tarefas atrasadas visivelmente sinalizadas.
@@ -51,41 +53,41 @@ A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, pa
 
 ### Conteúdo
 
-- [ ] **CA-01** — `/tasks` lista as tarefas do usuário autenticado (RN-LIST-01).
-- [ ] **CA-02** — Cada item exibe título, prioridade, vencimento, estado e data de atualização.
-- [ ] **CA-03** — Tarefa sem descrição ou sem vencimento é exibida sem campo vazio nem `null` na tela.
-- [ ] **CA-04** — Título longo (200 caracteres) não quebra o layout.
-- [ ] **CA-05** — A prioridade é exibida com **rótulo textual** em pt-BR, além da cor.
-- [ ] **CA-06** — Tarefa com `isOverdue: true` exibe o selo **"Atrasada"** com texto (RN-TASK-16).
-- [ ] **CA-07** — Tarefa concluída **não** exibe o selo de atrasada, mesmo com vencimento passado.
-- [ ] **CA-08** — `isOverdue` é lido da resposta; não há cálculo de data no componente (verificado por revisão e ausência de `new Date()` na lógica de atraso).
-- [ ] **CA-08b** — Com o navegador em `UTC−3` às `21:30` do dia 20 (UTC já no dia 21), uma tarefa pendente vencendo no dia **20** **não** exibe o selo "Atrasada" — o cenário que motivou a decisão do fuso (FD-17 / D-18), verificado ponta a ponta com o header sendo enviado.
-- [ ] **CA-09** — A data de vencimento `2026-01-01` é exibida como **01/01/2026** mesmo em navegador com fuso `UTC-3`.
-- [ ] **CA-10** — Tarefas concluídas têm tratamento visual distinto, mantendo contraste ≥ 4.5:1.
+- [x] **CA-01** — `/tasks` lista as tarefas do usuário autenticado (RN-LIST-01).
+- [x] **CA-02** — Cada item exibe título, prioridade, vencimento, estado e data de atualização.
+- [x] **CA-03** — Tarefa sem descrição ou sem vencimento é exibida sem campo vazio nem `null` na tela.
+- [x] **CA-04** — Título longo (200 caracteres) não quebra o layout.
+- [x] **CA-05** — A prioridade é exibida com **rótulo textual** em pt-BR, além da cor.
+- [x] **CA-06** — Tarefa com `isOverdue: true` exibe o selo **"Atrasada"** com texto (RN-TASK-16).
+- [x] **CA-07** — Tarefa concluída **não** exibe o selo de atrasada, mesmo com vencimento passado.
+- [x] **CA-08** — `isOverdue` é lido da resposta; não há cálculo de data no componente (verificado por revisão e ausência de `new Date()` na lógica de atraso).
+- [x] **CA-08b** — Com o navegador em `UTC−3` às `21:30` do dia 20 (UTC já no dia 21), uma tarefa pendente vencendo no dia **20** **não** exibe o selo "Atrasada" — o cenário que motivou a decisão do fuso (FD-17 / D-18), verificado ponta a ponta com o header sendo enviado.
+- [x] **CA-09** — A data de vencimento `2026-01-01` é exibida como **01/01/2026** mesmo em navegador com fuso `UTC-3`.
+- [x] **CA-10** — Tarefas concluídas têm tratamento visual distinto, mantendo contraste ≥ 4.5:1.
 
 ### Ordenação
 
-- [ ] **CA-11** — A ordem exibida é **exatamente** a ordem retornada pela API; nenhum `sort` é aplicado no cliente (verificado por teste com resposta em ordem conhecida).
-- [ ] **CA-12** — Com um conjunto cobrindo pendentes/concluídas, com/sem vencimento, a tela reproduz a sequência do servidor sem alteração.
+- [x] **CA-11** — A ordem exibida é **exatamente** a ordem retornada pela API; nenhum `sort` é aplicado no cliente (verificado por teste com resposta em ordem conhecida).
+- [x] **CA-12** — Com um conjunto cobrindo pendentes/concluídas, com/sem vencimento, a tela reproduz a sequência do servidor sem alteração.
 
 ### Paginação
 
-- [ ] **CA-13** — Os controles exibem página atual, total de páginas e total de itens (RN-LIST-07).
-- [ ] **CA-14** — Navegar entre páginas carrega os itens corretos, sem repetição nem omissão.
-- [ ] **CA-15** — Na primeira página, "anterior" está desabilitado; na última, "próxima" está desabilitado.
-- [ ] **CA-16** — Com uma única página, os controles são ocultados ou desabilitados, não exibidos como interativos inúteis.
-- [ ] **CA-17** — O `pageSize` usado é o retornado pela API, não uma constante no frontend.
-- [ ] **CA-18** — Mudar de página move o foco para o início da lista e anuncia a mudança a leitor de tela.
+- [x] **CA-13** — Os controles exibem página atual, total de páginas e total de itens (RN-LIST-07).
+- [x] **CA-14** — Navegar entre páginas carrega os itens corretos, sem repetição nem omissão.
+- [x] **CA-15** — Na primeira página, "anterior" está desabilitado; na última, "próxima" está desabilitado.
+- [x] **CA-16** — Com uma única página, os controles são ocultados ou desabilitados, não exibidos como interativos inúteis.
+- [x] **CA-17** — O `pageSize` usado é o retornado pela API, não uma constante no frontend.
+- [x] **CA-18** — Mudar de página move o foco para o início da lista e anuncia a mudança a leitor de tela. *(Atendido em 03/10/2026, issue #10: Anterior/Próxima focam o título do primeiro item da página carregada e "Página X de Y" virou `role="status"`. Voltar/avançar do navegador não movem o foco.)*
 
 ### Estados
 
-- [ ] **CA-19** — Durante o carregamento, exibe indicador — não a lista vazia nem a mensagem de "nenhuma tarefa".
-- [ ] **CA-20** — Usuário sem nenhuma tarefa vê estado vazio com chamada para criar a primeira.
-- [ ] **CA-21** — Erro de carregamento exibe mensagem com "tentar novamente", e o botão refaz a chamada.
-- [ ] **CA-22** — A lista tem semântica de lista, e a quantidade de itens é anunciada por leitor de tela.
-- [ ] **CA-23** — Todas as ações de cada item são alcançáveis pelo teclado, com rótulo acessível que identifica **qual** tarefa (não apenas "Editar").
-- [ ] **CA-24** — A tela é usável em 360 px: os itens se adaptam sem rolagem horizontal.
-- [ ] **CA-25** — `<app-task-item>` é de apresentação pura: recebe por `input()`, emite por `output()`, não injeta o store.
+- [x] **CA-19** — Durante o carregamento, exibe indicador — não a lista vazia nem a mensagem de "nenhuma tarefa".
+- [x] **CA-20** — Usuário sem nenhuma tarefa vê estado vazio com chamada para criar a primeira.
+- [x] **CA-21** — Erro de carregamento exibe mensagem com "tentar novamente", e o botão refaz a chamada.
+- [x] **CA-22** — A lista tem semântica de lista, e a quantidade de itens é anunciada por leitor de tela.
+- [x] **CA-23** — Todas as ações de cada item são alcançáveis pelo teclado, com rótulo acessível que identifica **qual** tarefa (não apenas "Editar"). *(Atendido em 03/10/2026, issue #11: o link ganhou `aria-label` `Editar: <título>`, no mesmo formato de concluir, reabrir e remover.)*
+- [x] **CA-24** — A tela é usável em 360 px: os itens se adaptam sem rolagem horizontal.
+- [x] **CA-25** — `<app-task-item>` é de apresentação pura: recebe por `input()`, emite por `output()`, não injeta o store.
 
 ## Testes obrigatórios
 
@@ -97,3 +99,22 @@ A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, pa
 
 - **FD-09** — `isOverdue` vem da API.
 - **FD-10** — Paginação clássica.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 14 de 26.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-02 | em aberto | Título, prioridade, vencimento e situação são testados; a data de atualização é renderizada (`Atualizada em ...`) mas sem asserção. |
+| CA-03 | em aberto | Template trata descrição/vencimento ausentes (`@if`, "Sem vencimento"), mas sem teste de tarefa sem vencimento ou com `null`. |
+| CA-04 | em aberto | CSS usa `overflow-wrap: anywhere` e o E2E de 360 px usa título longo (~75 caracteres, sem rolagem horizontal), mas não há teste com 200 caracteres. |
+| CA-07 | em aberto | Sem teste de tarefa concluída com vencimento passado. O front só renderiza `isOverdue` (backend decide); a transição otimista de `complete` zera `isOverdue`. |
+| CA-08b | em aberto | Peças isoladas: `client-date.util.spec.ts` (UTC-3 e UTC+9) e `client-date.interceptor.spec.ts` (header anexado). Não há teste ponta a ponta do cenário 21:30 em UTC-3. |
+| CA-10 | em aberto | Estilo distinto para concluídas existe (`--completed`), mas contraste >= 4.5:1 não é verificado: o axe do E2E só roda com tarefas pendentes. Verificação visual/manual. |
+| CA-11 | em aberto | Não há `sort` no cliente (busca no código), mas falta o teste obrigatório com resposta em ordem conhecida. O store test de reload valida a ordem do servidor, mas não a renderização na tela. |
+| CA-12 | em aberto | Mesmo motivo de CA-11: sem teste com conjunto misto (pendentes/concluídas, com/sem vencimento) na tela. |
+| CA-15 | em aberto | "Anterior" desabilitado na página 1 é testado; "Próxima" desabilitado na última página não é. |
+| CA-17 | em aberto | O store adota `result.pageSize` da API, mas nenhum teste usa `pageSize` diferente de 20 para distinguir de uma constante (a primeira chamada ainda envia o padrão 20). |
+| CA-18 | em aberto | Não implementado: mudar de página não move o foco nem anuncia a página (só o resumo `role=status` de contagem, que não muda com a página). |
+| CA-23 | em aberto | Checkbox e Remover têm rótulo com o título da tarefa, mas o link "Editar" não identifica a tarefa (sem `aria-label`; só "Editar"), o que o critério proíbe explicitamente. Lacuna de acessibilidade. |

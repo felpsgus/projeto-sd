@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TodoList.SharedKernel.Web;
 
 namespace TodoList.Tasks.Api.ErrorHandling;
 
@@ -49,7 +50,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
             return await TryHandleBadHttpRequestAsync(httpContext, badHttpRequestException);
         }
 
-        Log.UnhandledException(_logger, httpContext.TraceIdentifier, exception);
+        Log.UnhandledException(_logger, exception);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
@@ -71,7 +72,7 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private async ValueTask<bool> TryHandleBadHttpRequestAsync(HttpContext httpContext, BadHttpRequestException exception)
     {
-        Log.BadHttpRequest(_logger, httpContext.TraceIdentifier, exception.StatusCode, exception);
+        Log.BadHttpRequest(_logger, exception.StatusCode, exception);
 
         httpContext.Response.StatusCode = exception.StatusCode;
 
@@ -91,15 +92,13 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     private static partial class Log
     {
-        // traceId explícito no template (e não só via scope de hosting) para que
-        // CA-06 (traceId da resposta == traceId do log) seja verificável sem
-        // depender do formato interno do scope padrão do ASP.NET Core.
-        [LoggerMessage(Level = LogLevel.Error, Message = "Exceção não tratada. traceId={TraceId}")]
-        public static partial void UnhandledException(ILogger logger, string traceId, Exception exception);
+        // O traceId entra na entrada pelo enricher de StructuredLogging (CA-06: igual ao do ProblemDetails).
+        [LoggerMessage(Level = LogLevel.Error, Message = "Exceção não tratada")]
+        public static partial void UnhandledException(ILogger logger, Exception exception);
 
         // Warning, não Error: é entrada malformada do cliente, não bug do
         // servidor (BE-17, CA-05/CA-13).
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Requisição malformada. traceId={TraceId}, statusCode={StatusCode}")]
-        public static partial void BadHttpRequest(ILogger logger, string traceId, int statusCode, Exception exception);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Requisição malformada. statusCode={StatusCode}")]
+        public static partial void BadHttpRequest(ILogger logger, int statusCode, Exception exception);
     }
 }

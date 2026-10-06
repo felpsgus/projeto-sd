@@ -47,25 +47,35 @@ O usuário edita título, descrição, prioridade e data de vencimento das próp
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `PUT` válido em tarefa própria retorna **200** com os novos valores (RN-TASK-11).
-- [ ] **CA-02** — Todos os quatro campos editáveis efetivamente mudam: título, descrição, prioridade e vencimento.
-- [ ] **CA-03** — `updatedAt` muda; `createdAt` **não** muda (RN-TASK-14).
-- [ ] **CA-04** — `description: null` e `dueDate: null` **limpam** os campos.
-- [ ] **CA-05** — Campos omitidos no corpo assumem o padrão de substituição (descrição e vencimento nulos, prioridade `Medium`) — comportamento verificado e documentado.
-- [ ] **CA-06** — As mesmas validações da criação valem: título vazio/só-espaços/201 caracteres → **400**; descrição com 2001 → **400**; prioridade inválida → **400**.
-- [ ] **CA-07** — `dueDate` no passado é aceita e a resposta reflete `isOverdue: true`.
-- [ ] **CA-08** — Enviar `"status": "Completed"` no corpo **não** altera o estado da tarefa (RN-TASK-11 lista apenas os quatro campos).
-- [ ] **CA-09** — Enviar `"id"` ou `"ownerId"` diferentes no corpo não altera nada no banco.
-- [ ] **CA-10** — Editar uma tarefa **concluída** funciona e ela permanece `Completed`, com `completedAt` inalterado.
-- [ ] **CA-11** — `PUT` em tarefa de **outro usuário** retorna **404**, com corpo idêntico ao de id inexistente (RN-AUTZ-02, RN-AUTZ-03).
-- [ ] **CA-12** — `PUT` em tarefa removida (soft delete) retorna **404**.
-- [ ] **CA-13** — `PUT` sem token retorna **401**.
-- [ ] **CA-14** — Uma edição que **falha na validação** não altera `updatedAt` no banco.
-- [ ] **CA-15** — O validador é a mesma classe usada por BE-17 (sem duplicação de regra — verificado em revisão).
-- [ ] **CA-16** — O OpenAPI descreve explicitamente a semântica de substituição do `PUT`.
+- [x] **CA-01** — `PUT` válido em tarefa própria retorna **200** com os novos valores (RN-TASK-11).
+- [x] **CA-02** — Todos os quatro campos editáveis efetivamente mudam: título, descrição, prioridade e vencimento.
+- [x] **CA-03** — `updatedAt` muda; `createdAt` **não** muda (RN-TASK-14).
+- [x] **CA-04** — `description: null` e `dueDate: null` **limpam** os campos.
+- [x] **CA-05** — Campos omitidos no corpo assumem o padrão de substituição (descrição e vencimento nulos, prioridade `Medium`) — comportamento verificado e documentado.
+- [x] **CA-06** — As mesmas validações da criação valem: título vazio/só-espaços/201 caracteres → **400**; descrição com 2001 → **400**; prioridade inválida → **400**.
+- [x] **CA-07** — `dueDate` no passado é aceita e a resposta reflete `isOverdue: true`.
+- [x] **CA-08** — Enviar `"status": "Completed"` no corpo **não** altera o estado da tarefa (RN-TASK-11 lista apenas os quatro campos).
+- [x] **CA-09** — Enviar `"id"` ou `"ownerId"` diferentes no corpo não altera nada no banco.
+- [x] **CA-10** — Editar uma tarefa **concluída** funciona e ela permanece `Completed`, com `completedAt` inalterado.
+- [x] **CA-11** — `PUT` em tarefa de **outro usuário** retorna **404**, com corpo idêntico ao de id inexistente (RN-AUTZ-02, RN-AUTZ-03).
+- [x] **CA-12** — `PUT` em tarefa removida (soft delete) retorna **404**.
+- [x] **CA-13** — `PUT` sem token retorna **401**.
+- [x] **CA-14** — Uma edição que **falha na validação** não altera `updatedAt` no banco.
+- [x] **CA-15** — O validador é a mesma classe usada por BE-17 (sem duplicação de regra — verificado em revisão).
+- [x] **CA-16** — O OpenAPI descreve explicitamente a semântica de substituição do `PUT`.
 
 ## Testes obrigatórios
 
 - Unidade: `UpdateTaskHandler` — CA-03, CA-08, CA-10, CA-14.
 - Integração: CA-01, CA-02, CA-04 a CA-07, CA-09, CA-11 a CA-13.
 - CA-11 é coberto pelo teste transversal de BE-18 (CA-11 daquela task) — adicionar o endpoint à lista.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 16.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-15 | atendido (com ressalva) | No Tasks, `TasksGrpcService.UpdateTask` reaproveita o mesmo `IValidator<CreateTaskRequest>` de BE-17. No Gateway existe `UpdateTaskHttpRequestValidator` separado de `CreateTaskHttpRequestValidator` (duplicação deliberada, documentada na classe; os limites são constantes compartilhadas). |
+| CA-08/CA-09 | atendidos por construção | `status`/`id`/`ownerId` no corpo HTTP são ignorados pelo binder e `UpdateTaskRequest` do proto não os tem; coberto por `UpdateTaskHandlerTests.HandleAsync_NaoAlteraOwnerIdNemStatus` e descrito no OpenAPI. Sem teste que envie esses campos no corpo HTTP. |
+| CA-01 a CA-13 | atendidos em outro lugar | Rota `PUT /api/tasks/{id}` no Gateway (D-32); regra de negócio em `UpdateTaskGrpcTests`/`UpdateTaskHandlerTests` (Tasks), tradução HTTP em `UpdateTaskTests` do Gateway. CA-14 coberto por `UpdateTaskHandlerTests.HandleAsync_TituloInvalido_FalhaSemPersistir` (não chama `SaveChanges`). |

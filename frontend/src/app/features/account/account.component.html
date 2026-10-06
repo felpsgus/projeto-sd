@@ -1,0 +1,116 @@
+<div class="account">
+  <h1>Minha conta</h1>
+
+  @switch (status()) {
+    @case ('loading') {
+      <app-loading label="Carregando perfil…" />
+    }
+    @case ('error') {
+      <app-error-state [message]="loadErrorMessage() ?? profileLoadError" (retry)="retry()" />
+    }
+    @default {
+      @if (profile(); as current) {
+        <section class="account__section">
+          <h2>Dados da conta</h2>
+
+          <div class="account__field">
+            <span class="account__label">E-mail</span>
+            <p class="account__value">{{ current.email }}</p>
+            <p class="account__hint">O e-mail é usado para entrar e não pode ser alterado.</p>
+          </div>
+
+          <div class="account__field">
+            <span class="account__label">Conta criada em</span>
+            <p class="account__value tabular-nums">{{ current.createdAt | date: 'dd/MM/yyyy' }}</p>
+          </div>
+
+          <form [formGroup]="form" (ngSubmit)="save()" novalidate class="account__form">
+            <div class="account__field">
+              <label for="displayName">Nome de exibição</label>
+              <input
+                id="displayName"
+                type="text"
+                formControlName="displayName"
+                [attr.aria-invalid]="
+                  (form.controls.displayName.touched && form.controls.displayName.invalid) ||
+                  (serverFieldErrors()['displayName']?.length ?? 0) > 0
+                "
+                aria-describedby="displayName-error"
+              />
+              <p class="account__count tabular-nums">
+                {{ form.controls.displayName.value.length }}/{{ displayNameMaxLength }}
+              </p>
+              @if (
+                form.controls.displayName.touched && form.controls.displayName.errors?.['required']
+              ) {
+                <app-form-field-error
+                  fieldId="displayName-error"
+                  [messages]="['Informe um nome de exibição.']"
+                />
+              } @else if (
+                form.controls.displayName.touched && form.controls.displayName.errors?.['maxlength']
+              ) {
+                <app-form-field-error
+                  fieldId="displayName-error"
+                  [messages]="[
+                    'O nome deve ter no máximo ' + displayNameMaxLength + ' caracteres.',
+                  ]"
+                />
+              } @else {
+                <app-form-field-error
+                  fieldId="displayName-error"
+                  [messages]="serverFieldErrors()['displayName'] ?? []"
+                />
+              }
+            </div>
+
+            @if (formError(); as message) {
+              <p class="account__error" role="alert" aria-live="assertive">{{ message }}</p>
+            }
+
+            <button
+              type="submit"
+              class="account__save"
+              [disabled]="submitting() || !canSave()"
+              [attr.aria-busy]="submitting()"
+            >
+              {{ submitting() ? 'Salvando…' : 'Salvar' }}
+            </button>
+          </form>
+        </section>
+
+        <section class="account__section">
+          <h2>Segurança</h2>
+          <ul class="account__actions">
+            <li><a routerLink="/account/password">Alterar senha</a></li>
+            <li>
+              <button type="button" class="account__link-button" (click)="logout()">Sair</button>
+            </li>
+            <li>
+              <button type="button" class="account__link-button" (click)="logoutAll()">
+                Sair de todos os dispositivos
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        <hr class="account__divider" />
+
+        <section class="account__section account__section--danger">
+          <h2>Excluir conta</h2>
+          <p>Esta ação é permanente e apaga todas as suas tarefas.</p>
+          <button type="button" class="account__delete" (click)="openDeleteDialog()">
+            Excluir minha conta
+          </button>
+        </section>
+
+        <app-delete-account-dialog
+          [taskCount]="taskCount()"
+          [busy]="deleteBusy()"
+          [errorMessage]="deleteErrorMessage()"
+          (confirmed)="onDeleteConfirmed($event)"
+        />
+      }
+    }
+  }
+</div>

@@ -1,0 +1,65 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+
+  &__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  &__brand {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  &__account {
+    display: flex;
+    flex-wrap: wrap;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  &__name {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    overflow-wrap: anywhere;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--color-text);
+      text-decoration: underline;
+    }
+  }
+
+  &__logout {
+    padding: var(--space-2xs) var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+
+    &:hover {
+      border-color: var(--color-text-secondary);
+    }
+  }
+
+  &__content {
+    flex: 1;
+    width: 100%;
+    max-width: var(--content-max-width);
+    margin: 0 auto;
+    padding: var(--space-lg) var(--space-md);
+  }
+}

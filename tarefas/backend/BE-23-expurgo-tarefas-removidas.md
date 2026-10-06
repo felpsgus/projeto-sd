@@ -49,19 +49,19 @@ Tarefas soft-deleted são apagadas definitivamente depois do período de retenç
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Uma tarefa com `DeletedAt` de 31 dias atrás é **apagada fisicamente** pelo worker (RN-TASK-13).
-- [ ] **CA-02** — Uma tarefa com `DeletedAt` de 29 dias atrás **permanece** no banco.
-- [ ] **CA-03** — Uma tarefa **não** removida (`DeletedAt` nulo) nunca é tocada, por mais antiga que seja.
-- [ ] **CA-04** — O corte usa `Tasks:SoftDeleteRetentionDays`: mudar para 1 dia faz o expurgo alcançar tarefas removidas ontem, sem alteração de código.
-- [ ] **CA-05** — Refresh tokens expirados/revogados além da retenção são removidos; os ainda válidos **não** são.
-- [ ] **CA-06** — Registros de tentativa de login antigos são removidos sem afetar bloqueios **ativos** (uma conta bloqueada continua bloqueada após o expurgo).
-- [ ] **CA-07** — Com mais registros que `Retention:BatchSize`, o worker processa em múltiplos lotes até esvaziar o backlog, sem uma transação única gigante.
-- [ ] **CA-08** — Uma exceção durante o ciclo é **logada** e **não** derruba a aplicação; o ciclo seguinte executa normalmente.
-- [ ] **CA-09** — Com `Retention:Enabled = false`, o worker não remove nada.
-- [ ] **CA-10** — No shutdown da aplicação, o worker encerra respeitando o `CancellationToken`, sem deixar transação aberta.
-- [ ] **CA-11** — Cada execução emite um log estruturado com as contagens removidas por tipo e a duração.
-- [ ] **CA-12** — Rodar o worker duas vezes seguidas é idempotente: a segunda execução remove zero registros e não gera erro.
-- [ ] **CA-13** — O expurgo de tarefas de um usuário não afeta as de outro.
+- [x] **CA-01** — Uma tarefa com `DeletedAt` de 31 dias atrás é **apagada fisicamente** pelo worker (RN-TASK-13).
+- [x] **CA-02** — Uma tarefa com `DeletedAt` de 29 dias atrás **permanece** no banco.
+- [x] **CA-03** — Uma tarefa **não** removida (`DeletedAt` nulo) nunca é tocada, por mais antiga que seja.
+- [x] **CA-04** — O corte usa `Tasks:SoftDeleteRetentionDays`: mudar para 1 dia faz o expurgo alcançar tarefas removidas ontem, sem alteração de código.
+- [x] **CA-05** — Refresh tokens expirados/revogados além da retenção são removidos; os ainda válidos **não** são.
+- [x] **CA-06** — Registros de tentativa de login antigos são removidos sem afetar bloqueios **ativos** (uma conta bloqueada continua bloqueada após o expurgo).
+- [x] **CA-07** — Com mais registros que `Retention:BatchSize`, o worker processa em múltiplos lotes até esvaziar o backlog, sem uma transação única gigante.
+- [x] **CA-08** — Uma exceção durante o ciclo é **logada** e **não** derruba a aplicação; o ciclo seguinte executa normalmente.
+- [x] **CA-09** — Com `Retention:Enabled = false`, o worker não remove nada.
+- [x] **CA-10** — No shutdown da aplicação, o worker encerra respeitando o `CancellationToken`, sem deixar transação aberta.
+- [x] **CA-11** — Cada execução emite um log estruturado com as contagens removidas por tipo e a duração.
+- [x] **CA-12** — Rodar o worker duas vezes seguidas é idempotente: a segunda execução remove zero registros e não gera erro.
+- [x] **CA-13** — O expurgo de tarefas de um usuário não afeta as de outro.
 
 ## Testes obrigatórios
 
@@ -73,3 +73,11 @@ Tarefas soft-deleted são apagadas definitivamente depois do período de retenç
 
 - **D-12** — Período de retenção. Padrão provisório: 30 dias. **Precisa de confirmação de produto** — a RN-TASK-13 não define o valor.
 - **D-13** — `BackgroundService` in-process. Padrão provisório.
+
+## Notas de implementação (03/10/2026)
+
+- **Dois purgers, um por serviço.** Identity e Tasks não se referenciam e cada um é dono do seu schema, então não existe um worker único que apague os dois. `DataRetentionWorker` (SharedKernel.Web) é genérico; cada serviço registra o seu `IRetentionPurger` (`TasksRetentionPurger`: `tasks.tasks`; `IdentityRetentionPurger`: `refresh_tokens` e `login_attempts`) com `AddDataRetention<TPurger>()`. `Retention:*` vale por serviço; `Tasks:SoftDeleteRetentionDays` só no Tasks, `Auth:TokenRetentionDays` só no Identity.
+- **Refresh tokens:** apaga `ExpiresAt` ou `RevokedAt` anterior ao corte. `replaced_by_token_id` não tem FK, então não houve migration.
+- **`login_attempts`:** apaga linhas com `LastAttemptAt` anterior a `agora - Lockout:AttemptWindowMinutes` (depois disso o contador reiniciaria de qualquer forma) **e** sem bloqueio vigente (`LockedUntil` nulo ou passado). Bloqueio ativo nunca é apagado (CA-06).
+- **Múltiplas instâncias:** cada instância roda o seu worker; o `DELETE` é idempotente, então a corrida é inofensiva. Sem lock distribuído — se virar problema, adotar um.
+- Registro da decisão em [ADR-0003](../../docs/adr/0003-soft-delete-e-retencao.md).

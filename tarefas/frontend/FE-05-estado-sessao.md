@@ -10,6 +10,10 @@
 
 > **FD-01 está decidida:** o refresh token vive em cookie `HttpOnly` e o frontend **nunca o vê**. Isso simplificou esta task — não há `TokenStorage`, não há escolha de armazenamento, não há nada a persistir.
 
+> **Recorte do T2 (21/09/2026):** entra **parcial**. O `SessionStore` mantém `user`/`isAuthenticated`/`accessTokenExpiresAt` e `startSession`/`endSession`, mas **sem bootstrap por refresh**: como o backend do T2 não emite refresh token nem cookie (D-36), não há como restaurar a sessão num `F5` — recarregar a página exige novo login (nova **FD-20**, em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md)). `status` pode ficar só em `'authenticated' | 'anonymous'`, sem o estado `'unknown'` de bootstrap. **Fica para depois:** restauração de sessão, sincronia entre abas por revogação de servidor (ainda vale a sincronia local de `endSession`, se trivial). Depende de [BE-33](../backend/BE-33-login-minimo-grpc.md)/[BE-36](../backend/BE-36-api-gateway.md).
+
+> **Emenda (03/10/2026, Fase 4):** o recorte acima está **superado** — o escopo integral entrou. `SessionStore` ganhou `status` (`unknown`/`authenticated`/`anonymous`, derivado), `updateTokens`, `setProfile` e `finishBootstrap`; o bootstrap (`SessionRefresher.restore`, disparado por `provideAppInitializer` sem bloquear a inicialização) tenta `POST /api/auth/refresh` e depois `GET /api/me`; o `App` mostra carregamento enquanto `unknown` e os guards aguardam `SessionStore.ready`. Sincronia entre abas por `BroadcastChannel` (`SessionTabSync`, só o motivo trafega). Nova **FD-20 revogada** em [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md). CA-11 e CA-13 são garantidos por regra de lint (`no-restricted-globals`/`no-restricted-syntax` em `eslint.config.js`), além dos testes. CA-06/CA-07 estão cobertos em testes de unidade; a verificação em navegador real é do E2E (FE-22, Fase 5).
+
 ## Objetivo
 
 Existe uma única fonte de verdade sobre "quem está logado", exposta por signals — e o frontend não guarda credencial nenhuma em disco.
@@ -56,31 +60,31 @@ Existe uma única fonte de verdade sobre "quem está logado", exposta por signal
 
 ### Estado
 
-- [ ] **CA-01** — Após `startSession`, `isAuthenticated` é `true` e `user` traz os dados retornados pela API.
-- [ ] **CA-02** — Após `endSession`, `isAuthenticated` é `false`, `user` é `null` e nenhum token permanece em memória ou em storage.
-- [ ] **CA-03** — `isAuthenticated` é `computed`, não um signal escrito manualmente em vários pontos.
-- [ ] **CA-04** — `accessTokenExpiresAt` reflete o `expiresAt` retornado pela API, não um cálculo local de "agora + 15 min".
-- [ ] **CA-05** — Um componente que lê `session.user()` re-renderiza quando a sessão muda, sem `subscribe` e sem `effect`.
+- [x] **CA-01** — Após `startSession`, `isAuthenticated` é `true` e `user` traz os dados retornados pela API.
+- [x] **CA-02** — Após `endSession`, `isAuthenticated` é `false`, `user` é `null` e nenhum token permanece em memória ou em storage.
+- [x] **CA-03** — `isAuthenticated` é `computed`, não um signal escrito manualmente em vários pontos.
+- [x] **CA-04** — `accessTokenExpiresAt` reflete o `expiresAt` retornado pela API, não um cálculo local de "agora + 15 min".
+- [x] **CA-05** — Um componente que lê `session.user()` re-renderiza quando a sessão muda, sem `subscribe` e sem `effect`.
 
 ### Bootstrap e persistência
 
-- [ ] **CA-06** — Recarregar a página (`F5`) numa rota autenticada **mantém** o usuário logado, sem exibir a tela de login em nenhum momento.
-- [ ] **CA-07** — Durante o bootstrap, `status` é `'unknown'` e a aplicação exibe carregamento — não conteúdo autenticado nem tela de login.
-- [ ] **CA-08** — Se a restauração falhar (refresh inválido/expirado), `status` vira `'anonymous'` e o usuário vai para o login **sem** mensagem de erro alarmante.
-- [ ] **CA-09** — O access token **não** é encontrado em `localStorage` nem em `sessionStorage` em nenhum momento (verificado por teste que inspeciona os storages após o login).
+- [x] **CA-06** — Recarregar a página (`F5`) numa rota autenticada **mantém** o usuário logado, sem exibir a tela de login em nenhum momento.
+- [x] **CA-07** — Durante o bootstrap, `status` é `'unknown'` e a aplicação exibe carregamento — não conteúdo autenticado nem tela de login.
+- [x] **CA-08** — Se a restauração falhar (refresh inválido/expirado), `status` vira `'anonymous'` e o usuário vai para o login **sem** mensagem de erro alarmante.
+- [x] **CA-09** — O access token **não** é encontrado em `localStorage` nem em `sessionStorage` em nenhum momento (verificado por teste que inspeciona os storages após o login).
 
 ### Ausência de armazenamento (FD-01)
 
-- [ ] **CA-10** — Após um login bem-sucedido, `localStorage` e `sessionStorage` estão **vazios** de qualquer valor de credencial (teste que inspeciona ambos por completo, não só chaves conhecidas).
-- [ ] **CA-11** — Nenhum acesso a `localStorage`, `sessionStorage` ou `document.cookie` para fins de sessão existe na base de código (verificado por busca e por regra de lint).
-- [ ] **CA-12** — `document.cookie` **não** contém o refresh token: ele é `HttpOnly` e invisível a JavaScript (RN-AUTH-20). Teste que lê `document.cookie` após o login e confirma a ausência.
-- [ ] **CA-13** — Não existe nenhum campo, tipo ou variável chamado `refreshToken` no código do frontend — o valor nunca transita por JavaScript.
+- [x] **CA-10** — Após um login bem-sucedido, `localStorage` e `sessionStorage` estão **vazios** de qualquer valor de credencial (teste que inspeciona ambos por completo, não só chaves conhecidas).
+- [x] **CA-11** — Nenhum acesso a `localStorage`, `sessionStorage` ou `document.cookie` para fins de sessão existe na base de código (verificado por busca e por regra de lint).
+- [x] **CA-12** — `document.cookie` **não** contém o refresh token: ele é `HttpOnly` e invisível a JavaScript (RN-AUTH-20). Teste que lê `document.cookie` após o login e confirma a ausência.
+- [x] **CA-13** — Não existe nenhum campo, tipo ou variável chamado `refreshToken` no código do frontend — o valor nunca transita por JavaScript.
 
 ### Encerramento
 
-- [ ] **CA-14** — `endSession` limpa também o estado de features (lista de tarefas em memória), para que outro usuário logando na mesma aba não veja dados do anterior.
-- [ ] **CA-15** — Encerrar a sessão em uma aba encerra nas demais abas abertas.
-- [ ] **CA-16** — Cada motivo de encerramento produz a mensagem adequada: logout voluntário não exibe erro; expiração exibe "sua sessão expirou"; revogação exibe "sua sessão foi encerrada, entre novamente".
+- [x] **CA-14** — `endSession` limpa também o estado de features (lista de tarefas em memória), para que outro usuário logando na mesma aba não veja dados do anterior.
+- [x] **CA-15** — Encerrar a sessão em uma aba encerra nas demais abas abertas.
+- [x] **CA-16** — Cada motivo de encerramento produz a mensagem adequada: logout voluntário não exibe erro; expiração exibe "sua sessão expirou"; revogação exibe "sua sessão foi encerrada, entre novamente".
 
 ## Testes obrigatórios
 
@@ -93,3 +97,7 @@ Existe uma única fonte de verdade sobre "quem está logado", exposta por signal
 
 - **FD-01** — ✅ decidida: refresh token em cookie `HttpOnly`; o frontend não armazena credencial alguma.
 - **FD-05** — Estado por serviços com signals.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 16.

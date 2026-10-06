@@ -1,0 +1,25 @@
+# Config do gitleaks (job `secrets` do CI). Só as regras padrão + dois allowlists
+# ESTREITOS (regra + caminho) para falsos positivos reais do repositório.
+[extend]
+useDefault = true
+
+# Senhas literais de usuários fictícios nos testes C# (ex.: CorrectPassword = "..."):
+# o hasher de teste não protege nada real. Só a regra generic-api-key, só tests/**/*.cs.
+[[allowlists]]
+description = "Senhas de usuários fictícios em testes C#"
+targetRules = ["generic-api-key"]
+paths = ['''^tests/.+\.cs$''']
+
+# Mesmo caso no E2E do frontend (TEST_PASSWORD/NEW_TEST_PASSWORD em e2e/support.ts):
+# usuário criado pelo próprio teste, sem valor fora dele.
+[[allowlists]]
+description = "Senhas de usuários fictícios no E2E do frontend"
+targetRules = ["generic-api-key"]
+paths = ['''^frontend/e2e/.+\.ts$''']
+
+# deploy/smoke.sh monta curl com `-X POST ... -H 'Content-Type'` em linhas contínuas;
+# não há token no arquivo (o teste "sem token" justamente não envia nenhum).
+[[allowlists]]
+description = "curl do smoke.sh sem credencial"
+targetRules = ["curl-auth-header"]
+paths = ['''^deploy/smoke\.sh$''']

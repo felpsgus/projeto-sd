@@ -1,0 +1,17 @@
+<a class="skip-link" href="#main-content" (click)="skipToContent($event)">Pular para o conteúdo</a>
+
+@if (bootstrapping()) {
+  <app-loading label="Carregando…" />
+}
+
+@if (routeLoading()) {
+  <div class="route-loading"><app-loading label="Carregando…" /></div>
+}
+
+@if (failedUrl()) {
+  <app-error-state [message]="routeLoadError" (retry)="retryNavigation()" />
+}
+
+<router-outlet />
+
+<app-http-status-indicator />

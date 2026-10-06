@@ -2,18 +2,32 @@ using FluentValidation;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TodoList.Identity.Api.Configuration;
-using TodoList.Identity.Api.Endpoints;
 using TodoList.Identity.Api.ErrorHandling;
 using TodoList.Identity.Api.Grpc;
+using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Users;
 using TodoList.Identity.Infrastructure.Persistence;
+using TodoList.Identity.Infrastructure.Retention;
+using TodoList.Identity.Infrastructure.Security;
 using TodoList.Identity.Infrastructure.Users;
+using TodoList.SharedKernel.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Log estruturado JSON (BE-24): service=identity, traceId/spanId, níveis em Serilog:MinimumLevel.
+builder.AddStructuredLogging("identity");
+
 builder.Services.AddOpenApi();
 builder.Services.AddGrpc();
-builder.Services.AddApiErrorHandling();
+// Handler global de exceções + ProblemDetails com traceId (BE-03, CA-03/CA-05/CA-06).
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.GetTraceId();
+    };
+});
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 // Abstração de tempo (BE-02, CA-08): nada de DateTime.UtcNow espalhado pelo
@@ -39,6 +53,17 @@ builder.Services
 // aplicadas por comando explícito (ver README).
 builder.Services.AddIdentityPersistence(builder.Configuration);
 
+// BE-23: expurgo de refresh tokens vencidos e tentativas de login antigas (D-13).
+builder.Services.AddDataRetention<IdentityRetentionPurger>(builder.Configuration);
+
+// Hashing de senha (BE-06): PasswordHashingOptions validado no start +
+// IPasswordHasher singleton (Pbkdf2PasswordHasher). JWT RS256 (BE-08, D-38):
+// JwtOptions validado no start + RsaSigningKeyProvider/JwtTokenService/
+// JwtAccessTokenValidator singletons. builder.Environment é passado para que
+// um Jwt:PrivateKeyPath relativo seja resolvido contra o ContentRootPath do
+// host, não o diretório corrente (ver PostConfigure em ServiceCollectionExtensions).
+builder.Services.AddIdentitySecurity(builder.Configuration, builder.Environment);
+
 // Seleção do store de usuários por configuração (BE-26). "InMemory" não tem
 // dependência escopada, então pode ser Singleton de verdade (uma instância só
 // no processo inteiro — é o que faz o log de aviso do CA-15 aparecer uma
@@ -52,7 +77,28 @@ builder.Services.AddIdentityPersistence(builder.Configuration);
 // tempo de vida que ela mesma precisa.
 builder.Services.AddSingleton<InMemoryUserLookup>();
 builder.Services.AddScoped<PersistedUserLookup>();
-builder.Services.AddScoped<DemoUserSeeder>();
+
+// Login (BE-33): LoginHandler é Scoped porque depende de IUserRepository
+// (Scoped, por sua vez do IdentityDbContext). DummyPasswordHash é Singleton
+// de propósito — o hash dummy precisa ser fixo por processo, não recalculado
+// a cada requisição (ver XML doc de DummyPasswordHash).
+builder.Services.AddSingleton<DummyPasswordHash>();
+builder.Services.AddScoped<LoginHandler>();
+
+// Fase 3 (BE-07/BE-14/BE-15/BE-16): mesmo tempo de vida de LoginHandler —
+// todos dependem de IUserRepository (Scoped, via IdentityDbContext).
+// Resolvidos preguiçosamente por IdentityGrpcService via IServiceProvider,
+// pela mesma razão documentada no construtor de IdentityGrpcService.
+builder.Services.AddScoped<RegisterUserHandler>();
+builder.Services.AddScoped<GetProfileHandler>();
+builder.Services.AddScoped<UpdateProfileHandler>();
+builder.Services.AddScoped<ChangePasswordHandler>();
+builder.Services.AddScoped<DeleteAccountHandler>();
+
+// Fase 4 (BE-10/BE-11): sessão completa — mesmo tempo de vida e mesma
+// resolução preguiçosa. RefreshTokenService é registrado em AddIdentitySecurity.
+builder.Services.AddScoped<RefreshSessionHandler>();
+builder.Services.AddScoped<LogoutAllHandler>();
 
 builder.Services.AddScoped<IUserLookup>(sp =>
 {
@@ -74,7 +120,10 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-app.UseApiErrorHandling();
+// Log de requisição (inclui as chamadas gRPC recebidas); userId vem da metadata x-user-id, quando houver.
+app.UseStructuredRequestLogging(StructuredLogging.CallerUserId);
+
+app.UseExceptionHandler();
 
 // Força a resolução do IUserLookup na inicialização: com o seed em memória,
 // isso garante o log de aviso do CA-15 (BE-26) mesmo antes da primeira chamada
@@ -87,14 +136,15 @@ using (var warmUpScope = app.Services.CreateScope())
     warmUpScope.ServiceProvider.GetRequiredService<IUserLookup>();
 }
 
-// Seed de usuários de demonstração (BE-04/BE-26, CA-14): desligado por
-// padrão, ligado só por UserStore:SeedDemoUsers=true — nunca
-// EnsureCreated()/Migrate() automático aqui, a tabela precisa já existir
-// (ver README, seção "Migrations").
-if (app.Services.GetRequiredService<IOptions<UserStoreOptions>>().Value.SeedDemoUsers)
+var userStoreOptions = app.Services.GetRequiredService<IOptions<UserStoreOptions>>().Value;
+
+// BE-33, CA-11: com UserStore:Provider=InMemory não existe senha/hash
+// associado ao seed em memória — Login sempre nega (decisão na borda, não na
+// Application). O aviso sai uma única vez aqui, na inicialização, nunca a
+// cada chamada de Login.
+if (userStoreOptions.Provider == UserStoreOptions.InMemoryProvider)
 {
-    using var seedScope = app.Services.CreateScope();
-    await seedScope.ServiceProvider.GetRequiredService<DemoUserSeeder>().SeedAsync(CancellationToken.None);
+    StartupLog.LoginNotSupportedWithInMemoryProvider(app.Services.GetRequiredService<ILogger<Program>>());
 }
 
 if (app.Environment.IsDevelopment())
@@ -103,7 +153,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.MapEndpoints();
+app.MapHealthEndpoints();
 app.MapGrpcService<IdentityGrpcService>();
 
 await app.RunAsync();
@@ -111,4 +161,19 @@ await app.RunAsync();
 // Exposto para TodoList.Identity.IntegrationTests via WebApplicationFactory<Program>.
 public partial class Program
 {
+}
+
+/// <summary>
+/// Log de inicialização do host (BE-33, CA-11) — não é um <c>LoggerMessage</c>
+/// de hot path como os de <c>IdentityGrpcService</c>, mas segue o mesmo
+/// mecanismo de logging estruturado (source-generated), em vez de string
+/// interpolada solta.
+/// </summary>
+internal static partial class StartupLog
+{
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Identity está com UserStore:Provider=InMemory — Login sempre responde succeeded=false " +
+            "(não há senha/hash associado ao seed em memória). Use UserStore:Provider=Persisted para autenticar de verdade.")]
+    public static partial void LoginNotSupportedWithInMemoryProvider(ILogger logger);
 }

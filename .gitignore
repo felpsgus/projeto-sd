@@ -31,6 +31,7 @@ artifacts/
 ## Test results
 TestResults/
 coverage*.json
+!coverage-baseline.json
 coverage*.xml
 coverage*.info
 *.coverage
@@ -48,6 +49,10 @@ appsettings.*.local.json
 *.env
 .env.*
 
+## Chaves JWT RS256 geradas localmente (BE-40) — nunca versionadas, nem de teste.
+.secrets/
+*.pem
+
 ## OS
 .DS_Store
 Thumbs.db
@@ -55,3 +60,11 @@ Thumbs.db
 ## Logs
 *.log
 logs/
+
+## Grafo de conhecimento gerado pela skill graphify — derivado do repositório,
+## reconstruível, e grande. Sem barra inicial: pega graphify-out/ em qualquer nível.
+graphify-out/
+
+# Cobertura e relatórios (BE-24)
+coverage-results/
+coverage-report/

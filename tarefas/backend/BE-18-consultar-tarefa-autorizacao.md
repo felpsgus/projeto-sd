@@ -40,20 +40,30 @@ Existe **um único** caminho pelo qual toda operação sobre uma tarefa específ
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `GET /api/tasks/{id}` de uma tarefa própria retorna **200** com todos os campos do `TaskResponse`.
-- [ ] **CA-02** — `isOverdue` vem calculado corretamente na resposta (RN-TASK-16).
-- [ ] **CA-03** — `GET` de id inexistente retorna **404**.
-- [ ] **CA-04** — `GET` de uma tarefa **de outro usuário** retorna **404** — nunca 403, nunca 200 (RN-AUTZ-02, RN-AUTZ-03).
-- [ ] **CA-05** — Os corpos de CA-03 e CA-04 são **byte a byte idênticos**: mesmo `type`, `title`, `detail` e código de erro. Nenhum cabeçalho os distingue.
-- [ ] **CA-06** — `GET` de tarefa própria **removida** (soft delete) retorna o mesmo **404**.
-- [ ] **CA-07** — `GET` com id em formato inválido (`/api/tasks/abc`) retorna **400**, não 500.
-- [ ] **CA-08** — `GET` sem token retorna **401** (RN-AUTZ-04).
-- [ ] **CA-09** — O SQL gerado inclui o filtro de `owner_id` na consulta — a autorização não é feita em memória (verificável por log de query em teste, ou por inspeção do `IQueryable`).
-- [ ] **CA-10** — Não existe, na camada de aplicação, nenhum método público que carregue uma `TodoTask` por id **sem** filtro de dono (verificado por revisão + teste de arquitetura sobre a superfície do repositório).
-- [ ] **CA-11** — Um teste de integração parametrizado percorre **todos** os endpoints de tarefa que recebem `{id}` (`GET`, `PUT/PATCH`, `POST /complete`, `POST /reopen`, `DELETE`) e confirma que **cada um** retorna 404 para tarefa de outro usuário. Ao adicionar um endpoint novo com `{id}`, ele entra nesse teste.
+- [x] **CA-01** — `GET /api/tasks/{id}` de uma tarefa própria retorna **200** com todos os campos do `TaskResponse`.
+- [x] **CA-02** — `isOverdue` vem calculado corretamente na resposta (RN-TASK-16).
+- [x] **CA-03** — `GET` de id inexistente retorna **404**.
+- [x] **CA-04** — `GET` de uma tarefa **de outro usuário** retorna **404** — nunca 403, nunca 200 (RN-AUTZ-02, RN-AUTZ-03).
+- [x] **CA-05** — Os corpos de CA-03 e CA-04 são **byte a byte idênticos**: mesmo `type`, `title`, `detail` e código de erro. Nenhum cabeçalho os distingue.
+- [x] **CA-06** — `GET` de tarefa própria **removida** (soft delete) retorna o mesmo **404**.
+- [x] **CA-07** — `GET` com id em formato inválido (`/api/tasks/abc`) retorna **400**, não 500.
+- [x] **CA-08** — `GET` sem token retorna **401** (RN-AUTZ-04).
+- [x] **CA-09** — O SQL gerado inclui o filtro de `owner_id` na consulta — a autorização não é feita em memória (verificável por log de query em teste, ou por inspeção do `IQueryable`).
+- [x] **CA-10** — Não existe, na camada de aplicação, nenhum método público que carregue uma `TodoTask` por id **sem** filtro de dono (verificado por revisão + teste de arquitetura sobre a superfície do repositório).
+- [x] **CA-11** — Um teste de integração parametrizado percorre **todos** os endpoints de tarefa que recebem `{id}` (`GET`, `PUT/PATCH`, `POST /complete`, `POST /reopen`, `DELETE`) e confirma que **cada um** retorna 404 para tarefa de outro usuário. Ao adicionar um endpoint novo com `{id}`, ele entra nesse teste. *(04/10/2026: o teste transversal está no Gateway, `RouteGuardTests`, e prova que todo endpoint com `{id}` devolve 404 e que um endpoint novo quebra o teste; o isolamento entre donos é provado por endpoint nos testes gRPC do Tasks.)*
 
 ## Testes obrigatórios
 
 - Integração: CA-01 a CA-09.
 - **Teste transversal CA-11** — é o guardião de RN-AUTZ-02/03 e deve ser mantido conforme BE-19/20/21 entrarem.
 - Arquitetura/revisão: CA-10.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 9 de 11.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-10 | em aberto — lacuna real | `ITodoTaskRepository` ainda expõe `GetByIdAsync(Guid id)` (sem dono) e `IQueryable<TodoTask> Query()` como métodos públicos da camada de aplicação. Nenhum handler os usa hoje (todos usam `GetOwnedTaskAsync`), mas não existe teste de arquitetura sobre a superfície do repositório e o método sem filtro continua disponível para uso futuro. |
+| CA-11 | em aberto | Não há o teste parametrizado/transversal pedido. Os cinco endpoints com `{id}` têm, cada um, teste próprio de tarefa alheia → 404 (`GetTaskGrpcTests`, `UpdateTaskGrpcTests`, `CompleteReopenTaskGrpcTests` (complete/reopen), `DeleteTaskGrpcTests`, e os `*TarefaAlheiaOuInexistente*` do Gateway), então o comportamento está coberto — mas nada obriga um endpoint novo a entrar na lista. |
+| CA-01 a CA-09 | atendidos em outro lugar | A rota HTTP vive no Gateway (D-32); o comportamento de dono/404/isOverdue é testado no Tasks via gRPC (`GetTaskGrpcTests`) e a tradução HTTP (200/404/400/401) em `GetTaskTests` do Gateway. CA-08 (401): sem teste específico de GET sem token; coberto pela política fallback + `RouteGuardTests` + `AuthenticationTests`. CA-09: `GetOwnedTaskAsync` filtra `OwnerId == ownerId && Id == taskId` na própria query EF (traduzida a SQL); não há teste que capture o SQL, o efeito é provado por `GetTask_TarefaDeOutroDono_RetornaNotFound` contra o banco. |

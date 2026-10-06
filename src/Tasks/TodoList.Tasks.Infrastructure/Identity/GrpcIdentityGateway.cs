@@ -32,11 +32,7 @@ public sealed partial class GrpcIdentityGateway : IIdentityGateway
 
     public async Task<UserValidation> ValidateUserAsync(Guid userId, CancellationToken cancellationToken)
     {
-        // O traceId é capturado UMA vez, aqui, e serve a dois propósitos: vai
-        // na metadata da chamada e entra na entrada de log deste lado. Ler
-        // Activity.Current de novo na hora de logar seria arriscado — o cliente
-        // gRPC abre a própria Activity em volta da chamada, e o valor logado
-        // poderia não ser o mesmo que foi propagado (BE-31, CA-07).
+        // Capturado uma vez: é o valor propagado na metadata (o cliente gRPC abre a própria Activity em volta da chamada).
         var traceId = Activity.Current?.Id ?? string.Empty;
 
         var callOptions = new CallOptions(
@@ -52,13 +48,13 @@ public sealed partial class GrpcIdentityGateway : IIdentityGateway
                 new ValidateUserRequest { UserId = userId.ToString() },
                 callOptions);
 
-            Log.ValidateUserCalled(_logger, userId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ValidateUserCalled(_logger, userId, StatusCode.OK, stopwatch.Elapsed.TotalMilliseconds);
 
-            return new UserValidation(response.Exists, response.Active, response.DisplayName);
+            return new UserValidation(response.Exists, response.DisplayName);
         }
         catch (RpcException ex)
         {
-            Log.ValidateUserFailed(_logger, userId, ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds, traceId);
+            Log.ValidateUserFailed(_logger, userId, ex.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
 
             // BE-03 (Result<T>/Error) ainda não existe nesta base de código.
             // A intenção da especificação — traduzir a RpcException no Error
@@ -92,19 +88,14 @@ public sealed partial class GrpcIdentityGateway : IIdentityGateway
 
     private static partial class Log
     {
-        // BE-31, CA-07: traceId entra na mensagem — não só no escopo do logger
-        // — porque o entregável do roteiro é o par de linhas de console dos
-        // dois serviços correlacionáveis a olho nu. O Identity já logava o seu
-        // (IdentityGrpcService); sem o mesmo campo deste lado, a evidência de
-        // que houve ida e volta pela rede não fecha.
         [LoggerMessage(
             Level = LogLevel.Information,
-            Message = "ValidateUser (Identity gRPC): userId={UserId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ValidateUserCalled(ILogger logger, Guid userId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "ValidateUser (Identity gRPC): userId={UserId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void ValidateUserCalled(ILogger logger, Guid userId, StatusCode statusCode, double durationMs);
 
         [LoggerMessage(
             Level = LogLevel.Warning,
-            Message = "ValidateUser (Identity gRPC) falhou: userId={UserId}, statusCode={StatusCode}, durationMs={DurationMs}, traceId={TraceId}")]
-        public static partial void ValidateUserFailed(ILogger logger, Guid userId, StatusCode statusCode, double durationMs, string traceId);
+            Message = "ValidateUser (Identity gRPC) falhou: userId={UserId}, statusCode={StatusCode}, durationMs={DurationMs}")]
+        public static partial void ValidateUserFailed(ILogger logger, Guid userId, StatusCode statusCode, double durationMs);
     }
 }

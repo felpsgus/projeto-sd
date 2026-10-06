@@ -82,21 +82,30 @@ Existe uma solution .NET 10 compilando, com **dois serviços** (Identity e Tasks
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `dotnet build` na raiz conclui **sem warnings**, compilando os dois serviços.
-- [ ] **CA-02** — `dotnet format --verify-no-changes` passa sem alterações pendentes.
-- [ ] **CA-03** — `dotnet run --project src/Identity/TodoList.Identity.Api` e `dotnet run --project src/Tasks/TodoList.Tasks.Api` sobem **as duas** aplicações simultaneamente, sem conflito de porta, e `GET /health` responde **200** em cada uma.
-- [ ] **CA-04** — Em ambiente `Development`, a UI de OpenAPI está acessível nos dois serviços e lista o respectivo endpoint de health.
-- [ ] **CA-05** — Em **cada** serviço o grafo de dependências é exatamente `Api → Infrastructure → Application → Domain → SharedKernel`; nenhuma seta aponta no sentido inverso.
-- [ ] **CA-06** — `TodoList.Identity.Domain.csproj` e `TodoList.Tasks.Domain.csproj` não declaram nenhum `PackageReference` e declaram **um único** `ProjectReference`: `TodoList.SharedKernel`.
-- [ ] **CA-06b** — `TodoList.SharedKernel.csproj` não declara nenhum `PackageReference` nem `ProjectReference`.
-- [ ] **CA-06c** — **Nenhum** projeto de `src/Identity` referencia projeto de `src/Tasks`, e vice-versa (teste de arquitetura). Esta é a garantia de que a comunicação entre os dois só pode acontecer pela rede.
-- [ ] **CA-07** — Todos os `.csproj` resolvem `net10.0` e `Nullable=enable` a partir do `Directory.Build.props` (nenhum projeto redefine localmente).
-- [ ] **CA-08** — Subir qualquer um dos serviços com uma seção de configuração obrigatória ausente **falha na inicialização** com mensagem clara, não em runtime na primeira requisição.
-- [ ] **CA-09** — `dotnet test` executa e passa nos quatro projetos de teste (ainda que com poucos testes).
+- [x] **CA-01** — `dotnet build` na raiz conclui **sem warnings**, compilando os dois serviços.
+- [x] **CA-02** — `dotnet format --verify-no-changes` passa sem alterações pendentes.
+- [x] **CA-03** — `dotnet run --project src/Identity/TodoList.Identity.Api` e `dotnet run --project src/Tasks/TodoList.Tasks.Api` sobem **as duas** aplicações simultaneamente, sem conflito de porta, e `GET /health` responde **200** em cada uma.
+- [x] **CA-04** — Em ambiente `Development`, a UI de OpenAPI está acessível nos dois serviços e lista o respectivo endpoint de health. *(06/10/2026: os "dois serviços" com OpenAPI hoje são Identity e Gateway; o Tasks é só gRPC (D-35). No Identity o health não aparecia no documento, porque `MapHealthChecks` não expõe método HTTP ao gerador; corrigido em `HealthEndpoints`. Coberto por `OpenApiUiTests` nos dois projetos de integração, que também confere que fora de Development nada é servido.)*
+- [x] **CA-05** — Em **cada** serviço o grafo de dependências é exatamente `Api → Infrastructure → Application → Domain → SharedKernel`; nenhuma seta aponta no sentido inverso.
+- [x] **CA-06** — `TodoList.Identity.Domain.csproj` e `TodoList.Tasks.Domain.csproj` não declaram nenhum `PackageReference` e declaram **um único** `ProjectReference`: `TodoList.SharedKernel`.
+- [x] **CA-06b** — `TodoList.SharedKernel.csproj` não declara nenhum `PackageReference` nem `ProjectReference`.
+- [x] **CA-06c** — **Nenhum** projeto de `src/Identity` referencia projeto de `src/Tasks`, e vice-versa (teste de arquitetura). Esta é a garantia de que a comunicação entre os dois só pode acontecer pela rede.
+- [x] **CA-07** — Todos os `.csproj` resolvem `net10.0` e `Nullable=enable` a partir do `Directory.Build.props` (nenhum projeto redefine localmente).
+- [x] **CA-08** — Subir qualquer um dos serviços com uma seção de configuração obrigatória ausente **falha na inicialização** com mensagem clara, não em runtime na primeira requisição.
+- [x] **CA-09** — `dotnet test` executa e passa nos quatro projetos de teste (ainda que com poucos testes).
 - [ ] **CA-10** — O `README.md` da raiz permite a uma pessoa nova subir **os dois serviços** e rodar os testes seguindo apenas o que está escrito.
-- [ ] **CA-11** — Existe a pasta `contracts/identity/v1/` versionada, ainda que o `.proto` só ganhe conteúdo em BE-25.
+- [x] **CA-11** — Existe a pasta `contracts/identity/v1/` versionada, ainda que o `.proto` só ganhe conteúdo em BE-25.
 
 ## Testes obrigatórios
 
 - Teste de arquitetura (NetArchTest ou equivalente) validando CA-05, CA-06, CA-06b e **CA-06c**.
 - Teste de integração com `WebApplicationFactory` cobrindo `GET /health` → 200, **um por serviço**.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 11 de 13.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-04 | em aberto | O Tasks não tem mais OpenAPI/UI (só gRPC desde BE-35, D-35). O Identity mapeia `MapOpenApi`/Scalar em Development, e o Gateway também, mas nenhum teste confere a UI nem que o `/health` aparece no documento. |
+| CA-10 | em aberto | Exige revisão humana: uma pessoa nova subir os serviços e rodar os testes só com o README. Não dá para confirmar por código. |
