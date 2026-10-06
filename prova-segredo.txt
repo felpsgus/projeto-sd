@@ -1,0 +1,2 @@
+segredo FALSO, inventado para provar o gate de segredos do CI (BE-24 CA-18, FE-23 CA-17)
+prova_api_key = "q7Zx2LmV9tRb4KdW8sHn3PyC6fJg1AeU"
