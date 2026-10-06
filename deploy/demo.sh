@@ -46,7 +46,8 @@ fi
 VERDE=$'\033[32m'; AMARELO=$'\033[33m'; CIANO=$'\033[36m'; CINZA=$'\033[90m'; FIM=$'\033[0m'
 
 CORPO="$(mktemp)"
-trap 'rm -f "$CORPO"' EXIT
+FALHAS="$(mktemp)"
+trap 'rm -f "$CORPO" "$FALHAS"' EXIT
 
 extrair_token() {
     sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p' "$CORPO"
@@ -62,14 +63,20 @@ login() {
 }
 
 criar_tarefa() {
-    local token="$1" titulo="$2"
+    local token="$1" titulo="$2" esperado="$3"
     local args=(-s -i -X POST "$BASE/api/tasks" -H 'Content-Type: application/json')
     # Token vazio == Ato 1 (sem Authorization nenhum) — token arbitrário
     # (lixo ou válido) vai no header normalmente.
     [[ -n "$token" ]] && args+=(-H "Authorization: Bearer $token")
     args+=(-d "{\"title\":\"$titulo\"}")
 
-    curl "${args[@]}" | sed -n '1p;/^{/p'
+    local resposta status
+    resposta="$(curl "${args[@]}")"
+    sed -n '1p;/^{/p' <<<"$resposta"
+    # Status diferente do esperado do ato -> o script sai com 1 no fim. Arquivo
+    # (e não variável) porque o Ato 5 chama esta função dentro de $(...).
+    status="$(sed -n '1s/^HTTP[^ ]* \([0-9]*\).*/\1/p' <<<"$resposta")"
+    [[ "$status" == "$esperado" ]] || echo "esperado $esperado, veio ${status:-nada}" >>"$FALHAS"
 }
 
 # Cadastro real (POST /api/auth/register) — substitui o antigo usuário fixo
@@ -131,7 +138,7 @@ restaurar_identity() {
     fi
     identity_parado=0
 }
-trap 'restaurar_identity; rm -f "$CORPO"' EXIT
+trap 'restaurar_identity; rm -f "$CORPO" "$FALHAS"' EXIT
 
 ato() {
     echo ""
@@ -155,14 +162,14 @@ aquecer
 ato "ATO 1 — sem token: o Gateway recusa antes de falar com qualquer backend"
 echo "${CINZA}POST /api/tasks   (sem Authorization)${FIM}"
 echo ""
-criar_tarefa "" "Tarefa sem autenticacao"
+criar_tarefa "" "Tarefa sem autenticacao" 401
 echo ""
 echo "${CINZA}401 auth.unauthorized — o middleware de autenticação barra na borda.${FIM}"
 
 ato "ATO 2 — token lixo: mesmo 401, caminho de código diferente"
 echo "${CINZA}POST /api/tasks   Authorization: Bearer token-lixo-arbitrario${FIM}"
 echo ""
-criar_tarefa "token-lixo-arbitrario" "Tarefa com token invalido"
+criar_tarefa "token-lixo-arbitrario" "Tarefa com token invalido" 401
 echo ""
 echo "${CINZA}Corpo idêntico ao do Ato 1 — o cliente nunca sabe qual dos dois motivos foi.${FIM}"
 
@@ -179,14 +186,14 @@ echo "${CINZA}accessToken: ${token:0:12}...(truncado)${FIM}"
 ato "ATO 4 — título vazio: validação na borda, 400, nenhuma chamada ao Tasks"
 echo "${CINZA}POST /api/tasks   título=\"\"${FIM}"
 echo ""
-criar_tarefa "$token" ""
+criar_tarefa "$token" "" 400
 echo ""
 echo "${CINZA}400 — rejeitado antes de qualquer tradução para gRPC.${FIM}"
 
 ato "ATO 5 — caminho de sucesso: 201, tradução JSON -> gRPC completa"
 echo "${CINZA}POST /api/tasks   título válido${FIM}"
 echo ""
-resposta_final="$(criar_tarefa "$token" "Demonstracao do T2 - API Gateway")"
+resposta_final="$(criar_tarefa "$token" "Demonstracao do T2 - API Gateway" 201)"
 echo "$resposta_final"
 echo ""
 echo "${CINZA}Location aponta para o recurso criado; a tarefa já está no banco do Tasks.${FIM}"
@@ -198,7 +205,7 @@ if [[ $incluir_falha -eq 1 ]]; then
     dc stop identity
     echo "${CINZA}Identity parado. Mesma requisição do Ato 5:${FIM}"
     echo ""
-    criar_tarefa "$token" "Identity fora do ar"
+    criar_tarefa "$token" "Identity fora do ar" 503
     echo ""
     dc start identity
     sleep 2
@@ -216,3 +223,8 @@ echo "${CINZA}ele só encaminha bytes (D-40): o traceparent atravessa intacto, e
 echo "${CINZA}vê-lo como uma quarta linha correlacionada. Se fizer sentido narrar o roteamento em si:${FIM}"
 echo "${CINZA}  sudo docker compose -f $COMPOSE_DIR/docker-compose.prod.yml --env-file $COMPOSE_DIR/.env logs -f frontend${FIM}"
 echo ""
+if [[ -s "$FALHAS" ]]; then
+    echo "${AMARELO}Algum ato respondeu fora do esperado:${FIM}"
+    cat "$FALHAS"
+    exit 1
+fi
