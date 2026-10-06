@@ -118,7 +118,7 @@ O usuário lista as próprias tarefas com filtros combináveis, busca textual, o
 - [x] **CA-33b** — O `@today` do `WHERE` é a data de `IClientDate`, não a data UTC do servidor (**D-18**): com relógio UTC em `2026-08-21T00:30` e header `X-Client-Date: 2026-08-20`, uma tarefa vencendo em `2026-08-20` **não** aparece em `overdue=true` e vem com `isOverdue: false`.
 - [x] **CA-33c** — Filtro e projeção usam **o mesmo** valor de "hoje": nenhum item retornado por `overdue=true` traz `isOverdue: false`, e vice-versa.
 - [x] **CA-34** — A consulta não materializa mais linhas do que `pageSize` (+ a contagem).
-- [ ] **CA-35** — Com 1000 tarefas para um usuário, a listagem paginada responde dentro de um limite razoável documentado no PR (medição, não assert flaky).
+- [x] **CA-35** — Com 1000 tarefas para um usuário, a listagem paginada responde dentro de um limite razoável documentado no PR (medição, não assert flaky). *(medido em 06/10/2026 na stack do compose, pela borda nginx, 1000 tarefas de um usuário, página de 20, 20 repetições após aquecimento: primeira, do meio e última página com mediana de 9 ms e p95 de até 11 ms; com filtro e busca, mediana de 7 a 8 ms e p95 de até 9 ms. Docker Desktop local, não a VM do GCP.)*
 
 ## Testes obrigatórios
 

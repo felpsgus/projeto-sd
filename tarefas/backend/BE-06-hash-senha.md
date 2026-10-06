@@ -53,7 +53,7 @@ Senha nunca existe em texto puro fora do momento da requisição: há um serviç
 - [x] **CA-07** — Uma senha que viola duas regras retorna **duas** mensagens, não uma.
 - [ ] **CA-08** — Nenhum tipo do fluxo de senha expõe a senha em `ToString()` (verificado por teste).
 - [x] **CA-09** — Uma busca no repositório por logs/serialização confirma que nem a senha nem o hash aparecem em saída de log em nenhum nível, inclusive `Debug`.
-- [ ] **CA-10** — O tempo de `Hash` com os parâmetros de produção está na faixa alvo (medido e documentado no PR; não é assert de teste, para não ficar flaky).
+- [x] **CA-10** — O tempo de `Hash` com os parâmetros de produção está na faixa alvo (medido e documentado no PR; não é assert de teste, para não ficar flaky). *(medido em 06/10/2026, build Release, PBKDF2-SHA256 com 600.000 iterações, 20 execuções após aquecimento, máquina de desenvolvimento: `Hash` mediana 67 ms e p95 72 ms; `Verify` mediana 69 ms e p95 74 ms. Dentro da faixa de 50 a 250 ms. Não medido na VM do GCP.)*
 
 ## Testes obrigatórios
 

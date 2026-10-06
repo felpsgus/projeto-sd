@@ -856,60 +856,27 @@ Qualquer passo fora do esperado faz o script sair com `1` (BE-39 CA-02).
 
 ### 4. Evidência de log: o mesmo `traceId` nos serviços envolvidos (passo 6)
 
-> **Nota (BE-40).** O trecho de log abaixo é da execução do T2 **antes** de BE-40 — capturado
-> quando o Gateway ainda perguntava `ValidateToken` ao Identity por gRPC a cada requisição (D-31
-> original). Desde BE-40 (D-38), essa chamada **não existe mais** e o RPC `ValidateToken` foi
-> **removido do contrato** do Identity (não só deixou de ser chamado): o Gateway valida o JWT
-> localmente com `AddJwtBearer` e a chave pública, sem round-trip de rede — é exatamente o que o
-> requisito de middleware do T2 exige. A cadeia de chamadas gRPC de um `POST /api/tasks`
-> autenticado passa a ser só **Gateway → Tasks (`CreateTask`)** e, dentro dela, **Tasks →
-> Identity (`ValidateUser`)** — duas paradas de log, não três. Esta seção fica pendente de
-> recaptura com uma execução real pós-BE-40 (mesmo espírito do "[PENDENTE — medir...]" já registrado
-> em `deploy/README.md`); a evidência abaixo continua válida para entender o formato do `traceId`
-> correlacionado, só a contagem de saltos que mudou.
-
-O par sucesso é o par login (passo 4) + criação (passo 6). Abaixo, os logs reais desse passo, de uma
-execução anterior a BE-40 — a mesma requisição atravessava Gateway → Identity (`ValidateToken`),
-Gateway → Tasks (`CreateTask`), e Tasks → Identity (`ValidateUser`), e as **três** paradas
-carregavam o mesmo `traceId` (`00-2d5590b724dcaf24a7e19108dbc1d95c-...`):
+O par sucesso é o login (passo 4) + a criação (passo 6). Os três serviços escrevem log estruturado
+(JSON compacto, uma linha por evento — Serilog `RenderedCompactJsonFormatter`): `@t` é o instante, `@m` a
+mensagem e `@tr` o **`traceId`** (32 hex, o trace W3C). Desde BE-40 (D-38) o Gateway valida o JWT
+localmente, então a cadeia de uma criação é **Gateway → Tasks (`CreateTask`)** e, dentro dela,
+**Tasks → Identity (`ValidateUser`)**. Recaptura real contra `docker compose --profile full` (06/10/2026),
+campos reduzidos a `@t`/`@m`/`@tr` (o log traz ainda `@i`, `@sp` e os campos estruturados; nenhum token,
+senha ou hash aparece nele). As quatro linhas abaixo carregam o **mesmo `traceId`**:
 
 ```text
-# terminal 3 (Gateway) — ATÉ BE-40: chamava ValidateToken; hoje: valida local, sem esta linha
-info: TodoList.Gateway.Api.Backends.IdentityBackend[432667118]
-      Chamada gRPC de saída: backend=Identity, rpc=ValidateToken, statusCode=OK, durationMs=52.2405,
-      traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
-info: TodoList.Gateway.Api.Backends.TasksBackend[432667118]
-      Chamada gRPC de saída: backend=Tasks, rpc=CreateTask, statusCode=OK, durationMs=820.0457,
-      traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
-
-# terminal 1 (Identity) — ATÉ BE-40: respondia ValidateToken (Gateway) e ValidateUser (Tasks);
-# hoje: só ValidateUser — ValidateToken foi removido do contrato
-info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1049219497]
-      ValidateToken: valid=True, durationMs=33.7856,
-      traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-5b80ebee58185f18-00
-info: TodoList.Identity.Api.Grpc.IdentityGrpcService[1561142135]
-      ValidateUser: userId=10000000-0000-0000-0000-000000000001, exists=True, durationMs=15.7272,
-      traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-ed399fb3ceb26372-00
-
-# terminal 2 (Tasks) — chamou o Identity de novo (ValidateUser) antes de gravar — não muda com BE-40
-info: TodoList.Tasks.Infrastructure.Identity.GrpcIdentityGateway[1561142135]
-      ValidateUser (Identity gRPC): userId=10000000-0000-0000-0000-000000000001, statusCode=OK, durationMs=126.395,
-      traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-ed399fb3ceb26372-00
-info: TodoList.Tasks.Api.Grpc.TasksGrpcService[1138808421]
-      CreateTask: ownerId=10000000-0000-0000-0000-000000000001, statusCode=OK, durationMs=698.8348,
-      traceId=00-2d5590b724dcaf24a7e19108dbc1d95c-ed399fb3ceb26372-00
+# gateway
+{"@t":"2026-10-06T21:09:40.7743248Z","@m":"Chamada gRPC de saída: backend=\"Tasks\", rpc=\"CreateTask\", statusCode=OK, durationMs=17.3584","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+# tasks
+{"@t":"2026-10-06T21:09:40.7662354Z","@m":"ValidateUser (Identity gRPC): userId=8f0afd9f-abbc-4361-a401-bfe88d87f0ba, statusCode=OK, durationMs=7.857","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+{"@t":"2026-10-06T21:09:40.7734921Z","@m":"CreateTask: ownerId=8f0afd9f-abbc-4361-a401-bfe88d87f0ba, statusCode=OK, durationMs=15.1705","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+# identity
+{"@t":"2026-10-06T21:09:40.7645984Z","@m":"ValidateUser: userId=\"8f0afd9f-abbc-4361-a401-bfe88d87f0ba\", exists=True, durationMs=4.2837","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
 ```
 
-Note os **dois** pares de `traceId` (mesmo prefixo de 32 caracteres — o trace W3C — com dois sufixos de
-span diferentes): um para o salto Gateway→Tasks, outro para o salto interno Tasks→Identity, que o Tasks
-abre como filho da chamada que recebeu. Até BE-40 havia um terceiro salto (Gateway→Identity,
-`ValidateToken`) compartilhando o primeiro `traceId`; desde BE-40 esse salto não existe mais — a
-validação de assinatura é local, sem chamada de rede —, então a cadeia observável em produção passa a
-ter dois saltos gRPC, não três. É essa correlação de `traceId` entre Gateway e Tasks/Identity, qualquer
-que seja o número de saltos, que a comunicação REST→gRPC do T2 precisa deixar auditável (nota técnica
-de BE-39).
-
-Contra a VM, o comando equivalente para achar essas linhas é:
+Para achar o `traceId` de uma criação no compose local: `docker compose logs --no-log-prefix gateway tasks identity
+| grep -E 'CreateTask|ValidateUser'`. O nginx (container `frontend`) só repassa o `traceparent`, por isso
+não é um quarto serviço na correlação. Contra a VM, o comando equivalente é:
 
 ```bash
 sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /opt/todolist/docker/.env \
@@ -1134,5 +1101,5 @@ docker run --rm -v "${PWD}:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --
 `GeneratedCode`/`CompilerGenerated`/`ExcludeFromCodeCoverage` e os assemblies de teste. Não amplie a lista para
 passar no gate: escreva o teste. O relatório separa os assemblies (Identity.*, Tasks.*, Gateway, SharedKernel.*).
 
-Pendente: sinalizar queda de cobertura em relação à `main` (exige guardar o resumo da `main` como artefato).
+**Baseline de cobertura.** `coverage-baseline.json` (raiz) guarda os números de referência (backend global, backend Domain+Application, frontend linhas). Cair abaixo dele, mesmo acima do piso, só **avisa** no PR (anotação `::warning::` e linha no *Job summary*); o que falha o build continua sendo o piso. Quando a cobertura sobe de propósito, atualize o arquivo à mão no mesmo PR (limitação: baseline manual; trocar por artefato da `main` se virar incômodo).
 Requer `dotnet tool restore` (ReportGenerator e `dotnet-ef` ficam em `.config/dotnet-tools.json`).

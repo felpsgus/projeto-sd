@@ -58,7 +58,7 @@ Erro de negócio e erro técnico têm caminhos distintos e previsíveis: o prime
 - [x] **CA-04** — Um request inválido retorna **400** com a lista de erros **por campo**, não uma mensagem única concatenada.
 - [x] **CA-05** — Uma exceção não tratada em um handler retorna **500** com corpo genérico; em ambiente não-`Development` o corpo **não** contém nome de tipo, stack trace nem mensagem da exceção original.
 - [x] **CA-06** — O `traceId` da resposta de erro corresponde ao da entrada de log gerada para aquela requisição.
-- [ ] **CA-07** — Não existe nenhuma string literal de mensagem de erro fora do catálogo de erros (verificado em revisão; opcionalmente por analyzer).
+- [x] **CA-07** — Não existe nenhuma string literal de mensagem de erro fora do catálogo de erros (verificado em revisão; opcionalmente por analyzer). *(revisão de 06/10/2026: nenhum `new Error(` em `src/` fora dos cinco catálogos `*Errors.cs`. O critério cobre os erros de negócio (`Error`); ficam fora dele, por desenho, as mensagens por campo dos validadores FluentValidation e os dois textos genéricos de transporte, "Requisição inválida." em `ResultGrpcStatus` e o 503 de `GrpcErrorMapping`.)*
 - [x] **CA-08** — Um endpoint que retorna `Result` de falha do tipo `NotFound` responde 404 **sem** o handler precisar escrever o `switch` manualmente.
 - [x] **CA-09** — Os dois serviços produzem `ProblemDetails` com a mesma forma para o mesmo `ErrorType`, comprovado por teste de integração em cada um.
 - [x] **CA-10** — `TodoList.SharedKernel` contém apenas `Result`, `Result<T>`, `Error` e `ErrorType` — nenhuma entidade, DTO de negócio ou regra (**D-26**). Verificado por revisão e por teste de arquitetura sobre os tipos públicos do assembly.

@@ -73,11 +73,11 @@ Registrado aqui como mapa do que vem a seguir, sem numerar nem criar arquivo de 
 
 - [x] **CA-01** — As três imagens (`identity`, `tasks`, `gateway`) constroem com sucesso a partir da **raiz** do repositório, com o comando `docker build -f <caminho>/Dockerfile .` documentado.
 - [x] **CA-02** — Nenhuma das três imagens roda como root — `docker inspect --format '{{.Config.User}}'` mostra `app` (ou equivalente não-root) nas três.
-- [ ] **CA-03** — Com `artifacts/sql/` gerado por `scripts/publish.ps1`, `docker compose --profile full up --build` sobe a stack inteira (postgres, migrate, identity, tasks, gateway) e o roteiro 401/400/201 de verificação (BE-39) passa executado contra `http://localhost:8080`.
+- [x] **CA-03** — Com `artifacts/sql/` gerado por `scripts/publish.ps1`, `docker compose --profile full up --build` sobe a stack inteira (postgres, migrate, identity, tasks, gateway) e o roteiro 401/400/201 de verificação (BE-39) passa executado contra `http://localhost:8080`. *(provado em 06/10/2026 no desenho atual: SQL gerado por `scripts/new-migrations-sql.ps1`, seis serviços no perfil `full` (entra o `frontend`), e `deploy/smoke.sh http://localhost` com todos os passos `OK` (401, 401, cadastro 201, login 200, 400, 201 com `Location`) e saída 0. A borda é o nginx na porta 80; o Gateway não publica mais a 8080 no host.)*
 - [x] **CA-04** — Só a porta 8080 (do `gateway`) fica exposta no host depois do `up --profile full` — `docker compose ps` confirma que `identity` e `tasks` não têm mapeamento de porta publicada.
 - [x] **CA-05** — Nenhum segredo (senha de banco, `Jwt__SigningKey`, senha de demonstração) aparece embutido em nenhuma das três imagens — verificado por `docker history` e `docker inspect` das imagens finais, e por leitura dos três `Dockerfile` (segredos só entram via `env_file`/variável de ambiente do compose, nunca em `ENV` fixo ou `ARG` sem `--secret`).
 - [x] **CA-06** — `docker compose up postgres` continua subindo e funcionando exatamente como antes desta task, sem exigir o perfil `full` nem qualquer variável nova.
-- [ ] **CA-07** — O tamanho final de cada uma das três imagens está registrado (README ou PR desta task).
+- [x] **CA-07** — O tamanho final de cada uma das três imagens está registrado (README ou PR desta task). *(medido em 06/10/2026 com `docker images`, Docker Desktop local: `todolist-identity` 393 MB, `todolist-tasks` 388 MB, `todolist-gateway` 348 MB e, a quarta imagem de hoje, `todolist-frontend` 83 MB.)*
 
 ## Testes obrigatórios
 

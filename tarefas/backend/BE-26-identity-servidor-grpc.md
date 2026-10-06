@@ -53,8 +53,8 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 
 ### Servidor
 
-- [ ] **CA-01** — O Identity sobe e aceita conexões gRPC na porta configurada, em HTTP/2.
-- [ ] **CA-02** — A porta REST e a porta gRPC são endpoints distintos e ambos funcionam simultaneamente.
+- [x] **CA-01** — O Identity sobe e aceita conexões gRPC na porta configurada, em HTTP/2. *(prova manual de 06/10/2026 com processo `dotnet run` real: porta gRPC movida para 16081 por `Kestrel__Endpoints__Grpc__Url`; o log do Identity registra `Request starting HTTP/2 POST .../identity.v1.IdentityService/Register` e `/Login` nessa porta, e uma chamada HTTP/1.1 à mesma porta é recusada com 400.)*
+- [x] **CA-02** — A porta REST e a porta gRPC são endpoints distintos e ambos funcionam simultaneamente. *(mesma execução de 06/10/2026: 16080 (HTTP/1, `/health` 200) e 16081 (gRPC) como dois listeners do mesmo processo, com o health respondendo enquanto o Gateway fazia cadastro, login e criação de tarefa pela porta gRPC. A "porta REST" do Identity hoje serve só o health.)*
 - [x] **CA-03** — Uma ferramenta de linha de comando (`grpcurl` ou cliente de teste) consegue invocar `ValidateUser` e receber resposta — comprovando que o serviço está exposto, não só compilando.
 - [x] **CA-04** — Nenhum Controller foi introduzido; o registro é `AddGrpc()` + `MapGrpcService<>()` no `Program.cs`.
 
