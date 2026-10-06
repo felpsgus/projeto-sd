@@ -11,7 +11,9 @@
 
   <!-- Coleta de cobertura (BE-24 CA-12): usada por scripts/coverage.ps1 com coverlet.runsettings. -->
   <ItemGroup Condition="'$(IsTestProject)' == 'true'">
-    <PackageReference Include="coverlet.collector" Version="6.0.4" PrivateAssets="all" />
+    <!-- >= 10.1.0: versões anteriores não instrumentam, no Linux, os assemblies que referenciam
+         Microsoft.Extensions.Logging.Abstractions e os tiram do relatório sem avisar (BE-24 CA-14). -->
+    <PackageReference Include="coverlet.collector" Version="10.1.0" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

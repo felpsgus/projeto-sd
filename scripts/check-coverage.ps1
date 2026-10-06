@@ -49,6 +49,10 @@ if (Test-Path $Baseline) {
 }
 
 $falhas = @()
+# Assembly de src/ fora do relatório = não foi instrumentado; o gate estaria medindo só uma parte do código.
+$esperados = Get-ChildItem (Join-Path (Split-Path -Parent $PSScriptRoot) 'src') -Recurse -Filter *.csproj | ForEach-Object BaseName
+$ausentes = @($esperados | Where-Object { $_ -notin $assemblies.name })
+if ($ausentes) { $falhas += "sem cobertura coletada: $($ausentes -join ', ')" }
 if ($global -lt $MinLine) { $falhas += "cobertura global $global% < $MinLine%" }
 if ($daPct -lt $MinDomainApplication) { $falhas += "Domain+Application $daPct% < $MinDomainApplication%" }
 if ($falhas) { Write-Host "GATE FALHOU: $($falhas -join '; ')" -ForegroundColor Red; exit 1 }
