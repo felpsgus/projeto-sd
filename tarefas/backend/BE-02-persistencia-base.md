@@ -76,7 +76,7 @@ Os dois serviços conversam com o **mesmo** banco PostgreSQL, cada um dentro do 
 - [x] **CA-11** — Nenhuma connection string real está versionada (verificável por varredura do repositório).
 - [x] **CA-12** — A camada `Application` de **cada** serviço compila sem referência a `Microsoft.EntityFrameworkCore` (verificado por teste de arquitetura).
 - [x] **CA-13** — `TasksDbContext.Model` não contém nenhuma entidade mapeada para o schema `identity`, e `IdentityDbContext.Model` nenhuma para o schema `tasks` — verificado inspecionando o modelo do EF, não por revisão.
-- [ ] **CA-14** — Nenhuma consulta do Tasks referencia `identity.*` e nenhuma do Identity referencia `tasks.*` (varredura por `JOIN`/nome de schema no CI, junto das varreduras de [BE-24](BE-24-observabilidade-ci.md)).
+- [x] **CA-14** — Nenhuma consulta do Tasks referencia `identity.*` e nenhuma do Identity referencia `tasks.*` (varredura por `JOIN`/nome de schema no CI, junto das varreduras de [BE-24](BE-24-observabilidade-ci.md)).
 - [x] **CA-15** — Inserir em `tasks.tasks` um `owner_id` que não existe em `identity.users` é **rejeitado pelo banco** (`23503`) — comprovando que a FK está ativa. Este é o comportamento de rede de segurança; o caminho normal rejeita antes, em [BE-28](BE-28-validacao-dono-grpc.md).
 - [x] **CA-16** — Apagar uma linha de `identity.users` remove em cascata as tarefas daquele dono, **inclusive as soft-deleted** — verificado com `IgnoreQueryFilters()`. É o que sustenta [BE-16](BE-16-exclusao-conta.md).
 

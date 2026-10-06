@@ -61,7 +61,7 @@ Os fluxos que, se quebrarem, inutilizam o produto estão cobertos por testes que
 - [x] **CA-01** — Os 12 fluxos da tabela estão implementados e passando.
 - [x] **CA-02** — Um comando único sobe todo o ambiente (frontend, backend, banco) e executa a suíte.
 - [x] **CA-03** — Cada teste cria o próprio usuário e os próprios dados; nenhum depende de dados pré-existentes.
-- [ ] **CA-04** — Rodar a suíte em **ordem aleatória** produz o mesmo resultado.
+- [x] **CA-04** — Rodar a suíte em **ordem aleatória** produz o mesmo resultado.
 - [x] **CA-05** — Rodar a suíte **duas vezes seguidas** produz o mesmo resultado, sem limpeza manual entre execuções.
 - [x] **CA-06** — Rodar a suíte **em paralelo** não gera interferência entre testes.
 - [x] **CA-07** — Nenhum teste usa `waitForTimeout` ou espera fixa.

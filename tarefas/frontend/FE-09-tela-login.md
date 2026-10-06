@@ -52,8 +52,8 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 ### Fluxo
 
 - [x] **CA-01** — Login com credenciais válidas leva a `/tasks` e o cabeçalho passa a exibir o nome do usuário.
-- [ ] **CA-02** — Login vindo de rota protegida retorna o usuário **para aquela rota** após autenticar.
-- [ ] **CA-03** — O botão de envio fica desabilitado durante a requisição, e clique duplo dispara **uma** chamada.
+- [x] **CA-02** — Login vindo de rota protegida retorna o usuário **para aquela rota** após autenticar.
+- [x] **CA-03** — O botão de envio fica desabilitado durante a requisição, e clique duplo dispara **uma** chamada.
 - [x] **CA-04** — Campos vazios impedem o envio, com erro por campo (validação local).
 
 ### RN-AUTH-09 — indistinguibilidade
@@ -63,7 +63,7 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 - [x] ~~**CA-07** — Conta inativa (RN-USER-04) exibe **a mesma mensagem** — a tela não menciona conta desativada.~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [x] **CA-08** — Em nenhum desses casos um campo específico é marcado como inválido: o erro é do formulário, não do e-mail.
 - [x] **CA-09** — A tela **não** faz nenhuma chamada de verificação de e-mail antes do envio.
-- [ ] **CA-10** — Um teste compara o DOM renderizado nos três cenários de falha e confirma que o texto e a estrutura da mensagem são idênticos.
+- [x] **CA-10** — Um teste compara o DOM renderizado nos três cenários de falha e confirma que o texto e a estrutura da mensagem são idênticos.
 
 ### RN-AUTH-13 — bloqueio
 
@@ -80,7 +80,7 @@ O usuário autentica com e-mail e senha e é levado ao seu destino — e a tela 
 - [x] **CA-18** — **Não existe** link de "esqueci minha senha" na tela (RN-AUTH-22).
 - [x] **CA-19** — Nenhuma senha aparece em storage, URL, `console` ou atributo do DOM (teste de segurança).
 - [x] **CA-20** — Campos usam `autocomplete="username"` e `autocomplete="current-password"`.
-- [ ] **CA-21** — A mensagem de erro é anunciada por leitor de tela (`aria-live`) e o foco vai para ela ou para o campo de e-mail.
+- [x] **CA-21** — A mensagem de erro é anunciada por leitor de tela (`aria-live`) e o foco vai para ela ou para o campo de e-mail.
 - [x] **CA-22** — A tela é operável só pelo teclado e usável em 360 px.
 
 ## Testes obrigatórios

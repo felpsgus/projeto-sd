@@ -47,7 +47,7 @@ O usuário sai da aplicação quando quiser, e nada do que ele viu permanece ace
 
 - [x] **CA-01** — A ação "Sair" está no menu de conta e é alcançável pelo teclado.
 - [x] **CA-02** — Sair chama `POST /api/auth/logout` com **corpo vazio** e `withCredentials: true`; nenhum token é enviado pelo frontend (RN-AUTH-12, FD-01).
-- [ ] **CA-02b** — Após o logout bem-sucedido, `document.cookie` não contém mais o cookie de sessão — apagado pela resposta do backend.
+- [x] **CA-02b** — Após o logout bem-sucedido, `document.cookie` não contém mais o cookie de sessão — apagado pela resposta do backend. *(04/10/2026: o cookie é HttpOnly e nunca aparece em `document.cookie`; o E2E confere que ele some do contexto do navegador.)*
 - [x] **CA-03** — Após sair, o usuário está em `/login` e o `AppShell` não é mais exibido.
 - [x] **CA-04** — Após sair, nenhum token permanece em memória ou storage (teste que inspeciona ambos).
 - [x] **CA-05** — Após sair, acessar `/tasks` pela URL leva ao login (o guard de [FE-07](FE-07-roteamento-guards.md) atua).

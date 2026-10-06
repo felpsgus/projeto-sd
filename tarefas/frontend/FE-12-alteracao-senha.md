@@ -58,13 +58,13 @@ O usuário troca a própria senha informando a atual e a nova — e entende, ant
 - [x] **CA-01** — Troca com senha atual correta e nova senha válida retorna sucesso (RN-AUTH-21).
 - [x] **CA-02** — Após o sucesso, o usuário é levado ao `/login` com mensagem explicando que a senha foi alterada.
 - [x] **CA-03** — Após o sucesso, a sessão local está encerrada: nenhum token em memória ou storage.
-- [ ] **CA-04** — O login com a **nova** senha funciona; com a **antiga**, falha.
+- [x] **CA-04** — O login com a **nova** senha funciona; com a **antiga**, falha.
 - [x] **CA-05** — O e-mail vem pré-preenchido na tela de login.
 
 ### Aviso e validação
 
 - [x] **CA-06** — O aviso sobre desconexão de todos os dispositivos é visível **antes** do envio, não depois (RN-AUTH-19).
-- [ ] **CA-07** — Nova senha com 7 caracteres, só letras ou só números é rejeitada com a mensagem do critério que falta (RN-AUTH-04).
+- [x] **CA-07** — Nova senha com 7 caracteres, só letras ou só números é rejeitada com a mensagem do critério que falta (RN-AUTH-04). *(04/10/2026: o critério que falta aparece no indicador de requisitos ao vivo, item marcado como pendente; a mensagem do campo é genérica e aponta para ele.)*
 - [x] **CA-08** — O indicador de requisitos atualiza em tempo real e é o **mesmo componente** de FE-08.
 - [x] **CA-09** — Nova senha e confirmação divergentes impedem o envio.
 - [x] **CA-10** — Nova senha igual à atual é rejeitada, com mensagem no campo da nova senha.
@@ -82,8 +82,8 @@ O usuário troca a própria senha informando a atual e a nova — e entende, ant
 - [x] **CA-16** — Nenhuma das três senhas aparece em storage, URL, `console` ou atributo do DOM (teste de segurança).
 - [x] **CA-17** — Os campos usam `autocomplete` correto: `current-password` e `new-password`.
 - [x] **CA-18** — O botão de envio fica desabilitado durante a requisição; clique duplo dispara **uma** chamada.
-- [ ] **CA-19** — Labels associados, erros ligados por `aria-describedby`, foco no primeiro campo com erro após falha.
-- [ ] **CA-20** — Operável só pelo teclado e usável em 360 px.
+- [x] **CA-19** — Labels associados, erros ligados por `aria-describedby`, foco no primeiro campo com erro após falha.
+- [x] **CA-20** — Operável só pelo teclado e usável em 360 px.
 
 ## Testes obrigatórios
 

@@ -79,9 +79,9 @@ O usuário filtra e busca as próprias tarefas, e o resultado fica refletido na 
 - [x] **CA-14** — Alterar qualquer filtro atualiza a query string da URL (FD-08).
 - [x] **CA-15** — Abrir `/tasks?status=pending&priority=high` diretamente aplica os dois filtros e a lista já vem filtrada.
 - [x] **CA-16** — Recarregar a página (`F5`) preserva filtros, busca e página.
-- [ ] **CA-17** — Filtros ausentes **não** aparecem na URL.
+- [x] **CA-17** — Filtros ausentes **não** aparecem na URL.
 - [x] **CA-18** — Parâmetro inválido (`?status=xyz`, `?page=abc`, `?page=-1`) é ignorado e a tela carrega com o padrão, sem erro técnico visível.
-- [ ] **CA-19** — O botão "voltar" após digitar uma busca não exige N cliques para sair da tela (uso de `replaceUrl`).
+- [x] **CA-19** — O botão "voltar" após digitar uma busca não exige N cliques para sair da tela (uso de `replaceUrl`).
 - [x] **CA-20** — Não existe estado de filtro duplicado fora da URL (verificado por revisão: o `query` do store é derivado dos parâmetros da rota).
 
 ### Paginação e interação

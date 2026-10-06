@@ -104,7 +104,7 @@ O usuário lista as próprias tarefas com filtros combináveis, busca textual, o
 
 - [x] **CA-24** — Sem `page`/`pageSize`, retorna a página 1 com **20** itens (RN-LIST-07 / D-09).
 - [x] **CA-25** — `totalItems` reflete o total **após os filtros**, não o total geral do usuário.
-- [ ] **CA-26** — `totalPages` = `ceil(totalItems / pageSize)`.
+- [x] ~~**CA-26** — `totalPages` = `ceil(totalItems / pageSize)`.~~ **Substituído (04/10/2026)** por [BE-41](BE-41-listar-e-consultar-tarefas-grpc.md) CA-08: a API devolve `totalCount`, não `totalPages`; quem calcula as páginas é o cliente (comentário de `ListTasksReply` em `tasks.proto`).
 - [x] **CA-27** — Percorrer todas as páginas retorna **cada tarefa exatamente uma vez**, sem repetição nem omissão (teste com 25 tarefas e `pageSize=10`).
 - [x] **CA-28** — `page` além do total retorna **200** com `items: []` e `totalItems` correto — não 404.
 - [x] **CA-29** — `pageSize` acima de `Paging:MaxPageSize` retorna **400** (ou é limitado ao máximo — escolher **um** comportamento e testá-lo).

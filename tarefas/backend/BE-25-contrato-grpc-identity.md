@@ -83,7 +83,7 @@ Existe um contrato Protocol Buffers versionado no repositório, único e compart
 - [x] **CA-02** — `dotnet build` gera os tipos C# nos dois lados a partir desse arquivo, sem cópia local em nenhum dos projetos.
 - [x] **CA-03** — Os tipos gerados ficam no namespace `TodoList.Contracts.Identity.V1`.
 - [x] **CA-04** — `TodoList.Identity.Api` gera **apenas** o lado servidor; `TodoList.Tasks.Infrastructure` gera **apenas** o lado cliente (verificável pelos tipos disponíveis em cada assembly).
-- [ ] **CA-05** — O serviço declara exatamente dois RPCs: `ValidateUser` e `ValidateToken`. Nenhum a mais.
+- [x] ~~**CA-05** — O serviço declara exatamente dois RPCs: `ValidateUser` e `ValidateToken`. Nenhum a mais.~~ **Substituído (04/10/2026)** pelas D-36 e D-38: o contrato ganhou login, sessão e conta (dez RPCs) e `ValidateToken` foi removido, porque o Gateway valida o JWT localmente.
 - [x] **CA-06** — Cada RPC e cada campo tem comentário no `.proto`. *(Atendido em 03/10/2026, issue #4; garantido por `ArchitectureTests.ContratosProto_TodoRpcECampoTemComentario`.)*
 - [x] **CA-07** — Alterar o `.proto` e recompilar propaga a mudança para os dois serviços em um único build — comprovado adicionando temporariamente um campo e vendo-o aparecer dos dois lados. *(provado em 06/10/2026: um campo temporário `prova_ca07 = 99` em `RefreshSessionResponse` e um único `dotnet build` geraram a propriedade `ProvaCa07` nos três projetos que compilam o contrato hoje, Identity.Api (servidor), Gateway.Api e Tasks.Infrastructure (clientes); campo removido e build refeito sem sobra.)*
 - [x] **CA-08** — Nenhum projeto de `Domain` ou `Application` referencia o `.proto` nem os tipos gerados (teste de arquitetura). O código gerado é assunto da borda.

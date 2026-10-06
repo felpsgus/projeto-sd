@@ -54,7 +54,7 @@ Todo endpoint é protegido **por padrão**; o acesso anônimo é a exceção dec
 - [x] **CA-01** — Um endpoint novo, criado sem nenhum atributo, exige autenticação por padrão.
 - [x] **CA-02** — Requisição sem cabeçalho `Authorization` a um endpoint protegido retorna **401** com corpo `application/problem+json`.
 - [x] **CA-03** — Requisição com token expirado retorna **401**.
-- [ ] **CA-04** — Requisição com token malformado ou assinatura inválida retorna **401**, nunca 500.
+- [x] **CA-04** — Requisição com token malformado ou assinatura inválida retorna **401**, nunca 500.
 - [x] **CA-05** — Requisição com token válido é processada normalmente.
 - [x] **CA-06** — `ICurrentUser.Id` dentro de um handler autenticado devolve o `Guid` do claim `sub`.
 - [x] **CA-07** — O teste de guarda enumera as rotas e **falha** quando um endpoint anônimo não listado na allowlist é adicionado (comprovado adicionando um endpoint temporário durante o desenvolvimento).

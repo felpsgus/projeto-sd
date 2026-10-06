@@ -69,8 +69,8 @@ O Identity Service atende chamadas gRPC em uma porta HTTP/2 dedicada e responde 
 
 ### `ValidateToken` (stub)
 
-- [ ] **CA-11** — `ValidateToken` responde `valid=false`, `user_id=""` para qualquer entrada, inclusive um token válido de verdade. — **superado por [BE-34](BE-34-validate-token-real.md)** no T2.
-- [ ] **CA-12** — Não existe nenhuma lógica de validação de JWT no caminho do stub (verificado em revisão) — o comportamento é declaradamente provisório e está anotado como tal no código. — **superado por [BE-34](BE-34-validate-token-real.md)** no T2.
+- [x] ~~**CA-11** — `ValidateToken` responde `valid=false`, `user_id=""` para qualquer entrada, inclusive um token válido de verdade.~~ **Substituído (04/10/2026)** pela D-38: o RPC `ValidateToken` saiu do contrato; não há stub.
+- [x] ~~**CA-12** — Não existe nenhuma lógica de validação de JWT no caminho do stub (verificado em revisão) — o comportamento é declaradamente provisório e está anotado como tal no código.~~ **Substituído (04/10/2026)** pela D-38: o RPC `ValidateToken` saiu do contrato; não há stub.
 
 ### Store de usuários
 

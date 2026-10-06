@@ -59,7 +59,7 @@ Rotas autenticadas são inacessíveis a visitantes, rotas públicas não são ex
 - [x] **CA-02** — Visitante acessando `/account`, `/tasks/new` e `/tasks/:id/edit` também é levado a `/login`.
 - [x] **CA-03** — Usuário autenticado acessando `/login` ou `/register` é levado a `/tasks`.
 - [x] **CA-04** — Usuário autenticado navega livremente entre as rotas protegidas.
-- [ ] **CA-05** — Um teste enumera **todas** as rotas declaradas e falha se alguma rota que não seja `/login`, `/register` ou `/**` estiver **sem** `authGuard` — assim, uma rota nova esquecida quebra o build.
+- [x] **CA-05** — Um teste enumera **todas** as rotas declaradas e falha se alguma rota que não seja `/login`, `/register` ou `/**` estiver **sem** `authGuard` — assim, uma rota nova esquecida quebra o build.
 
 ### Bootstrap
 
@@ -68,9 +68,9 @@ Rotas autenticadas são inacessíveis a visitantes, rotas públicas não são ex
 
 ### returnUrl
 
-- [ ] **CA-08** — Visitante que tenta `/tasks/abc/edit` é levado ao login e, após autenticar, volta **para aquela rota**.
+- [x] **CA-08** — Visitante que tenta `/tasks/abc/edit` é levado ao login e, após autenticar, volta **para aquela rota**.
 - [x] **CA-09** — `returnUrl` apontando para host externo (`https://exemplo.com`, `//exemplo.com`, `javascript:...`) é **ignorada**; o usuário vai para `/tasks`.
-- [ ] **CA-10** — `returnUrl` de rota interna inexistente leva à página 404 dentro da aplicação, não a um erro.
+- [x] **CA-10** — `returnUrl` de rota interna inexistente leva à página 404 dentro da aplicação, não a um erro.
 
 ### Lazy loading
 
@@ -81,7 +81,7 @@ Rotas autenticadas são inacessíveis a visitantes, rotas públicas não são ex
 ### Navegação
 
 - [x] **CA-14** — Rota inexistente exibe a página 404 com link para voltar.
-- [ ] **CA-15** — O `canDeactivate` avisa antes de sair de um formulário com alterações não salvas, e permite cancelar a saída.
+- [x] **CA-15** — O `canDeactivate` avisa antes de sair de um formulário com alterações não salvas, e permite cancelar a saída.
 - [x] **CA-16** — Após o login, o usuário sem `returnUrl` cai em `/tasks`.
 
 ## Testes obrigatórios

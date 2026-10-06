@@ -49,7 +49,7 @@ O usuário autenticado vê os próprios dados e altera o nome de exibição — 
 - [x] **CA-07** — `PATCH /api/me` com `displayName` de 1 e de 100 caracteres é aceito (bordas).
 - [x] **CA-08** — O nome é salvo com trim.
 - [x] **CA-09** — Enviar `{ "displayName": "Novo", "email": "outro@x.com" }` altera **apenas** o nome; o e-mail no banco permanece inalterado (RN-USER-03).
-- [ ] **CA-10** — Não existe nenhum endpoint na API que altere o e-mail de um usuário (verificado pela enumeração de rotas).
+- [x] **CA-10** — Não existe nenhum endpoint na API que altere o e-mail de um usuário (verificado pela enumeração de rotas).
 - [x] **CA-11** — `UpdatedAt` do usuário muda após o PATCH; `CreatedAt` não.
 - [x] **CA-12** — `PATCH /api/me` sem token retorna **401**.
 

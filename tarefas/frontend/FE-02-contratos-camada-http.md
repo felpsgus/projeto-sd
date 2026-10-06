@@ -65,10 +65,10 @@ Todo endpoint do backend tem um tipo TypeScript correspondente e um único ponto
 - [x] **CA-05** — `HttpClient` é chamado sempre com genérico explícito; não há resposta tipada como `any` ou `unknown` não tratado.
 - [x] **CA-06** — A query string da listagem serializa corretamente: filtros ausentes **não** aparecem na URL, e `priority` repetido gera `priority=low&priority=high`.
 - [x] **CA-07** — `dueDate` trafega como `string` `yyyy-MM-dd` em request e response; nenhum `new Date()` é aplicado a ela na camada de API.
-- [ ] **CA-08** — Um `TaskResponse` com `dueDate: "2026-01-01"` exibido em um navegador configurado em `UTC-3` mostra **1 de janeiro**, não 31 de dezembro.
+- [x] **CA-08** — Um `TaskResponse` com `dueDate: "2026-01-01"` exibido em um navegador configurado em `UTC-3` mostra **1 de janeiro**, não 31 de dezembro.
 - [x] ~~**CA-09** — O mock de API é ativável por flag e devolve os mesmos formatos de sucesso e de erro (`ProblemDetails`) do backend real.~~ **Substituído (03/10/2026, issue #15):** não há mock de API no aplicativo. A stack inteira sobe com `docker compose --profile full up -d`, e um modo de dados simulados no frontend contraria o requisito do T2 de não usar mocks (D-39). Mocks existem só nos specs, via `HttpTestingController`.
 - [x] ~~**CA-10** — Com o mock ativo, a aplicação sobe e navega sem nenhuma chamada de rede real (verificado com a rede desligada).~~ **Substituído (03/10/2026, issue #15):** sem mock por flag (ver CA-09).
-- [ ] **CA-11** — Um teste de contrato verifica os tipos contra os exemplos de payload documentados nas tasks BE — se o backend mudar o contrato, o teste quebra. Os payloads de exemplo ficam versionados em `src/testing/fixtures/`.
+- [x] **CA-11** — Um teste de contrato verifica os tipos contra os exemplos de payload documentados nas tasks BE — se o backend mudar o contrato, o teste quebra. Os payloads de exemplo ficam versionados em `src/testing/fixtures/`.
 - [x] **CA-12** — Nenhum código sensível (senha, token) é logado pela camada HTTP.
 
 ### `X-Client-Date` e cookie (FD-16, FD-17)
@@ -77,7 +77,7 @@ Todo endpoint do backend tem um tipo TypeScript correspondente e um único ponto
 - [x] **CA-14** — Requisições a URLs fora do `apiBaseUrl` **não** recebem o header.
 - [x] **CA-15** — Com o relógio do navegador em `2026-08-20T21:30` local e fuso `UTC−3` (UTC já em `2026-08-21T00:30`), o header enviado é **`2026-08-20`** — a data **local**, não a UTC. Este é o teste que impede a reintrodução do bug de D-18.
 - [x] **CA-16** — O mesmo vale para o outro lado: em fuso `UTC+9`, o header reflete a data local, não a UTC.
-- [ ] **CA-17** — As chamadas a `/api/auth/*` usam `withCredentials: true`; sem isso o cookie de refresh não é anexado (FD-16).
+- [x] **CA-17** — As chamadas a `/api/auth/*` usam `withCredentials: true`; sem isso o cookie de refresh não é anexado (FD-16).
 - [x] **CA-18** — Nenhum tipo `RefreshRequest` existe, e `AuthTokensResponse` não declara `refreshToken` (FD-01) — verificado por compilação e busca no código.
 
 ## Testes obrigatórios

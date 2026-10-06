@@ -45,8 +45,8 @@
 ## Critérios de aceite
 
 - [x] **CA-01** — Um token gerado por `ITokenService.GenerateAccessToken` (BE-08) e passado a `ValidateToken` retorna `valid=true` com `user_id` igual ao `sub` do token.
-- [ ] **CA-02** — Token vazio (`access_token=""`) retorna `valid=false, user_id=""`, status `OK`.
-- [ ] **CA-03** — Token malformado (string arbitrária, não-JWT) retorna `valid=false, user_id=""`, status `OK`, sem exceção.
+- [x] ~~**CA-02** — Token vazio (`access_token=""`) retorna `valid=false, user_id=""`, status `OK`.~~ **Substituído (04/10/2026)** pela D-38: `ValidateToken` foi removido. O caso equivalente na borda (token vazio ou malformado responde 401) é o [BE-13](BE-13-protecao-endpoints.md) CA-04.
+- [x] ~~**CA-03** — Token malformado (string arbitrária, não-JWT) retorna `valid=false, user_id=""`, status `OK`, sem exceção.~~ **Substituído (04/10/2026)** pela D-38: `ValidateToken` foi removido. O caso equivalente na borda (token vazio ou malformado responde 401) é o [BE-13](BE-13-protecao-endpoints.md) CA-04.
 - [x] **CA-04** — Token expirado retorna `valid=false` — verificado com `FakeTimeProvider` avançado para **1 segundo após** o `exp` do token (`ClockSkew` zero, mesmo padrão de BE-08 CA-07).
 - [x] **CA-05** — Token assinado com outra chave (ou com payload alterado, quebrando a assinatura) retorna `valid=false`.
 - [x] **CA-06** — Token com `iss` ou `aud` diferentes do configurado retorna `valid=false`.

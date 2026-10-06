@@ -52,7 +52,7 @@ O usuário exclui a própria conta de forma deliberada, sabendo exatamente o que
 - [x] **CA-03** — O diálogo informa que todas as sessões serão encerradas (RN-AUTH-19).
 - [x] **CA-04** — O diálogo exige a senha; sem preenchê-la, o botão de confirmar fica desabilitado.
 - [x] **CA-05** — O foco inicial do diálogo vai para o campo de senha, **não** para o botão de confirmar.
-- [ ] **CA-06** — `Enter` no campo de senha **não** confirma a exclusão diretamente sem que o botão esteja habilitado e acionado.
+- [x] **CA-06** — `Enter` no campo de senha **não** confirma a exclusão diretamente sem que o botão esteja habilitado e acionado.
 - [x] **CA-07** — `Esc` e o botão cancelar fecham o diálogo sem excluir nada, devolvendo o foco à ação de origem.
 - [x] **CA-08** — O botão de confirmar usa cor de perigo e texto explícito ("Excluir permanentemente"), não "OK".
 - [x] **CA-09** — O diálogo prende o foco enquanto aberto.
@@ -70,7 +70,7 @@ O usuário exclui a própria conta de forma deliberada, sabendo exatamente o que
 
 - [x] **CA-16** — Senha incorreta exibe o erro **dentro do diálogo**, que permanece aberto, e nada é excluído.
 - [x] **CA-17** — Após esse erro, corrigir a senha e confirmar funciona sem fechar e reabrir o diálogo.
-- [ ] **CA-18** — Erro de rede exibe mensagem e a conta permanece intacta; o usuário continua autenticado.
+- [x] **CA-18** — Erro de rede exibe mensagem e a conta permanece intacta; o usuário continua autenticado.
 - [x] **CA-19** — O botão de confirmar fica desabilitado durante a requisição; clique duplo dispara **uma** chamada.
 
 ### Segurança

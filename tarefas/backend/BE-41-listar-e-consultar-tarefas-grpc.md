@@ -89,7 +89,7 @@ message GetTaskRequest {
 - [x] **CA-02** — `ListTasks` retorna **somente** tarefas do `owner_id` presente em `x-user-id` — verificado com dois donos populados.
 - [x] **CA-03** — Tarefas removidas (soft delete) não aparecem em nenhum cenário.
 - [x] **CA-04** — Sem tarefas, retorna lista vazia com `total_count=0` — nunca erro.
-- [ ] **CA-05** — Os itens vêm ordenados por criação **decrescente** — mais recente primeiro.
+- [x] ~~**CA-05** — Os itens vêm ordenados por criação **decrescente** — mais recente primeiro.~~ **Substituído (04/10/2026)** pela RN-LIST-06 ([BE-22](BE-22-listagem-tarefas.md)): a ordenação da listagem é fixa e a data de criação só desempata, em ordem crescente.
 - [x] **CA-06** — Sem `page`/`page_size` (ou com `0`), aplica o padrão (`page=1`, `page_size=Paging:DefaultPageSize`).
 - [x] **CA-07** — `page_size` acima de `Paging:MaxPageSize`, ou `page`/`page_size` negativos, retornam erro de validação (`InvalidArgument`), não são silenciosamente truncados no Tasks.
 - [x] **CA-08** — `total_count` reflete o total de tarefas do dono (não removidas), não o total da página.

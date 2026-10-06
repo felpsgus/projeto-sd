@@ -104,9 +104,9 @@ O `errorCode` do trailer `error-code` alimenta `ProblemDetails.extensions.errorC
 - [x] **CA-10** — `POST /api/tasks` com token expirado ou assinatura inválida devolve **401**.
 - [x] **CA-11** — `POST /api/tasks` sem token **e** com payload inválido devolve **401** (não 400) — a ordem autenticação-antes-de-validação é observável.
 - [x] **CA-12** — O corpo do 401 não distingue "token ausente" de "token inválido"/"expirado" (mesma regra de [BE-13](BE-13-protecao-endpoints.md) CA-11).
-- [ ] **CA-13** — Com o Identity inalcançável no momento de `ValidateToken`, a requisição autenticada devolve **503** com `Retry-After` — nunca 401.
+- [x] ~~**CA-13** — Com o Identity inalcançável no momento de `ValidateToken`, a requisição autenticada devolve **503** com `Retry-After` — nunca 401.~~ **Substituído (04/10/2026)** pela D-38: o Gateway valida o JWT localmente e não chama o Identity para autenticar. O 503 com `Retry-After` continua valendo para as chamadas gRPC de negócio (D-28).
 - [x] **CA-14** — `/health`, `POST /api/auth/login` e a documentação OpenAPI/Scalar permanecem acessíveis sem token; todo o resto exige token por padrão (teste de guarda de rotas com allowlist explícita, mesmo padrão de [BE-13](BE-13-protecao-endpoints.md) CA-07).
-- [ ] **CA-15** — Nenhuma chave `Jwt:*` existe em nenhum `appsettings*.json` do Gateway nem é lida no código (varredura).
+- [x] ~~**CA-15** — Nenhuma chave `Jwt:*` existe em nenhum `appsettings*.json` do Gateway nem é lida no código (varredura).~~ **Substituído (04/10/2026)** pela D-38 ([BE-40](BE-40-jwt-rs256-e-persisted-padrao.md)): o Gateway passou a ter `Jwt:*`, só com a chave pública RS256; a privada continua apenas no Identity.
 
 ### Mapeamento de erro (D-35)
 

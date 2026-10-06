@@ -52,10 +52,10 @@ O usuário apaga a própria conta; as tarefas dele somem junto e nenhuma sessão
 - [x] **CA-05b** — A remoção das tarefas acontece **sem** o Identity Service chamar o Tasks Service: nenhum RPC novo foi adicionado ao contrato ([BE-25](BE-25-contrato-grpc-identity.md), CA-05 continua valendo — dois RPCs, nenhum a mais).
 - [x] **CA-06** — Todos os refresh tokens do usuário foram removidos: nenhum renova (RN-AUTH-19).
 - [x] ~~**CA-07** — Os registros de tentativa de login daquele e-mail foram removidos.~~ **Substituído (03/10/2026)** pelo ADR-0002: o bloqueio de login pertence ao e-mail, exista ou não um usuário com ele; os registros ficam e saem pelo expurgo. Issue #2 fechada sem mudança de comportamento.
-- [ ] **CA-08** — Tarefas e sessões de **outros usuários** permanecem intactas (verificado com uma segunda conta povoada no mesmo teste).
+- [x] **CA-08** — Tarefas e sessões de **outros usuários** permanecem intactas (verificado com uma segunda conta povoada no mesmo teste).
 - [x] ~~**CA-09** — Uma requisição feita com o access token do usuário excluído, ainda dentro da validade, retorna **401** — não 500 e não 200 com dados vazios.~~ **Substituído (03/10/2026)** pela emenda do ADR-0001: `GET /api/me` e criar tarefa são recusados; as leituras do Tasks respondem 200 com lista vazia até o token expirar, limitação aceita. Issue #1 fechada.
 - [x] **CA-10** — Senha incorreta retorna erro e **nada** é apagado: usuário, tarefas e sessões continuam íntegros.
-- [ ] **CA-11** — Se qualquer etapa falhar, **nada** é apagado (atomicidade — testado forçando falha no meio da transação).
+- [x] **CA-11** — Se qualquer etapa falhar, **nada** é apagado (atomicidade — testado forçando falha no meio da transação).
 - [x] **CA-12** — Requisição sem autenticação retorna **401**.
 - [x] **CA-13** — O e-mail liberado pode ser usado num **novo cadastro** depois da exclusão.
 - [x] **CA-14** — Nenhum log contém a senha enviada.

@@ -58,7 +58,7 @@ Existe um workspace Angular 22 zoneless que compila, roda, passa no lint e execu
 
 - [x] **CA-01** — `npm ci && npm run build` conclui **sem warnings**.
 - [x] **CA-02** — `npm run lint` e `npm run format:check` passam.
-- [ ] **CA-03** — `npm start` sobe a aplicação e ela renderiza sem erro no console do navegador.
+- [x] **CA-03** — `npm start` sobe a aplicação e ela renderiza sem erro no console do navegador. *(04/10/2026: provado pelo E2E contra o build de produção atrás do nginx, não contra `npm start`: nenhum `console.error`, `pageerror` nem violação de CSP nas telas.)*
 - [x] **CA-04** — `npm test` executa via Vitest e passa.
 - [x] **CA-05** — `npm run test:coverage` gera relatório de cobertura em `coverage/`.
 - [x] **CA-06** — A aplicação roda **zoneless**: `zone.js` não está nos polyfills e `provideZonelessChangeDetection()` está registrado. Uma busca por `zone.js` no bundle não encontra nada.

@@ -49,8 +49,8 @@ Existe **um único** caminho pelo qual toda operação sobre uma tarefa específ
 - [x] **CA-07** — `GET` com id em formato inválido (`/api/tasks/abc`) retorna **400**, não 500.
 - [x] **CA-08** — `GET` sem token retorna **401** (RN-AUTZ-04).
 - [x] **CA-09** — O SQL gerado inclui o filtro de `owner_id` na consulta — a autorização não é feita em memória (verificável por log de query em teste, ou por inspeção do `IQueryable`).
-- [ ] **CA-10** — Não existe, na camada de aplicação, nenhum método público que carregue uma `TodoTask` por id **sem** filtro de dono (verificado por revisão + teste de arquitetura sobre a superfície do repositório).
-- [ ] **CA-11** — Um teste de integração parametrizado percorre **todos** os endpoints de tarefa que recebem `{id}` (`GET`, `PUT/PATCH`, `POST /complete`, `POST /reopen`, `DELETE`) e confirma que **cada um** retorna 404 para tarefa de outro usuário. Ao adicionar um endpoint novo com `{id}`, ele entra nesse teste.
+- [x] **CA-10** — Não existe, na camada de aplicação, nenhum método público que carregue uma `TodoTask` por id **sem** filtro de dono (verificado por revisão + teste de arquitetura sobre a superfície do repositório).
+- [x] **CA-11** — Um teste de integração parametrizado percorre **todos** os endpoints de tarefa que recebem `{id}` (`GET`, `PUT/PATCH`, `POST /complete`, `POST /reopen`, `DELETE`) e confirma que **cada um** retorna 404 para tarefa de outro usuário. Ao adicionar um endpoint novo com `{id}`, ele entra nesse teste. *(04/10/2026: o teste transversal está no Gateway, `RouteGuardTests`, e prova que todo endpoint com `{id}` devolve 404 e que um endpoint novo quebra o teste; o isolamento entre donos é provado por endpoint nos testes gRPC do Tasks.)*
 
 ## Testes obrigatórios
 

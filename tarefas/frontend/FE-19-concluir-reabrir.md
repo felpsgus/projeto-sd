@@ -50,7 +50,7 @@ Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela re
 - [x] **CA-01** — Concluir uma tarefa pendente atualiza o item para "Concluída" (RN-TASK-08).
 - [x] **CA-02** — A mudança visual acontece **imediatamente**, antes da resposta do servidor (FD-06).
 - [x] **CA-03** — A data de conclusão passa a ser exibida.
-- [ ] **CA-04** — Concluir uma tarefa **atrasada** remove o selo "Atrasada" (RN-TASK-16).
+- [x] **CA-04** — Concluir uma tarefa **atrasada** remove o selo "Atrasada" (RN-TASK-16).
 - [x] **CA-05** — Se a chamada **falhar**, o item volta ao estado "Pendente" e uma mensagem de erro é exibida.
 - [x] **CA-06** — Com o filtro "Pendentes" ativo, concluir remove o item da lista imediatamente; **se a chamada falhar, o item volta à posição original**. *(Atendido em 03/10/2026, issue #8: `TasksStore.transition` tira o item que deixa de casar com o filtro de estado ou de atraso e o reinsere no índice original em caso de falha; vale também para reabrir com o filtro "Concluídas". Coberto por `tasks.store.spec.ts`.)*
 - [x] **CA-07** — Após o sucesso, a lista reflete a ordenação do servidor (a tarefa concluída aparece depois das pendentes).
@@ -58,8 +58,8 @@ Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela re
 ### Reabrir
 
 - [x] **CA-08** — Reabrir uma tarefa concluída volta o estado para "Pendente" (RN-TASK-09).
-- [ ] **CA-09** — A data de conclusão deixa de ser exibida.
-- [ ] **CA-10** — Reabrir uma tarefa com vencimento passado faz o selo "Atrasada" reaparecer.
+- [x] **CA-09** — A data de conclusão deixa de ser exibida.
+- [x] **CA-10** — Reabrir uma tarefa com vencimento passado faz o selo "Atrasada" reaparecer.
 - [x] **CA-11** — Falha na chamada reverte para "Concluída".
 - [x] **CA-12** — O controle alterna corretamente: em tarefa pendente oferece concluir, em concluída oferece reabrir.
 
@@ -70,7 +70,7 @@ Marcar uma tarefa como feita é a ação mais frequente do aplicativo — ela re
 - [x] **CA-15** — O 404 tem a mesma mensagem para tarefa alheia e tarefa inexistente — a tela não distingue.
 - [x] **CA-16** — Erro de rede reverte o otimismo e exibe mensagem de conectividade.
 - [x] **CA-17** — Cliques repetidos rápidos no mesmo item disparam **uma** requisição; o controle fica bloqueado enquanto ela está em voo.
-- [ ] **CA-18** — Concluir duas tarefas diferentes em sequência rápida funciona: as duas requisições ocorrem e ambos os itens atualizam corretamente.
+- [x] **CA-18** — Concluir duas tarefas diferentes em sequência rápida funciona: as duas requisições ocorrem e ambos os itens atualizam corretamente.
 
 ### Acessibilidade
 

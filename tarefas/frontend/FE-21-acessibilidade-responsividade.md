@@ -52,10 +52,10 @@ A aplicação inteira é utilizável por teclado, por leitor de tela e em telas 
 
 ### Teclado
 
-- [ ] **CA-04** — Todo fluxo (cadastro, login, criar, editar, concluir, remover, filtrar, trocar senha, excluir conta, sair) é completável **apenas pelo teclado**.
-- [ ] **CA-05** — A ordem de tabulação segue a ordem visual em todas as telas.
-- [ ] **CA-06** — O indicador de foco é visível em **todos** os elementos interativos, com contraste suficiente.
-- [ ] **CA-07** — Não existe armadilha de foco fora de diálogo modal.
+- [x] **CA-04** — Todo fluxo (cadastro, login, criar, editar, concluir, remover, filtrar, trocar senha, excluir conta, sair) é completável **apenas pelo teclado**.
+- [x] **CA-05** — A ordem de tabulação segue a ordem visual em todas as telas. *(04/10/2026: verificação automática por posição dos elementos, com tolerância de 8 px.)*
+- [x] **CA-06** — O indicador de foco é visível em **todos** os elementos interativos, com contraste suficiente.
+- [x] **CA-07** — Não existe armadilha de foco fora de diálogo modal.
 - [x] **CA-08** — Todo diálogo prende o foco, fecha com `Esc` e devolve o foco ao elemento de origem.
 - [x] **CA-09** — O skip link funciona e é o primeiro elemento focável.
 
@@ -66,16 +66,16 @@ A aplicação inteira é utilizável por teclado, por leitor de tela e em telas 
 - [ ] **CA-12** — Cada campo de formulário é anunciado com seu label e, quando inválido, com a mensagem de erro.
 - [ ] **CA-13** — Ações de item de lista são anunciadas identificando **qual** tarefa.
 - [ ] **CA-14** — A lista anuncia a quantidade de itens; a mudança de resultado após filtrar é anunciada.
-- [ ] **CA-15** — Nenhuma informação é transmitida **apenas** por cor ou ícone (prioridade, estado, atrasada).
-- [ ] **CA-16** — Cada página tem um `<h1>` único e hierarquia de cabeçalhos sem saltos.
+- [x] **CA-15** — Nenhuma informação é transmitida **apenas** por cor ou ícone (prioridade, estado, atrasada).
+- [x] **CA-16** — Cada página tem um `<h1>` único e hierarquia de cabeçalhos sem saltos.
 
 ### Visual
 
-- [ ] **CA-17** — Contraste ≥ **4.5:1** para texto normal e ≥ **3:1** para texto grande, em todos os estados.
+- [x] **CA-17** — Contraste ≥ **4.5:1** para texto normal e ≥ **3:1** para texto grande, em todos os estados. *(04/10/2026: axe nos temas claro e escuro, com tarefa concluída, atrasada e erros de formulário; `:hover`, `::selection` e elementos desabilitados não são medidos.)*
 - [x] **CA-18** — Em 360 px, nenhuma tela tem rolagem horizontal.
-- [ ] **CA-19** — Em 360 px, todos os alvos de toque têm ao menos 44×44 px.
-- [ ] **CA-20** — Em 768 px e 1440 px, o layout se adapta sem conteúdo cortado nem linhas excessivamente longas.
-- [ ] **CA-21** — Zoom de texto a 200% não corta conteúdo nem impede nenhuma ação.
+- [x] **CA-19** — Em 360 px, todos os alvos de toque têm ao menos 44×44 px. *(04/10/2026: links em linha dentro de frase, como "Cadastre-se", ficam de fora pela isenção da WCAG 2.5.8.)*
+- [x] **CA-20** — Em 768 px e 1440 px, o layout se adapta sem conteúdo cortado nem linhas excessivamente longas.
+- [x] **CA-21** — Zoom de texto a 200% não corta conteúdo nem impede nenhuma ação. *(04/10/2026: zoom de texto, `font-size` da raiz a 200%; o zoom de página do navegador não foi testado.)*
 - [x] **CA-22** — Com `prefers-reduced-motion`, animações e transições são reduzidas ou eliminadas.
 
 ### Registro

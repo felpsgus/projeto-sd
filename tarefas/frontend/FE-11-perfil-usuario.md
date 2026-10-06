@@ -49,13 +49,13 @@ O usuário vê os próprios dados em `/account` e altera o nome de exibição �
 - [x] **CA-07** — O nome no cabeçalho do `AppShell` é atualizado **imediatamente** após salvar, sem recarregar a página.
 - [x] **CA-08** — Nome vazio, só espaços, ou com 101 caracteres é rejeitado antes do envio; 1 e 100 caracteres são aceitos.
 - [x] **CA-09** — O nome é enviado com trim.
-- [ ] **CA-10** — O botão salvar fica desabilitado quando não há alteração pendente e durante o envio.
-- [ ] **CA-11** — Erro na API exibe mensagem sem perder o valor digitado.
+- [x] **CA-10** — O botão salvar fica desabilitado quando não há alteração pendente e durante o envio.
+- [x] **CA-11** — Erro na API exibe mensagem sem perder o valor digitado.
 - [x] **CA-12** — Enquanto os dados carregam, a tela exibe indicador de carregamento; se falhar, exibe erro com "tentar novamente".
 - [x] **CA-13** — A resposta exibida **não** contém nenhum campo de senha ou hash (RN-AUTH-05).
 - [x] **CA-14** — As ações "alterar senha", "sair de todos os dispositivos" e "excluir conta" estão acessíveis a partir desta tela.
 - [x] **CA-15** — "Excluir conta" está visualmente separada e marcada como ação destrutiva, longe do botão de salvar.
-- [ ] **CA-16** — A tela é operável só pelo teclado, com labels associados, e usável em 360 px.
+- [x] **CA-16** — A tela é operável só pelo teclado, com labels associados, e usável em 360 px.
 
 ## Testes obrigatórios
 

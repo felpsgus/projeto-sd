@@ -53,19 +53,19 @@ O usuário edita título, descrição, prioridade e vencimento de uma tarefa sua
 
 ### Edição
 
-- [ ] **CA-05** — Alterar os quatro campos e salvar persiste todos (RN-TASK-11).
+- [x] **CA-05** — Alterar os quatro campos e salvar persiste todos (RN-TASK-11).
 - [x] **CA-06** — Alterar **apenas o título** e salvar **preserva** descrição, prioridade e vencimento — não os apaga.
 - [x] **CA-07** — O request `PUT` enviado contém **os quatro campos**, com os valores correntes da tela (verificado no teste da chamada).
 - [x] **CA-08** — Limpar a descrição e salvar efetivamente a limpa.
 - [x] **CA-09** — Limpar o vencimento e salvar efetivamente o remove.
-- [ ] **CA-10** — Editar uma tarefa **concluída** funciona e ela **permanece concluída**.
+- [x] **CA-10** — Editar uma tarefa **concluída** funciona e ela **permanece concluída**.
 - [x] **CA-11** — O formulário **não** tem nenhum controle de estado (Pendente/Concluída).
 - [x] **CA-12** — Após salvar, a lista reflete a tarefa atualizada na posição correta da ordenação.
 - [x] **CA-13** — O botão salvar fica desabilitado sem alterações pendentes e durante o envio; clique duplo envia **uma** requisição. *(Atendido em 03/10/2026, issue #14: na edição o envio exige `form.dirty`, a mesma noção do `canDeactivate`; a criação não muda. Coberto por `edit-task.component.spec.ts`, inclusive o clique duplo.)*
 
 ### Validação
 
-- [ ] **CA-14** — As mesmas validações de FE-17 valem: título 1–200 e não só espaços, descrição ≤ 2000, prioridade válida.
+- [x] **CA-14** — As mesmas validações de FE-17 valem: título 1–200 e não só espaços, descrição ≤ 2000, prioridade válida.
 - [x] **CA-15** — O componente de formulário é **o mesmo** de FE-17 (verificado por revisão — não há validação duplicada).
 - [x] **CA-16** — Vencimento no passado continua sendo aceito (RN-TASK-05).
 
@@ -80,10 +80,10 @@ O usuário edita título, descrição, prioridade e vencimento de uma tarefa sua
 
 ### Navegação e acessibilidade
 
-- [ ] **CA-23** — Sair com alterações não salvas exibe aviso; sem alterações, não exibe.
+- [x] **CA-23** — Sair com alterações não salvas exibe aviso; sem alterações, não exibe.
 - [x] **CA-24** — Cancelar volta à lista sem salvar.
 - [x] **CA-25** — Erro de rede preserva o que foi digitado.
-- [ ] **CA-26** — Operável só pelo teclado; foco no primeiro campo com erro após falha; usável em 360 px.
+- [x] **CA-26** — Operável só pelo teclado; foco no primeiro campo com erro após falha; usável em 360 px.
 
 ## Testes obrigatórios
 

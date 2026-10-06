@@ -50,16 +50,16 @@ Existe um esqueleto visual consistente: dois layouts (público e autenticado), t
 - [x] **CA-01** — Rotas públicas (cadastro, login) usam o `AuthLayout`; rotas autenticadas usam o `AppShell`.
 - [x] **CA-02** — O `AppShell` exibe o nome de exibição do usuário autenticado, vindo do estado de sessão.
 - [x] **CA-03** — O layout é utilizável em 360 px de largura, sem rolagem horizontal.
-- [ ] **CA-04** — O layout é utilizável em 1920 px, sem linhas de texto excessivamente longas (largura máxima de conteúdo definida).
+- [x] **CA-04** — O layout é utilizável em 1920 px, sem linhas de texto excessivamente longas (largura máxima de conteúdo definida).
 - [x] **CA-05** — Nenhum valor de cor literal (`#fff`, `rgb(...)`) existe fora do arquivo de tokens.
-- [ ] **CA-06** — Todo par texto/fundo do tema atinge contraste **≥ 4.5:1** (verificado com ferramenta e documentado no PR).
+- [x] **CA-06** — Todo par texto/fundo do tema atinge contraste **≥ 4.5:1** (verificado com ferramenta e documentado no PR). *(04/10/2026: axe nos temas claro e escuro, registrado em [docs/acessibilidade.md](../../docs/acessibilidade.md); `:hover`, `::selection` e elementos desabilitados não são medidos.)*
 - [x] **CA-07** — O skip link é o **primeiro** elemento focável e leva ao `<main>`.
-- [ ] **CA-08** — Cada página tem exatamente **um** `<h1>` e um `<main>`.
+- [x] **CA-08** — Cada página tem exatamente **um** `<h1>` e um `<main>`.
 - [x] **CA-09** — Ao navegar entre rotas, o foco vai para o cabeçalho da nova página — verificado por teste automatizado, não só por inspeção.
-- [ ] **CA-10** — O `<title>` do documento muda a cada rota e descreve a página.
-- [ ] **CA-11** — Todo elemento interativo é alcançável e acionável **apenas pelo teclado**, com indicador de foco visível.
+- [x] **CA-10** — O `<title>` do documento muda a cada rota e descreve a página.
+- [x] **CA-11** — Todo elemento interativo é alcançável e acionável **apenas pelo teclado**, com indicador de foco visível.
 - [x] **CA-12** — O `<app-confirm-dialog>` prende o foco enquanto aberto, fecha com `Esc` e devolve o foco ao elemento que o abriu.
-- [ ] **CA-13** — `<app-form-field-error>` associa a mensagem ao input via `aria-describedby` e marca o campo com `aria-invalid`.
+- [x] **CA-13** — `<app-form-field-error>` associa a mensagem ao input via `aria-describedby` e marca o campo com `aria-invalid`.
 - [x] **CA-14** — Botão em estado de carregando fica desabilitado, marcado com `aria-busy`, e **não** dispara a ação duas vezes em clique duplo.
 - [x] **CA-15** — Nenhum componente de apresentação injeta serviço de dados (verificado por revisão e lint).
 - [x] **CA-16** — Todos os componentes desta task são standalone e `OnPush`.

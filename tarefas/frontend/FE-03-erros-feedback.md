@@ -66,7 +66,7 @@ Todo erro vindo da API vira uma mensagem em português compreensível, exibida d
 - [x] **CA-04** — Erro de rede (servidor inalcançável) exibe mensagem de conectividade, não "erro 0" nem tela em branco.
 - [x] **CA-05** — Uma resposta 500 **nunca** exibe stack trace, nome de exceção ou detalhe interno — mesmo que o corpo os contivesse.
 - [x] **CA-06** — Uma resposta que não é JSON válido é tratada sem lançar exceção não capturada.
-- [ ] **CA-07** — O `traceId` é preservado no `AppError` e aparece na mensagem de erro genérica.
+- [x] **CA-07** — O `traceId` é preservado no `AppError` e aparece na mensagem de erro genérica.
 - [x] ~~**CA-08** — O toast de erro é anunciado por leitor de tela (`aria-live="assertive"`); o de sucesso usa `aria-live="polite"`.~~ **Substituído (03/10/2026, issue #15):** não há toast. O desenho definitivo é o erro junto do formulário ou do item (`role="alert"`), o aviso de página da listagem e a região `aria-live="polite"` de anúncios; um toast duplicaria esses mecanismos.
 - [x] ~~**CA-09** — O toast pode ser fechado pelo teclado e não some rápido demais para ser lido (mínimo configurável, ≥ 5 s para erro).~~ **Substituído (03/10/2026, issue #15):** sem toast (ver CA-08); as mensagens ficam na tela até a próxima ação, sem tempo para expirar.
 - [x] **CA-10** — `<app-error-state>` oferece "tentar novamente" e o clique reexecuta a operação que falhou.

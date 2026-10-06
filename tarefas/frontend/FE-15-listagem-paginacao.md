@@ -54,29 +54,29 @@ A tela `/tasks` mostra as tarefas do usuário na ordem definida pelas regras, pa
 ### Conteúdo
 
 - [x] **CA-01** — `/tasks` lista as tarefas do usuário autenticado (RN-LIST-01).
-- [ ] **CA-02** — Cada item exibe título, prioridade, vencimento, estado e data de atualização.
-- [ ] **CA-03** — Tarefa sem descrição ou sem vencimento é exibida sem campo vazio nem `null` na tela.
-- [ ] **CA-04** — Título longo (200 caracteres) não quebra o layout.
+- [x] **CA-02** — Cada item exibe título, prioridade, vencimento, estado e data de atualização.
+- [x] **CA-03** — Tarefa sem descrição ou sem vencimento é exibida sem campo vazio nem `null` na tela.
+- [x] **CA-04** — Título longo (200 caracteres) não quebra o layout.
 - [x] **CA-05** — A prioridade é exibida com **rótulo textual** em pt-BR, além da cor.
 - [x] **CA-06** — Tarefa com `isOverdue: true` exibe o selo **"Atrasada"** com texto (RN-TASK-16).
-- [ ] **CA-07** — Tarefa concluída **não** exibe o selo de atrasada, mesmo com vencimento passado.
+- [x] **CA-07** — Tarefa concluída **não** exibe o selo de atrasada, mesmo com vencimento passado.
 - [x] **CA-08** — `isOverdue` é lido da resposta; não há cálculo de data no componente (verificado por revisão e ausência de `new Date()` na lógica de atraso).
-- [ ] **CA-08b** — Com o navegador em `UTC−3` às `21:30` do dia 20 (UTC já no dia 21), uma tarefa pendente vencendo no dia **20** **não** exibe o selo "Atrasada" — o cenário que motivou a decisão do fuso (FD-17 / D-18), verificado ponta a ponta com o header sendo enviado.
+- [x] **CA-08b** — Com o navegador em `UTC−3` às `21:30` do dia 20 (UTC já no dia 21), uma tarefa pendente vencendo no dia **20** **não** exibe o selo "Atrasada" — o cenário que motivou a decisão do fuso (FD-17 / D-18), verificado ponta a ponta com o header sendo enviado.
 - [x] **CA-09** — A data de vencimento `2026-01-01` é exibida como **01/01/2026** mesmo em navegador com fuso `UTC-3`.
-- [ ] **CA-10** — Tarefas concluídas têm tratamento visual distinto, mantendo contraste ≥ 4.5:1.
+- [x] **CA-10** — Tarefas concluídas têm tratamento visual distinto, mantendo contraste ≥ 4.5:1.
 
 ### Ordenação
 
-- [ ] **CA-11** — A ordem exibida é **exatamente** a ordem retornada pela API; nenhum `sort` é aplicado no cliente (verificado por teste com resposta em ordem conhecida).
-- [ ] **CA-12** — Com um conjunto cobrindo pendentes/concluídas, com/sem vencimento, a tela reproduz a sequência do servidor sem alteração.
+- [x] **CA-11** — A ordem exibida é **exatamente** a ordem retornada pela API; nenhum `sort` é aplicado no cliente (verificado por teste com resposta em ordem conhecida).
+- [x] **CA-12** — Com um conjunto cobrindo pendentes/concluídas, com/sem vencimento, a tela reproduz a sequência do servidor sem alteração.
 
 ### Paginação
 
 - [x] **CA-13** — Os controles exibem página atual, total de páginas e total de itens (RN-LIST-07).
 - [x] **CA-14** — Navegar entre páginas carrega os itens corretos, sem repetição nem omissão.
-- [ ] **CA-15** — Na primeira página, "anterior" está desabilitado; na última, "próxima" está desabilitado.
+- [x] **CA-15** — Na primeira página, "anterior" está desabilitado; na última, "próxima" está desabilitado.
 - [x] **CA-16** — Com uma única página, os controles são ocultados ou desabilitados, não exibidos como interativos inúteis.
-- [ ] **CA-17** — O `pageSize` usado é o retornado pela API, não uma constante no frontend.
+- [x] **CA-17** — O `pageSize` usado é o retornado pela API, não uma constante no frontend.
 - [x] **CA-18** — Mudar de página move o foco para o início da lista e anuncia a mudança a leitor de tela. *(Atendido em 03/10/2026, issue #10: Anterior/Próxima focam o título do primeiro item da página carregada e "Página X de Y" virou `role="status"`. Voltar/avançar do navegador não movem o foco.)*
 
 ### Estados

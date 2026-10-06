@@ -70,17 +70,17 @@ Um visitante cria a própria conta em `/register`, com validação imediata e me
 
 - [x] **CA-11** — E-mail já cadastrado (409) exibe a mensagem junto ao campo de e-mail, com link para o login (RN-AUTH-02).
 - [x] **CA-12** — Erros 400 do backend são exibidos nos campos correspondentes, não num toast genérico.
-- [ ] **CA-13** — Erro de rede exibe mensagem de conectividade e **preserva** os dados já digitados (exceto senhas).
-- [ ] **CA-14** — Após um erro, corrigir e reenviar funciona sem recarregar a página.
+- [x] **CA-13** — Erro de rede exibe mensagem de conectividade e **preserva** os dados já digitados (exceto senhas).
+- [x] **CA-14** — Após um erro, corrigir e reenviar funciona sem recarregar a página.
 
 ### Segurança e acessibilidade
 
 - [x] **CA-15** — Nenhuma senha aparece em `localStorage`, `sessionStorage`, URL, `console` ou atributo do DOM (teste automatizado).
 - [x] **CA-16** — Os campos de senha usam `type="password"` e `autocomplete="new-password"`.
 - [x] **CA-17** — O botão mostrar/ocultar senha tem rótulo acessível que reflete o estado atual.
-- [ ] **CA-18** — Todo campo tem `<label>` associado; erros são ligados por `aria-describedby` e o campo inválido tem `aria-invalid`.
-- [ ] **CA-19** — O formulário é preenchível e enviável apenas pelo teclado.
-- [ ] **CA-20** — Ao falhar o envio, o foco vai para o primeiro campo com erro (ou para o resumo de erros).
+- [x] **CA-18** — Todo campo tem `<label>` associado; erros são ligados por `aria-describedby` e o campo inválido tem `aria-invalid`.
+- [x] **CA-19** — O formulário é preenchível e enviável apenas pelo teclado.
+- [x] **CA-20** — Ao falhar o envio, o foco vai para o primeiro campo com erro (ou para o resumo de erros).
 - [x] **CA-21** — A tela é usável em 360 px de largura.
 
 ## Testes obrigatórios

@@ -59,19 +59,19 @@ O usuário cria uma tarefa informando apenas o título, com os demais campos opc
 - [x] **CA-01** — Criar com **apenas o título** funciona e retorna à lista com a tarefa visível (RN-TASK-10).
 - [x] **CA-02** — A tarefa criada aparece como **Pendente** (RN-TASK-07).
 - [x] **CA-03** — Sem escolher prioridade, a tarefa é criada como **Média** (RN-TASK-04), e o campo já vem pré-selecionado assim.
-- [ ] **CA-04** — Criar com todos os campos preenchidos persiste todos corretamente.
+- [x] **CA-04** — Criar com todos os campos preenchidos persiste todos corretamente.
 - [x] **CA-05** — Após criar, a lista reflete o estado do servidor (a tarefa aparece na posição correta da ordenação).
-- [ ] **CA-06** — O botão de envio fica desabilitado durante a requisição; clique duplo cria **uma** tarefa.
+- [x] **CA-06** — O botão de envio fica desabilitado durante a requisição; clique duplo cria **uma** tarefa.
 
 ### Validação
 
 - [x] **CA-07** — Título vazio ou só espaços impede o envio, com erro no campo (RN-TASK-02).
-- [ ] **CA-08** — Título com 201 caracteres é rejeitado; com 1 e com 200 é aceito.
-- [ ] **CA-09** — Descrição com 2001 caracteres é rejeitada; com 2000 é aceita (RN-TASK-03).
-- [ ] **CA-10** — O contador de caracteres aparece ao se aproximar do limite e reflete o valor real.
+- [x] **CA-08** — Título com 201 caracteres é rejeitado; com 1 e com 200 é aceito.
+- [x] **CA-09** — Descrição com 2001 caracteres é rejeitada; com 2000 é aceita (RN-TASK-03).
+- [x] **CA-10** — O contador de caracteres aparece ao se aproximar do limite e reflete o valor real. *(04/10/2026: o contador fica sempre visível, não só perto do limite.)*
 - [x] **CA-11** — Vencimento no passado é **aceito** e exibe aviso não-bloqueante de que a tarefa ficará atrasada (RN-TASK-05). *(Atendido em 03/10/2026, issue #7: aviso no `TaskFormComponent`, com "hoje" vindo do mesmo utilitário do `X-Client-Date`; desligado na edição de tarefa Concluída. Coberto por `create-task.component.spec.ts` e `edit-task.component.spec.ts`.)*
 - [x] **CA-12** — O seletor de data **não** impede escolher datas passadas.
-- [ ] **CA-13** — A data enviada é `yyyy-MM-dd` e corresponde ao dia escolhido, mesmo em fuso `UTC-3`.
+- [x] **CA-13** — A data enviada é `yyyy-MM-dd` e corresponde ao dia escolhido, mesmo em fuso `UTC-3`.
 
 ### Limite
 
@@ -91,8 +91,8 @@ O usuário cria uma tarefa informando apenas o título, com os demais campos opc
 ### Acessibilidade
 
 - [x] **CA-23** — Todos os campos têm label associado; erros ligados por `aria-describedby`.
-- [ ] **CA-24** — O formulário é preenchível e enviável só pelo teclado, incluindo o seletor de data.
-- [ ] **CA-25** — Ao falhar, o foco vai para o primeiro campo com erro.
+- [x] **CA-24** — O formulário é preenchível e enviável só pelo teclado, incluindo o seletor de data.
+- [x] **CA-25** — Ao falhar, o foco vai para o primeiro campo com erro.
 - [x] **CA-26** — Usável em 360 px.
 
 ## Testes obrigatórios

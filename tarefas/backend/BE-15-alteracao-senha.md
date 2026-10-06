@@ -51,9 +51,9 @@ O usuário autenticado troca a própria senha informando a senha atual, e a troc
 - [x] **CA-07** — Após a troca, **todos** os refresh tokens do usuário ficam revogados: nenhum renova (RN-AUTH-19).
 - [x] **CA-08** — A revogação cobre sessões de **outros dispositivos**, não apenas a que fez a troca.
 - [x] **CA-09** — Os tokens revogados têm `RevokedReason == PasswordChanged` no banco.
-- [ ] **CA-10** — Sessões de **outros usuários** não são afetadas.
-- [ ] **CA-11** — Se a persistência do novo hash falhar, nenhuma sessão é revogada (atomicidade — testado forçando falha na transação).
-- [ ] **CA-12** — Se a revogação falhar, a senha **não** é alterada (mesma transação).
+- [x] **CA-10** — Sessões de **outros usuários** não são afetadas.
+- [x] **CA-11** — Se a persistência do novo hash falhar, nenhuma sessão é revogada (atomicidade — testado forçando falha na transação).
+- [x] **CA-12** — Se a revogação falhar, a senha **não** é alterada (mesma transação).
 - [x] **CA-13** — Requisição sem autenticação retorna **401**.
 - [x] **CA-14** — Nenhum log contém `currentPassword` ou `newPassword`.
 - [x] **CA-15** — A resposta é **204**, sem corpo — não retorna dados do usuário nem tokens.

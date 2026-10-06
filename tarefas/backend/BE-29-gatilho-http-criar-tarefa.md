@@ -46,24 +46,24 @@ Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a auten
 
 ### Modo provisório ligado
 
-- [ ] **CA-01** — Com `Tasks:AllowAnonymousCreate=true`, `POST /api/tasks` sem cabeçalho `Authorization`, com `X-User-Id` de usuário existente e corpo `{"title":"..."}`, responde **201** (RN-TASK-10). *(emendado em 03/10/2026, issue #16)*
-- [ ] **CA-02** — A tarefa criada tem `OwnerId` igual ao valor de `X-User-Id`, verificado no banco (RN-AUTZ-01).
-- [ ] **CA-03** — `X-User-Id` ausente, vazio ou não-`Guid` responde **400** com mensagem apontando o header — não 500, não fallback silencioso.
-- [ ] **CA-04** — O corpo continua sem campo de dono: enviar `"ownerId"` no JSON é ignorado ([BE-17](BE-17-criar-tarefa.md), CA-22 preservado).
-- [ ] **CA-05** — A criação passa pela validação de dono via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)): `X-User-Id` de usuário inexistente responde **404**. *(emendado em 03/10/2026, issue #16)*
-- [ ] **CA-06** — Subir com o modo ligado emite log de **aviso** na inicialização.
+- [x] ~~**CA-01** — Com `Tasks:AllowAnonymousCreate=true`, `POST /api/tasks` sem cabeçalho `Authorization`, com `X-User-Id` de usuário existente e corpo `{"title":"..."}`, responde **201** (RN-TASK-10). *(emendado em 03/10/2026, issue #16)*~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-02** — A tarefa criada tem `OwnerId` igual ao valor de `X-User-Id`, verificado no banco (RN-AUTZ-01).~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-03** — `X-User-Id` ausente, vazio ou não-`Guid` responde **400** com mensagem apontando o header — não 500, não fallback silencioso.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-04** — O corpo continua sem campo de dono: enviar `"ownerId"` no JSON é ignorado ([BE-17](BE-17-criar-tarefa.md), CA-22 preservado).~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-05** — A criação passa pela validação de dono via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)): `X-User-Id` de usuário inexistente responde **404**. *(emendado em 03/10/2026, issue #16)*~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-06** — Subir com o modo ligado emite log de **aviso** na inicialização.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 
 ### Modo definitivo
 
 - [x] **CA-07** — Com `Tasks:AllowAnonymousCreate=false` (padrão), `POST /api/tasks` sem token responde **401** ([BE-13](BE-13-protecao-endpoints.md)).
-- [ ] **CA-08** — Com o modo `false`, o header `X-User-Id` é **completamente ignorado**: enviá-lo junto de um token válido não muda o dono da tarefa. Este é o critério que garante que a porta provisória não vira escalada de privilégio.
-- [ ] **CA-09** — Trocar entre os dois modos é mudança de configuração, sem recompilar e **sem alterar o handler**.
+- [x] ~~**CA-08** — Com o modo `false`, o header `X-User-Id` é **completamente ignorado**: enviá-lo junto de um token válido não muda o dono da tarefa. Este é o critério que garante que a porta provisória não vira escalada de privilégio.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-09** — Trocar entre os dois modos é mudança de configuração, sem recompilar e **sem alterar o handler**.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 
 ### Não regressão
 
-- [ ] **CA-10** — Nos dois modos, o `CreateTaskHandler` é exatamente o mesmo código e todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos.
+- [x] ~~**CA-10** — Nos dois modos, o `CreateTaskHandler` é exatamente o mesmo código e todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 - [x] **CA-11** — Os demais endpoints de tarefa continuam exigindo autenticação mesmo com o modo ligado.
-- [ ] **CA-12** — O endpoint consta da allowlist do teste de guarda de rotas com justificativa escrita, e **apenas** quando o modo está ligado.
+- [x] ~~**CA-12** — O endpoint consta da allowlist do teste de guarda de rotas com justificativa escrita, e **apenas** quando o modo está ligado.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 
 ## Testes obrigatórios
 

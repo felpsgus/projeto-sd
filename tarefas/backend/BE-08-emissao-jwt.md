@@ -64,7 +64,7 @@ O **Identity Service** sabe emitir e validar um access token JWT de vida curta, 
 - [x] **CA-07** — Um token expirado é **rejeitado** — inclusive 1 segundo após a expiração (`ClockSkew` zero), verificado avançando o `TimeProvider`.
 - [x] **CA-08** — Um token assinado com outra chave é rejeitado com **401**.
 - [x] **CA-09** — Um token com `iss` ou `aud` diferentes do configurado é rejeitado com **401**.
-- [ ] **CA-10** — Um token com payload alterado (assinatura quebrada) é rejeitado com **401**.
+- [x] **CA-10** — Um token com payload alterado (assinatura quebrada) é rejeitado com **401**.
 - [x] **CA-11** — Cada token emitido tem um `jti` distinto.
 - [x] **CA-12** — O Swagger em `Development` oferece o botão de autorização Bearer e consegue chamar um endpoint protegido. *(Atendido em 03/10/2026, issue #3: o OpenAPI do Gateway declara o esquema `Bearer` e o exige em toda operação sem `AllowAnonymous`; coberto por `OpenApiDocumentTests.Esquema_bearer_e_exigido_so_nas_operacoes_autenticadas`. A chamada pela tela do Scalar não foi exercitada em navegador.)*
 - [x] **CA-13** — Nenhum token aparece em log, nem em nível `Debug`.
