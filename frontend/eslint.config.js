@@ -38,6 +38,8 @@ module.exports = defineConfig([
       ],
       // Convenção 2.2: `any` é proibido salvo justificativa escrita ao lado (comentário no código).
       '@typescript-eslint/no-explicit-any': 'error',
+      // FE-23 CA-21: nada de log de payload/estado no build; `error` só em main.ts (bootstrap).
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       // FE-05, CA-11/CA-13 (FD-01, RN-AUTH-20): nenhuma credencial em storage, cookie legível por JS
       // nem variável chamada refreshToken — o refresh token é um cookie HttpOnly que o JS nunca vê.
       'no-restricted-globals': [
@@ -61,7 +63,7 @@ module.exports = defineConfig([
   {
     // Os testes de segurança de FE-05 e o E2E antivazamento (FE-23) inspecionam storage e cookie.
     files: ['**/*.spec.ts', 'e2e/**/*.ts'],
-    rules: { 'no-restricted-globals': 'off', 'no-restricted-syntax': 'off' },
+    rules: { 'no-restricted-globals': 'off', 'no-restricted-syntax': 'off', 'no-console': 'off' },
   },
   {
     files: ['**/*.html'],

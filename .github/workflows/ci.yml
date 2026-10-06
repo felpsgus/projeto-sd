@@ -61,12 +61,7 @@ jobs:
       - run: npm run test:coverage # pisos no vitest.config.ts
       - name: Resumo de cobertura no PR
         if: always()
-        run: |
-          [ -f coverage/frontend/coverage-summary.json ] && node -e '
-            const t = require("./coverage/frontend/coverage-summary.json").total;
-            console.log("### Cobertura do frontend\n\n| Métrica | % |\n|---|---|");
-            for (const k of ["lines", "statements", "functions", "branches"]) console.log("| " + k + " | " + t[k].pct + " |");
-          ' >> "$GITHUB_STEP_SUMMARY" || true
+        run: '[ -f coverage/frontend/coverage-summary.json ] && node scripts/coverage-summary.mjs || true' # avisa queda vs coverage-baseline.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

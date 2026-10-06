@@ -80,7 +80,7 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 - [ ] **CA-07** — O relatório é publicado como artefato e o resumo aparece no PR.
 - [ ] **CA-08** — Um PR que derruba a cobertura global abaixo de **75%** **falha** — comprovado com um PR de teste.
 - [ ] **CA-09** — Um PR que derruba serviços/estado abaixo de **80%** **falha**.
-- [ ] **CA-10** — Queda em relação ao baseline é sinalizada no PR mesmo acima do piso.
+- [ ] **CA-10** — Queda em relação ao baseline é sinalizada no PR mesmo acima do piso. *(06/10/2026: implementado, `frontend/scripts/coverage-summary.mjs` compara com `coverage-baseline.json` e emite `::warning::` mais linha no resumo; provado só localmente. A caixa segue desmarcada até o aviso ser visto num PR real.)*
 - [ ] **CA-11** — As exclusões estão declaradas e visíveis no relatório, não inflando o número em silêncio.
 
 ### Build
@@ -97,7 +97,7 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 - [x] **CA-18** — Nenhum segredo existe em `environments/` (verificado por varredura).
 - [x] **CA-19** — Os sourcemaps de produção **não** são publicados junto com o bundle.
 - [x] **CA-20** — Os cabeçalhos de segurança recomendados estão especificados em `docs/seguranca-frontend.md`, com a CSP proposta.
-- [ ] **CA-21** — O build de produção não emite `console.log` de payload de request ou de estado.
+- [x] **CA-21** — O build de produção não emite `console.log` de payload de request ou de estado. *(06/10/2026: regra `no-console` no ESLint, permitindo só `warn`/`error`; o gate de lint do CI cobre. Provado com um `console.log` temporário que fez `npm run lint` falhar.)*
 
 ### Documentação
 

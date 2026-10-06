@@ -76,7 +76,7 @@ Todo PR passa por um pipeline que compila, verifica estilo, roda os testes, mede
 - [ ] **CA-12** — O relatório de cobertura é publicado como artefato e o resumo aparece no PR.
 - [ ] **CA-13** — Um PR que derruba a cobertura global abaixo de **75%** **falha** o build — comprovado com um PR de teste que adiciona código sem teste.
 - [ ] **CA-14** — Um PR que derruba `Domain`/`Application` abaixo de **85%** **falha** o build.
-- [ ] **CA-15** — Uma queda de cobertura em relação ao baseline, mesmo acima do piso, é sinalizada no PR.
+- [ ] **CA-15** — Uma queda de cobertura em relação ao baseline, mesmo acima do piso, é sinalizada no PR. *(06/10/2026: implementado, `scripts/check-coverage.ps1` compara com `coverage-baseline.json` e emite `::warning::` mais linha no resumo, sem falhar; provado só localmente com resumos falsos. A caixa segue desmarcada até o aviso ser visto num PR real.)*
 - [x] **CA-16** — `Program.cs`, migrations, DTOs e o código gerado a partir do `.proto` estão excluídos da métrica, e a exclusão é visível no relatório (não é um número inflado silenciosamente).
 - [x] **CA-16b** — O relatório de cobertura mostra Identity e Tasks como grupos separados, além do total.
 - [ ] **CA-17** — Uma dependência com vulnerabilidade conhecida de severidade alta **falha** o build — comprovado adicionando temporariamente um pacote vulnerável.
