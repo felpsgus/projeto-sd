@@ -152,6 +152,10 @@ message RefreshSessionResponse {
   string refresh_token = 4;
   // Expiração do novo refresh token, presente só quando succeeded=true.
   google.protobuf.Timestamp refresh_token_expires_at = 5;
+  // Verdadeiro só quando succeeded=false porque o token foi revogado por ação
+  // do usuário (logout, logout-all, troca de senha — RN-AUTH-19). Expirado,
+  // inexistente e reuso (RN-AUTH-17) seguem com revoked=false.
+  bool revoked = 6;
 }
 
 message LogoutRequest {

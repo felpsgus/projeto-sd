@@ -38,6 +38,9 @@ public sealed class AuthEndpoints : IEndpointRouteHandler
     /// <summary>ErrorCode do 401 de refresh (BE-10 CA-16): o mesmo para qualquer causa.</summary>
     public const string InvalidRefreshTokenErrorCode = "auth.invalid_refresh_token";
 
+    /// <summary>ErrorCode do 401 de refresh com token revogado por ação do usuário (FE-06 CA-12, RN-AUTH-19).</summary>
+    public const string RefreshTokenRevokedErrorCode = "auth.refresh_token_revoked";
+
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/api/auth/login", HandleLoginAsync)
@@ -158,7 +161,7 @@ public sealed class AuthEndpoints : IEndpointRouteHandler
                 StatusCodes.Status401Unauthorized,
                 "Sessão inválida ou expirada.",
                 "Faça login novamente.",
-                InvalidRefreshTokenErrorCode);
+                outcome is { Revoked: true } ? RefreshTokenRevokedErrorCode : InvalidRefreshTokenErrorCode);
         }
 
         refreshCookie.Write(httpContext.Response, outcome.RefreshToken, outcome.RefreshTokenExpiresAt);

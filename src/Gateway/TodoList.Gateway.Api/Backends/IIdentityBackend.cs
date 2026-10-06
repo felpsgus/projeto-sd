@@ -80,7 +80,7 @@ public sealed record LoginOutcome(
 
 /// <summary>Resultado de <see cref="IIdentityBackend.RefreshSessionAsync"/> — <see cref="Succeeded"/>=false cobre todas as causas de token inválido.</summary>
 public sealed record RefreshOutcome(
-    bool Succeeded, string AccessToken, DateTimeOffset ExpiresAt, string RefreshToken, DateTimeOffset RefreshTokenExpiresAt)
+    bool Succeeded, string AccessToken, DateTimeOffset ExpiresAt, string RefreshToken, DateTimeOffset RefreshTokenExpiresAt, bool Revoked = false)
 {
     public override string ToString() => $"RefreshOutcome {{ Succeeded = {Succeeded} }}";
 }

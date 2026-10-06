@@ -146,6 +146,26 @@ public class SessionEndpointsTests : IClassFixture<GatewayApiFactory>
         bodies[0].Should().Contain("auth.invalid_refresh_token");
     }
 
+    [Fact] // FE-06 CA-12, RN-AUTH-19: revogado por ação do usuário é 401 com código próprio e apaga o cookie
+    public async Task Refresh_TokenRevogadoPeloUsuario_Retorna401ComCodigoDeRevogacaoEApagaOCookie()
+    {
+        _factory.Identity.RefreshSessionHandler = _ => (false, string.Empty, default, string.Empty, default);
+        _factory.Identity.RefreshSessionRevoked = true;
+
+        try
+        {
+            var response = await RefreshAsync(cookie: CookieValue);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            AssertDeletedCookie(SetCookies(response).Should().ContainSingle().Subject, secure: true);
+            (await NormalizedBodyAsync(response)).Should().Contain("auth.refresh_token_revoked");
+        }
+        finally
+        {
+            _factory.Identity.RefreshSessionRevoked = false;
+        }
+    }
+
     [Fact] // D-28: indisponibilidade é 503 e NÃO apaga o cookie — a sessão ainda pode estar viva
     public async Task Refresh_IdentityIndisponivel_Retorna503SemApagarOCookie()
     {

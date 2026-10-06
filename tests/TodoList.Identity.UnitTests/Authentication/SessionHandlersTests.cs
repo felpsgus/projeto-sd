@@ -51,14 +51,12 @@ public class SessionHandlersTests
     }
 
     [Fact] // CA-16: causas distintas, mesmo Error
-    public async Task Refresh_TodasAsCausasDeFalha_ProduzemOMesmoError()
+    public async Task Refresh_CausasDeFalhaSemRevogacaoDoUsuario_ProduzemOMesmoError()
     {
         var expired = await _refreshTokens.IssueAsync(_user.Id, null, CancellationToken.None);
-        var revoked = await _refreshTokens.IssueAsync(_user.Id, null, CancellationToken.None);
         var reused = await _refreshTokens.IssueAsync(_user.Id, null, CancellationToken.None);
         var sut = CreateRefreshHandler();
 
-        await _refreshTokens.RevokeSessionAsync(revoked.SessionId, RefreshTokenRevocationReason.Logout, CancellationToken.None);
         await sut.HandleAsync(reused.Value, CancellationToken.None);
         _time.Advance(TimeSpan.FromDays(8));
 
@@ -67,7 +65,6 @@ public class SessionHandlersTests
             (await sut.HandleAsync(null, CancellationToken.None)).Error,
             (await sut.HandleAsync("nunca-existiu", CancellationToken.None)).Error,
             (await sut.HandleAsync(expired.Value, CancellationToken.None)).Error,
-            (await sut.HandleAsync(revoked.Value, CancellationToken.None)).Error,
             (await sut.HandleAsync(reused.Value, CancellationToken.None)).Error,
         };
 

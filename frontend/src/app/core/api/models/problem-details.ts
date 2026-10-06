@@ -9,6 +9,7 @@ export type ApiErrorCode =
   | 'auth.email_already_registered'
   | 'auth.invalid_current_password'
   | 'auth.too_many_attempts'
+  | 'auth.refresh_token_revoked'
   | 'task.already_completed'
   | 'task.not_completed'
   | 'task.active_limit_reached';

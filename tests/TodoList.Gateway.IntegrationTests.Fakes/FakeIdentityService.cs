@@ -34,6 +34,9 @@ public sealed class FakeIdentityService : IdentityService.IdentityServiceBase
     /// <summary>Dado o userId, sem retorno = sucesso; lança <see cref="RpcException"/> para simular falha.</summary>
     public Action<string>? LogoutAllHandler { get; set; }
 
+    /// <summary>Quando <see langword="true"/>, uma resposta <c>succeeded=false</c> sai com <c>revoked=true</c> (RN-AUTH-19).</summary>
+    public bool RefreshSessionRevoked { get; set; }
+
     public string? LastRefreshSessionToken { get; private set; }
 
     public string? LastLogoutUserId { get; private set; }
@@ -138,7 +141,7 @@ public sealed class FakeIdentityService : IdentityService.IdentityServiceBase
 
         var (succeeded, accessToken, expiresAt, refreshToken, refreshTokenExpiresAt) = RefreshSessionHandler(request.RefreshToken);
 
-        var response = new RefreshSessionResponse { Succeeded = succeeded };
+        var response = new RefreshSessionResponse { Succeeded = succeeded, Revoked = RefreshSessionRevoked };
 
         if (succeeded)
         {

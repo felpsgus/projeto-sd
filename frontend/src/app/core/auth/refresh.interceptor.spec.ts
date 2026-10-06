@@ -193,6 +193,17 @@ describe('refreshInterceptor (FE-06)', () => {
       });
     });
 
+    it('refresh 401 com auth.refresh_token_revoked encerra com session_revoked (CA-12)', async () => {
+      session.startSession(tokens('old'), 'a@b.com');
+      http.get('/api/a').subscribe();
+      httpMock.expectOne('/api/a').flush({}, unauthorized);
+
+      (await takeRefreshRequest()).flush({ errorCode: 'auth.refresh_token_revoked' }, unauthorized);
+
+      await vi.waitFor(() => expect(session.status()).toBe('anonymous'));
+      expect(session.lastEndReason()).toBe('session_revoked');
+    });
+
     it('três requisições com o refresh recusado encerram a sessão uma única vez', async () => {
       session.startSession(tokens('old'), 'a@b.com');
       const navigate = vi.spyOn(router, 'navigate');

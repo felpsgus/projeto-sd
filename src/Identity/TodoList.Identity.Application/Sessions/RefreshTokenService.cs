@@ -49,10 +49,11 @@ public sealed class RefreshTokenService
 
     /// <summary>
     /// Troca um token válido por outro na mesma sessão (RN-AUTH-16). Inexistente,
-    /// vazio, revogado ou expirado → <see cref="AuthErrors.InvalidRefreshToken"/>.
+    /// vazio ou expirado → <see cref="AuthErrors.InvalidRefreshToken"/>; revogado por
+    /// logout/troca de senha → <see cref="AuthErrors.RefreshTokenRevoked"/> (RN-AUTH-19).
     /// Já consumido (ou perdeu a corrida de um redeem concorrente) → reuso: a
     /// cadeia inteira da sessão é revogada (RN-AUTH-17) e o mesmo erro volta.
-    /// O chamador nunca distingue a causa.
+    /// Só a revogação por ação do usuário é distinguível.
     /// </summary>
     public async Task<Result<RedeemedRefreshToken>> RedeemAsync(string? token, CancellationToken cancellationToken)
     {
@@ -63,9 +64,18 @@ public sealed class RefreshTokenService
 
         var existing = await _repository.FindByHashAsync(RefreshTokenSecret.Hash(token), cancellationToken);
 
-        if (existing is null || existing.RevokedAt is not null)
+        if (existing is null)
         {
             return Result.Failure<RedeemedRefreshToken>(AuthErrors.InvalidRefreshToken);
+        }
+
+        if (existing.RevokedAt is not null)
+        {
+            // RN-AUTH-19: revogação por ação do usuário é distinguível; a por reuso (RN-AUTH-17) não.
+            return Result.Failure<RedeemedRefreshToken>(
+                existing.RevokedReason == RefreshTokenRevocationReason.ReuseDetected
+                    ? AuthErrors.InvalidRefreshToken
+                    : AuthErrors.RefreshTokenRevoked);
         }
 
         if (existing.ConsumedAt is not null)

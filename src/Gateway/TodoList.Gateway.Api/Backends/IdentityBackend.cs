@@ -73,7 +73,7 @@ public sealed partial class IdentityBackend : IIdentityBackend
 
         if (!response.Succeeded)
         {
-            return new RefreshOutcome(false, string.Empty, default, string.Empty, default);
+            return new RefreshOutcome(false, string.Empty, default, string.Empty, default, response.Revoked);
         }
 
         return new RefreshOutcome(

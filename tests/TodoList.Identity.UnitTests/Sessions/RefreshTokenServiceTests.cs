@@ -115,15 +115,17 @@ public class RefreshTokenServiceTests
         result.Error.Should().Be(AuthErrors.InvalidRefreshToken);
     }
 
-    [Fact] // CA-14
-    public async Task Redeem_Revogado_Falha()
+    [Theory] // CA-14 / RN-AUTH-19 / FE-06 CA-12: revogado por ação do usuário tem erro próprio
+    [InlineData(RefreshTokenRevocationReason.Logout)]
+    [InlineData(RefreshTokenRevocationReason.PasswordChanged)]
+    public async Task Redeem_RevogadoPeloUsuario_FalhaComErroDeRevogacao(RefreshTokenRevocationReason reason)
     {
         var login = await _sut.IssueAsync(_userId, null, CancellationToken.None);
-        await _sut.RevokeSessionAsync(login.SessionId, RefreshTokenRevocationReason.Logout, CancellationToken.None);
+        await _sut.RevokeAllForUserAsync(_userId, reason, CancellationToken.None);
 
         var result = await _sut.RedeemAsync(login.Value, CancellationToken.None);
 
-        result.Error.Should().Be(AuthErrors.InvalidRefreshToken);
+        result.Error.Should().Be(AuthErrors.RefreshTokenRevoked);
     }
 
     [Fact] // CA-08, CA-09, CA-10 / RN-AUTH-17
@@ -135,8 +137,8 @@ public class RefreshTokenServiceTests
         var reuse = await _sut.RedeemAsync(login.Value, CancellationToken.None);
 
         reuse.Error.Should().Be(AuthErrors.InvalidRefreshToken);
-        (await _sut.RedeemAsync(rotated.Value, CancellationToken.None)).IsFailure
-            .Should().BeTrue("o token legítimo mais recente também cai (RN-AUTH-17)");
+        (await _sut.RedeemAsync(rotated.Value, CancellationToken.None)).Error
+            .Should().Be(AuthErrors.InvalidRefreshToken, "revogação por reuso não vira \"sessão encerrada\" (FE-06 CA-13)");
         _repository.Tokens.Should().OnlyContain(token => token.RevokedAt != null)
             .And.OnlyContain(token => token.RevokedReason == RefreshTokenRevocationReason.ReuseDetected);
     }

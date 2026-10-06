@@ -128,12 +128,14 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         var stopwatch = Stopwatch.StartNew();
 
         RefreshSessionResult? refreshed = null;
+        var revoked = false;
 
         if (_userStoreOptions.Value.Provider != UserStoreOptions.InMemoryProvider)
         {
             var handler = _serviceProvider.GetRequiredService<RefreshSessionHandler>();
             var result = await handler.HandleAsync(request.RefreshToken, context.CancellationToken);
             refreshed = result.IsSuccess ? result.Value : null;
+            revoked = result.IsFailure && result.Error == AuthErrors.RefreshTokenRevoked;
         }
 
         // Nunca o token (nem o novo, nem o apresentado) no log (RN-AUTH-20).
@@ -149,7 +151,7 @@ public sealed partial class IdentityGrpcService : IdentityService.IdentityServic
         }
 
         return refreshed is null
-            ? new RefreshSessionResponse { Succeeded = false }
+            ? new RefreshSessionResponse { Succeeded = false, Revoked = revoked }
             : new RefreshSessionResponse
             {
                 Succeeded = true,

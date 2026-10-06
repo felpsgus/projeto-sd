@@ -103,7 +103,7 @@ export class LoginComponent implements OnInit {
       case 'session_expired':
         return ERROR_MESSAGES['auth.unauthorized'];
       case 'session_revoked':
-        return 'Sua sessão foi encerrada. Entre novamente.';
+        return ERROR_MESSAGES['auth.refresh_token_revoked'];
       case 'password_changed':
         // FE-12, RN-AUTH-19: a troca revoga todas as sessões; a local cai de propósito.
         return 'Sua senha foi alterada. Entre novamente com a nova senha.';

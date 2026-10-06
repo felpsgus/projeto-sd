@@ -34,6 +34,15 @@ public static class AuthErrors
         ErrorType.Unauthorized);
 
     /// <summary>
+    /// FE-06 CA-12, RN-AUTH-19: refresh token revogado por ação do usuário
+    /// (logout, logout-all, troca de senha). Reuso (RN-AUTH-17) não entra aqui.
+    /// </summary>
+    public static readonly Error RefreshTokenRevoked = new(
+        "auth.refresh_token_revoked",
+        "Sessão encerrada.",
+        ErrorType.Unauthorized);
+
+    /// <summary>
     /// BE-07, RN-AUTH-02: e-mail já cadastrado. Ao contrário de
     /// <see cref="InvalidCredentials"/>, aqui o vazamento de existência é
     /// aceitável e desejável — o visitante precisa saber que já tem conta

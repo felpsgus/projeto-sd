@@ -13,6 +13,7 @@ using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Security;
 using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
+using TodoList.Identity.Domain.Sessions;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.UnitTests.Sessions;
 using TodoList.SharedKernel;
@@ -62,6 +63,18 @@ public class IdentityGrpcServiceSessionTests
         var response = await sut.RefreshSession(new RefreshSessionRequest { RefreshToken = token }, new FakeServerCallContext());
 
         response.Should().Be(new RefreshSessionResponse { Succeeded = false });
+    }
+
+    [Fact] // FE-06 CA-12: revogado por ação do usuário sinaliza revoked=true; expirado/inexistente/reuso não
+    public async Task RefreshSession_RevogadoPeloUsuario_SinalizaRevoked()
+    {
+        var revoked = await _refreshTokens.IssueAsync(_user.Id, null, CancellationToken.None);
+        await _refreshTokens.RevokeSessionAsync(revoked.SessionId, RefreshTokenRevocationReason.Logout, CancellationToken.None);
+        var sut = CreateService();
+
+        var response = await sut.RefreshSession(new RefreshSessionRequest { RefreshToken = revoked.Value }, new FakeServerCallContext());
+
+        response.Should().Be(new RefreshSessionResponse { Succeeded = false, Revoked = true });
     }
 
     [Fact] // CA-18: o token nunca vai para o log

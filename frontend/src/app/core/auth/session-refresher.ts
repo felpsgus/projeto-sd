@@ -78,21 +78,24 @@ export class SessionRefresher {
       this.session.updateTokens(await firstValueFrom(this.authApi.refresh()));
       return 'refreshed';
     } catch (error) {
-      if ((error as { status?: number }).status !== 401) {
+      const { status, code } = error as { status?: number; code?: string };
+      if (status !== 401) {
         throw error;
       }
-      this.invalidateSession();
+      this.invalidateSession(
+        code === 'auth.refresh_token_revoked' ? 'session_revoked' : 'session_expired',
+      );
       return 'ended';
     }
   }
 
-  /** O refresh foi recusado (expirado, revogado ou reusado — o backend não distingue). */
-  private invalidateSession(): void {
+  /** O refresh foi recusado: revogado por ação do usuário (RN-AUTH-19) ou expirado/reusado/inválido. */
+  private invalidateSession(reason: 'session_expired' | 'session_revoked'): void {
     if (this.session.status() === 'unknown') {
       // Bootstrap: não havia sessão a perder. `restore` encerra o bootstrap como `anonymous`, sem mensagem.
       return;
     }
-    this.session.endSession('session_expired');
+    this.session.endSession(reason);
     const url = this.router.url;
     const onAuthPage = url.startsWith('/login') || url.startsWith('/register');
     void this.router.navigate(['/login'], {

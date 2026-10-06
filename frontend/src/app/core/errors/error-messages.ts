@@ -19,6 +19,8 @@ export const ERROR_MESSAGES: Readonly<Record<AppErrorCode, string>> = {
   'auth.invalid_current_password': 'Senha atual incorreta.',
   // FE-09 (429, RN-AUTH-13): sem `Retry-After` cai neste texto; com ele, ver `tooManyAttemptsMessage`.
   'auth.too_many_attempts': 'Muitas tentativas. Tente novamente em alguns minutos.',
+  // FE-06 CA-12 (401 do refresh, RN-AUTH-19): lido pelo SessionRefresher; a tela de login usa o motivo `session_revoked`.
+  'auth.refresh_token_revoked': 'Sua sessão foi encerrada. Entre novamente.',
   // FE-19 (409, RN-TASK-06): o estado mudou em outro lugar — nunca uma mensagem genérica
   // de falha, porque a ação em si não falhou por engano do usuário.
   'task.already_completed': 'Esta tarefa já foi concluída em outro lugar.',

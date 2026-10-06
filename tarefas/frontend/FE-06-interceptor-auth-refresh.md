@@ -68,7 +68,7 @@ O usuário nunca é interrompido pela expiração do access token: as requisiç�
 ### Falha de sessão
 
 - [x] **CA-11** — Refresh token **expirado** (401 do `/refresh`) encerra a sessão e leva ao login com "sua sessão expirou" (RN-AUTH-18).
-- [ ] **CA-12** — Refresh token **revogado** (troca de senha em outro dispositivo, logout-all) encerra a sessão com a mensagem de sessão encerrada (RN-AUTH-19).
+- [x] **CA-12** — Refresh token **revogado** (troca de senha em outro dispositivo, logout-all) encerra a sessão com a mensagem de sessão encerrada (RN-AUTH-19). *(06/10/2026: o Identity passou a devolver `auth.refresh_token_revoked` para token revogado por logout ou troca de senha; reuso, expirado e inexistente seguem com `auth.invalid_refresh_token`. O Gateway repassa o código no 401 e o `SessionRefresher` encerra com `session_revoked`. Testes: `RefreshTokenServiceTests`, `SessionEndpointsTests` e `refresh.interceptor.spec.ts`.)*
 - [x] **CA-13** — Detecção de reuso no backend (RN-AUTH-17) leva ao mesmo encerramento controlado — não a uma tela de erro genérica ou travada.
 - [x] **CA-14** — Ao ser levado ao login por expiração, a rota que o usuário tentava acessar é preservada em `returnUrl`, e após novo login ele volta para lá.
 - [x] **CA-15** — Requisições em voo no momento do encerramento são canceladas; nenhuma delas exibe toast de erro depois do redirecionamento.
