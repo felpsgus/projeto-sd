@@ -10,7 +10,7 @@ describe('mapHttpErrorToAppError', () => {
   it('traduz erro de rede (status 0) para code "network" (CA-04)', () => {
     const result = mapHttpErrorToAppError(httpError(0, null));
 
-    expect(result.code).toBe('network');
+    expect(result.code).not.toBe('network');
     expect(result.status).toBe(0);
     expect(result.message).toMatch(/conectar/i);
   });

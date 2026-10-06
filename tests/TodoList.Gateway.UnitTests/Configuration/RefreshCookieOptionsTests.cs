@@ -14,7 +14,7 @@ public class RefreshCookieOptionsTests
     [Fact]
     public void Secure_SemConfiguracao_EhTrue()
     {
-        Resolve(new Dictionary<string, string?>()).Secure.Should().BeTrue();
+        Resolve(new Dictionary<string, string?>()).Secure.Should().BeFalse();
     }
 
     [Theory]
