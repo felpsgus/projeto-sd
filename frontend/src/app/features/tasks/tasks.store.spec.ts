@@ -426,14 +426,20 @@ describe('TasksStore', () => {
       loadWith({ status: 'pending' }, threePending());
 
       store.complete('2').subscribe({ error: () => undefined });
-      httpMock.expectOne('/api/tasks/2/complete').flush(null, { status: 404, statusText: 'Not Found' });
+      httpMock
+        .expectOne('/api/tasks/2/complete')
+        .flush(null, { status: 404, statusText: 'Not Found' });
 
       expect(store.items().map((t) => t.id)).toEqual(['1', '3']);
       expect(store.totalCount()).toBe(2);
     });
 
     it('filtro Concluídas: reopen() tira o item imediatamente; com falha, volta à posição', () => {
-      loadWith({ status: 'completed' }, [completedTask('1'), completedTask('2'), completedTask('3')]);
+      loadWith({ status: 'completed' }, [
+        completedTask('1'),
+        completedTask('2'),
+        completedTask('3'),
+      ]);
 
       store.reopen('2').subscribe({ error: () => undefined });
 

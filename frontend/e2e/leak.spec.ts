@@ -21,10 +21,15 @@ test('senha e tokens nunca vazam para storage, URL, console ou DOM', async ({ pa
   page.on('request', (request) => urls.push(request.url()));
   page.on('console', (message) => consoleLines.push(message.text()));
   page.on('pageerror', (error) => consoleLines.push(error.message));
-  page.on('response', async (response) => {
-    if (!/\/api\/auth\/(login|refresh)$/.test(response.url()) || response.status() !== 200) return;
-    const body = (await response.json()) as { accessToken?: string };
-    if (body.accessToken) secrets.set(`access token ${secrets.size}`, body.accessToken);
+  // Interceptação, não `page.on('response')`: o corpo é lido antes de chegar à página; com o
+  // listener, uma navegação logo depois da resposta descartava o corpo e derrubava o teste no CI.
+  await page.route(/\/api\/auth\/(login|refresh)$/, async (route) => {
+    const response = await route.fetch();
+    if (response.status() === 200) {
+      const body = (await response.json()) as { accessToken?: string };
+      if (body.accessToken) secrets.set(`access token ${secrets.size}`, body.accessToken);
+    }
+    await route.fulfill({ response });
   });
 
   async function assertNoLeak(step: string): Promise<void> {
