@@ -878,6 +878,8 @@ test('erro é anunciado em região assertiva; sucesso e aviso em região educada
   ).toHaveCount(1);
 
   await page.getByRole('link', { name: 'Nova tarefa' }).click();
+  // Mesma espera de `createTask` (support.ts): preencher antes de o formulário ser ligado perde o valor.
+  await expect(page.getByText('0/200', { exact: true })).toBeVisible();
   await page.getByLabel('Vencimento', { exact: true }).fill('2020-01-15');
   await expect(page.getByRole('status').filter({ hasText: 'Esta data já passou' })).toBeVisible();
 

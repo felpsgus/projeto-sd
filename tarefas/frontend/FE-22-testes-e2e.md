@@ -71,8 +71,8 @@ Os fluxos que, se quebrarem, inutilizam o produto estão cobertos por testes que
 - [x] **CA-11** — O fluxo 11 confirma que a tela de "não encontrada" para tarefa de outro usuário é **igual** à de id inexistente (RN-AUTZ-03).
 - [x] **CA-12** — O fluxo 10 valida que o botão "voltar" após o logout **não** exibe a tela autenticada anterior.
 - [x] **CA-13** — Os testes rodam contra o build de **produção** do frontend, não o de desenvolvimento.
-- [ ] **CA-14** — A suíte roda no CI a cada PR (Chromium) e completa em tempo aceitável, documentado no PR.
-- [ ] **CA-15** — Falhas publicam screenshot, vídeo e trace como artefato, permitindo diagnosticar sem reproduzir localmente.
+- [x] **CA-14** — A suíte roda no CI a cada PR (Chromium) e completa em tempo aceitável, documentado no PR. *(run 37536466701 do PR #17, 06/10/2026: job `e2e` a cada PR, Chromium e mobile-360, 89 testes, 5m41s incluindo a subida da stack.)*
+- [x] **CA-15** — Falhas publicam screenshot, vídeo e trace como artefato, permitindo diagnosticar sem reproduzir localmente. *(runs 37533506502 e 37534945536 do PR #17: o artefato `e2e-failure` trouxe screenshot, vídeo, trace e os logs do compose, e foi pelo trace que as duas corridas de teste foram diagnosticadas sem reproduzir localmente.)*
 - [x] **CA-16** — `axe-core` roda nas telas principais dentro do E2E e falha em violação crítica ou séria.
 - [x] **CA-17** — Ao menos um fluxo é executado em viewport de 360 px.
 - [x] **CA-18** — Não há teste em quarentena ou com retry ao fechar a task; se houver, está documentado com prazo.

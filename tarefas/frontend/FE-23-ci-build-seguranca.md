@@ -68,19 +68,19 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 
 ### Pipeline
 
-- [ ] **CA-01** — Um PR com erro de compilação **falha** o pipeline.
-- [ ] **CA-02** — Um PR com violação de lint ou formatação **falha**.
-- [ ] **CA-03** — Um PR com teste quebrado **falha**.
+- [x] **CA-01** — Um PR com erro de compilação **falha** o pipeline. *(PR descartável de 06/10/2026, #24, run 37540970999: erro de tipo num arquivo de `src/app` derrubou o passo `npm run build`; lint e testes passaram, porque nenhum spec importava o arquivo.)*
+- [x] **CA-02** — Um PR com violação de lint ou formatação **falha**. *(PR descartável de 06/10/2026, #18, run 37540904718: `console.log` derrubou `npm run lint` pela regra `no-console`. Formatação: o run 37533506502 do PR #17 falhou em `format:check` por um spec fora do Prettier.)*
+- [x] **CA-03** — Um PR com teste quebrado **falha**. *(PR descartável de 06/10/2026, #19, run 37540911839: asserção invertida em `error-mapper.spec.ts` derrubou `npm run test:coverage`.)*
 - [x] **CA-04** — O pipeline usa `npm ci`; nenhuma etapa usa `npm install`.
 - [x] **CA-05** — A versão do Node no CI casa com o `.nvmrc`.
-- [ ] **CA-06** — O pipeline completo executa em tempo aceitável (alvo: < 10 min), documentado no PR.
+- [x] **CA-06** — O pipeline completo executa em tempo aceitável (alvo: < 10 min), documentado no PR. *(run 37536466701 do PR #17, 06/10/2026: job `frontend` em 49s; pipeline inteiro em 5m46s.)*
 
 ### Cobertura
 
-- [ ] **CA-07** — O relatório é publicado como artefato e o resumo aparece no PR.
-- [ ] **CA-08** — Um PR que derruba a cobertura global abaixo de **75%** **falha** — comprovado com um PR de teste.
-- [ ] **CA-09** — Um PR que derruba serviços/estado abaixo de **80%** **falha**.
-- [ ] **CA-10** — Queda em relação ao baseline é sinalizada no PR mesmo acima do piso. *(06/10/2026: implementado, `frontend/scripts/coverage-summary.mjs` compara com `coverage-baseline.json` e emite `::warning::` mais linha no resumo; provado só localmente. A caixa segue desmarcada até o aviso ser visto num PR real.)*
+- [x] **CA-07** — O relatório é publicado como artefato e o resumo aparece no PR. *(run 37536466701 do PR #17, 06/10/2026: artefato `frontend-coverage` publicado e resumo gravado no *Job summary* do run; não há comentário no PR.)*
+- [x] **CA-08** — Um PR que derruba a cobertura global abaixo de **75%** **falha** — comprovado com um PR de teste. *(PR descartável de 06/10/2026, #20, run 37540920139: `Coverage for lines (68.63%) does not meet global threshold (75%)`.)*
+- [x] **CA-09** — Um PR que derruba serviços/estado abaixo de **80%** **falha**. *(PR descartável de 06/10/2026, #21, run 37540926383: `Coverage for lines (74.19%) does not meet "src/app/core/**/*.ts" threshold (80%)`, com o global ainda em 87%.)*
+- [x] **CA-10** — Queda em relação ao baseline é sinalizada no PR mesmo acima do piso. *(PR descartável de 06/10/2026, #22, run 37540932508: o pipeline passou com a anotação `Cobertura de linhas do frontend caiu: 93.05% < baseline 93.81%`.)*
 - [ ] **CA-11** — As exclusões estão declaradas e visíveis no relatório, não inflando o número em silêncio.
 
 ### Build
@@ -92,8 +92,8 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 ### Segurança
 
 - [x] **CA-15** — **Teste antivazamento**: nenhuma senha ou token aparece em `localStorage`, `sessionStorage`, URL, `console` ou DOM em nenhum dos fluxos exercitados (RN-AUTH-05, RN-AUTH-20). **Este teste é o entregável central da task.**
-- [ ] **CA-16** — Uma dependência com vulnerabilidade de severidade alta **falha** o build — comprovado adicionando um pacote vulnerável temporariamente.
-- [ ] **CA-17** — Um segredo commitado no diff **falha** o build — comprovado com um segredo falso.
+- [x] **CA-16** — Uma dependência com vulnerabilidade de severidade alta **falha** o build — comprovado adicionando um pacote vulnerável temporariamente. *(PR descartável de 06/10/2026, #23, run 37540940187: `lodash 4.17.20` derrubou `npm audit --audit-level=high` (GHSA-35jh-r3h4-6jhm).)*
+- [x] **CA-17** — Um segredo commitado no diff **falha** o build — comprovado com um segredo falso. *(PR descartável de 06/10/2026, #24, run 37540970999: o job `secrets` falhou com a chave inventada (gitleaks, `leaks found: 1`).)*
 - [x] **CA-18** — Nenhum segredo existe em `environments/` (verificado por varredura).
 - [x] **CA-19** — Os sourcemaps de produção **não** são publicados junto com o bundle.
 - [x] **CA-20** — Os cabeçalhos de segurança recomendados estão especificados em `docs/seguranca-frontend.md`, com a CSP proposta.

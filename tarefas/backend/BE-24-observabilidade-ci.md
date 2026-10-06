@@ -69,19 +69,19 @@ Todo PR passa por um pipeline que compila, verifica estilo, roda os testes, mede
 
 ### CI
 
-- [ ] **CA-08** — Um PR com erro de compilação **falha** o pipeline.
-- [ ] **CA-09** — Um PR com formatação fora do `.editorconfig` **falha** no passo de `dotnet format`.
-- [ ] **CA-10** — Um PR com um teste quebrado **falha** o pipeline.
-- [ ] **CA-11** — Os testes de integração rodam no CI com Testcontainers, em runner limpo.
-- [ ] **CA-12** — O relatório de cobertura é publicado como artefato e o resumo aparece no PR.
-- [ ] **CA-13** — Um PR que derruba a cobertura global abaixo de **75%** **falha** o build — comprovado com um PR de teste que adiciona código sem teste.
-- [ ] **CA-14** — Um PR que derruba `Domain`/`Application` abaixo de **85%** **falha** o build.
-- [ ] **CA-15** — Uma queda de cobertura em relação ao baseline, mesmo acima do piso, é sinalizada no PR. *(06/10/2026: implementado, `scripts/check-coverage.ps1` compara com `coverage-baseline.json` e emite `::warning::` mais linha no resumo, sem falhar; provado só localmente com resumos falsos. A caixa segue desmarcada até o aviso ser visto num PR real.)*
+- [x] **CA-08** — Um PR com erro de compilação **falha** o pipeline. *(PR descartável de 06/10/2026, #24, run 37540970999: o job `backend` falhou em `dotnet build` com CS0029.)*
+- [x] **CA-09** — Um PR com formatação fora do `.editorconfig` **falha** no passo de `dotnet format`. *(PR descartável de 06/10/2026, #18, run 37540904718: o job `backend` falhou no passo `dotnet format --verify-no-changes` com erro WHITESPACE; o build tinha passado.)*
+- [x] **CA-10** — Um PR com um teste quebrado **falha** o pipeline. *(PR descartável de 06/10/2026, #19, run 37540911839: asserção invertida num teste de unidade derrubou o passo de testes.)*
+- [x] **CA-11** — Os testes de integração rodam no CI com Testcontainers, em runner limpo. *(run 37536466701 do PR #17, 06/10/2026: o job `backend` rodou a suíte inteira com Testcontainers no `ubuntu-latest` e passou em 2m54s.)*
+- [x] **CA-12** — O relatório de cobertura é publicado como artefato e o resumo aparece no PR. *(run 37536466701 do PR #17, 06/10/2026: artefato `backend-coverage-report` publicado e resumo gravado no *Job summary* do run; não há comentário no PR.)*
+- [x] **CA-13** — Um PR que derruba a cobertura global abaixo de **75%** **falha** o build — comprovado com um PR de teste que adiciona código sem teste. *(PR descartável de 06/10/2026, #20, run 37540920139: 900 linhas sem teste no Gateway; `GATE FALHOU: cobertura global 61.5% < 75%`.)*
+- [ ] **CA-14** — Um PR que derruba `Domain`/`Application` abaixo de **85%** **falha** o build. *(NÃO provado, 06/10/2026: no PR #21, run 37540926383, 90 linhas sem teste em `Tasks.Application` não derrubaram o gate. No runner o relatório não traz `Tasks.Application`, `Tasks.Infrastructure`, `Identity.Infrastructure` nem `SharedKernel.Web` (Domain+Application sai 378/385 lá, contra 469/479 localmente), então o gate mede um conjunto incompleto. Localmente o mesmo commit falha com 81,99%. Causa ainda não identificada.)*
+- [x] **CA-15** — Uma queda de cobertura em relação ao baseline, mesmo acima do piso, é sinalizada no PR. *(PR descartável de 06/10/2026, #22, run 37540932508: 14 linhas sem teste; o pipeline passou com a anotação `Cobertura do backend caiu: global 92.1% < baseline 94.1%`. Enquanto o relatório do runner estiver incompleto (ver CA-14), o aviso aparece em todo PR, porque o baseline foi medido localmente.)*
 - [x] **CA-16** — `Program.cs`, migrations, DTOs e o código gerado a partir do `.proto` estão excluídos da métrica, e a exclusão é visível no relatório (não é um número inflado silenciosamente).
 - [x] **CA-16b** — O relatório de cobertura mostra Identity e Tasks como grupos separados, além do total.
-- [ ] **CA-17** — Uma dependência com vulnerabilidade conhecida de severidade alta **falha** o build — comprovado adicionando temporariamente um pacote vulnerável.
-- [ ] **CA-18** — Um segredo commitado no diff **falha** o build — comprovado com um segredo falso.
-- [ ] **CA-19** — O pipeline completo executa em tempo aceitável (alvo: < 10 min), documentado no PR.
+- [x] **CA-17** — Uma dependência com vulnerabilidade conhecida de severidade alta **falha** o build — comprovado adicionando temporariamente um pacote vulnerável. *(PR descartável de 06/10/2026, #23, run 37540940187: `Newtonsoft.Json 12.0.3` derrubou o `dotnet restore` com NU1903 (vulnerabilidade alta como erro), antes mesmo do passo `check-vulnerable.ps1`.)*
+- [x] **CA-18** — Um segredo commitado no diff **falha** o build — comprovado com um segredo falso. *(PR descartável de 06/10/2026, #24, run 37540970999: uma chave genérica inventada em `prova-segredo.txt` derrubou o job `secrets` (gitleaks, `leaks found: 1`). O gitleaks varre todas as branches do remoto, então a branch de prova também derrubou o `secrets` do PR #23 enquanto existiu.)*
+- [x] **CA-19** — O pipeline completo executa em tempo aceitável (alvo: < 10 min), documentado no PR. *(run 37536466701 do PR #17, 06/10/2026: os quatro jobs em paralelo, 5m46s do início ao fim; o mais longo é o `e2e`, 5m41s.)*
 - [x] **CA-20** — Nenhum teste é `[Skip]` sem justificativa escrita, e não há teste flaky conhecido em aberto ao fechar a task.
 
 ### Documentação

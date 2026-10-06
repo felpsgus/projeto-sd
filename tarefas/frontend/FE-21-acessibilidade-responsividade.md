@@ -47,7 +47,7 @@ A aplicação inteira é utilizável por teclado, por leitor de tela e em telas 
 ### Automatizado
 
 - [x] **CA-01** — `axe-core` roda em todas as telas listadas e **zero** violações críticas ou sérias permanecem.
-- [ ] **CA-02** — A auditoria está integrada ao CI: uma violação nova **falha** o build — comprovado introduzindo uma violação uma vez.
+- [x] **CA-02** — A auditoria está integrada ao CI: uma violação nova **falha** o build — comprovado introduzindo uma violação uma vez. *(PR descartável de 06/10/2026, #19, run 37540911839: um `h1` com contraste insuficiente no login derrubou o job `e2e`; o axe acusou `color-contrast (serious): h1` em `a11y.spec.ts`, nos dois perfis.)*
 - [x] **CA-03** — Violações de nível moderado que não forem corrigidas estão registradas com justificativa em `docs/acessibilidade.md`.
 
 ### Teclado
