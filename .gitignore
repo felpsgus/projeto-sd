@@ -31,6 +31,7 @@ artifacts/
 ## Test results
 TestResults/
 coverage*.json
+!coverage-baseline.json
 coverage*.xml
 coverage*.info
 *.coverage

@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { TasksPageComponent } from './tasks-page.component';
 import { errorInterceptor } from '../../../core/errors/error.interceptor';
 import { TaskResponse } from '../../../core/api/models/task.models';
+import { SessionStore } from '../../../core/auth/session-store';
 
 const ROUTES: Routes = [
   { path: 'tasks', children: [] },
@@ -37,6 +38,19 @@ async function setup(initialRoute = 'tasks') {
     providers: [
       provideHttpClient(withInterceptors([errorInterceptor])),
       provideHttpClientTesting(),
+      // Sessão ativa: sem ela o TasksStore limpa o estado (effect em isAuthenticated) logo
+      // depois do primeiro load.
+      {
+        provide: SessionStore,
+        useFactory: () => {
+          const session = new SessionStore();
+          session.startSession(
+            { accessToken: 'tok', expiresAt: '2099-01-01T00:00:00Z' },
+            'a@b.com',
+          );
+          return session;
+        },
+      },
     ],
   });
   const httpMock = utils.fixture.debugElement.injector.get(HttpTestingController);
