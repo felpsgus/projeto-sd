@@ -96,3 +96,5 @@ export class App {
     inject(DestroyRef).onDestroy(() => sub.unsubscribe());
   }
 }
+
+console.log('x');
