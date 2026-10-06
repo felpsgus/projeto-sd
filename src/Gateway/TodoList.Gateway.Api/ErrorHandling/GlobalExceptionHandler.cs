@@ -42,6 +42,14 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
 
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        // O cliente desistiu (navegou com a chamada em voo): não há quem leia a resposta e não é
+        // falha do servidor. 499 em vez do 500 que a chamada gRPC cancelada geraria, sem log de erro.
+        if (httpContext.RequestAborted.IsCancellationRequested)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+            return true;
+        }
+
         switch (exception)
         {
             case BadHttpRequestException badHttpRequestException:
