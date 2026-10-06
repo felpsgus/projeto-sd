@@ -47,10 +47,15 @@
     }
   }
 
+  &__filters > * {
+    max-width: 100%;
+  }
+
   &__filter-group {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-xs);
+    max-width: 100%;
     padding: 0;
     margin: 0;
     border: 0;
@@ -76,7 +81,6 @@
     align-items: center;
     gap: var(--space-3xs);
     font-size: var(--font-size-sm);
-    white-space: nowrap;
   }
 
   &__filter-search {
@@ -92,7 +96,7 @@
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-sm);
-      min-width: 12rem;
+      min-width: min(12rem, 100%);
 
       &:focus-visible {
         outline: none;

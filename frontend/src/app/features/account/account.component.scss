@@ -38,6 +38,7 @@
 
   &__value {
     margin: 0;
+    overflow-wrap: anywhere;
     color: var(--color-text);
   }
 

@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { render, screen } from '@testing-library/angular';
+import { fireEvent, render, screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import { EditTaskComponent } from './edit-task.component';
@@ -272,5 +272,92 @@ describe('EditTaskComponent', () => {
 
     httpMock.expectNone((r) => r.method === 'PUT');
     expect(navigateSpy).toHaveBeenCalledWith('/tasks');
+  });
+
+  const save = () => screen.getByRole('button', { name: /salvar alterações/i });
+  const setValue = (label: RegExp, value: string) =>
+    fireEvent.input(screen.getByLabelText(label), { target: { value } });
+
+  // FE-18, CA-05
+  it('alterar os quatro campos e salvar envia todos os novos valores (CA-05)', async () => {
+    const { httpMock } = await setup();
+    httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
+    await screen.findByLabelText(/título/i);
+
+    setValue(/título/i, 'Título novo');
+    setValue(/descrição/i, 'Descrição nova');
+    await userEvent.selectOptions(screen.getByLabelText(/prioridade/i), 'Low');
+    setValue(/vencimento/i, '2026-04-10');
+    await userEvent.click(save());
+
+    const req = httpMock.expectOne((r) => r.method === 'PUT');
+    expect(req.request.body).toEqual({
+      title: 'Título novo',
+      description: 'Descrição nova',
+      priority: 'Low',
+      dueDate: '2026-04-10',
+    });
+    req.flush(makeTask());
+  });
+
+  // FE-18, CA-10
+  it('editar tarefa concluída não envia estado e ela segue concluída (CA-10)', async () => {
+    const { httpMock } = await setup();
+    const completed = makeTask({ status: 'Completed', completedAt: '2026-02-01T10:00:00Z' });
+    httpMock.expectOne((r) => r.method === 'GET').flush(completed);
+    expect(await screen.findByText('Concluída')).toBeTruthy();
+
+    await userEvent.type(screen.getByLabelText(/título/i), '!');
+    await userEvent.click(save());
+
+    const req = httpMock.expectOne((r) => r.method === 'PUT');
+    expect(Object.keys(req.request.body).sort()).toEqual([
+      'description',
+      'dueDate',
+      'priority',
+      'title',
+    ]);
+    req.flush({ ...completed, title: 'Estudar para a prova!' });
+    expect(screen.getByText('Concluída')).toBeTruthy();
+  });
+
+  // FE-18, CA-14: o formulário é o mesmo da criação (limites completos em create-task.component.spec.ts).
+  it('aplica as validações do formulário compartilhado: título vazio e com 201 caracteres são rejeitados (CA-14)', async () => {
+    const { httpMock } = await setup();
+    httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
+    await screen.findByLabelText(/título/i);
+
+    setValue(/título/i, '   ');
+    await userEvent.click(save());
+    setValue(/título/i, 'a'.repeat(201));
+    await userEvent.click(save());
+
+    httpMock.expectNone((r) => r.method === 'PUT');
+    expect(screen.getByText(/no máximo 200 caracteres/i)).toBeTruthy();
+  });
+
+  // FE-18, CA-23 (e FE-07, CA-15)
+  describe('canDeactivate (CA-23)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it.each([true, false])('com alterações pergunta e devolve a resposta (%s)', async (answer) => {
+      const { httpMock, fixture } = await setup();
+      httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
+      await userEvent.type(await screen.findByLabelText(/título/i), '!');
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(answer);
+
+      expect(fixture.componentInstance.canDeactivate()).toBe(answer);
+      expect(confirmSpy).toHaveBeenCalledOnce();
+    });
+
+    it('sem alterações sai sem perguntar', async () => {
+      const { httpMock, fixture } = await setup();
+      httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
+      await screen.findByLabelText(/título/i);
+      const confirmSpy = vi.spyOn(window, 'confirm');
+
+      expect(fixture.componentInstance.canDeactivate()).toBe(true);
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
   });
 });

@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { RegisterComponent } from './register.component';
 import { REGISTER_PATH } from '../../../core/api/auth-api.service';
 import { errorInterceptor } from '../../../core/errors/error.interceptor';
+import { ERROR_MESSAGES } from '../../../core/errors/error-messages';
 
 async function setup() {
   const utils = await render(RegisterComponent, {
@@ -185,5 +186,58 @@ describe('RegisterComponent (FE-08)', () => {
 
     expect(JSON.stringify({ ...localStorage })).not.toContain('segredo-super-secreto1');
     expect(JSON.stringify({ ...sessionStorage })).not.toContain('segredo-super-secreto1');
+  });
+
+  // FE-08, CA-13 e CA-14
+  it('erro de rede mostra a mensagem de conectividade, preserva os dados e permite reenviar (CA-13, CA-14)', async () => {
+    const { httpMock } = await setup();
+    await userEvent.type(screen.getByLabelText(/nome de exibição/i), 'Nova Pessoa');
+    await fillValidForm();
+
+    await userEvent.click(screen.getByRole('button', { name: /criar conta/i }));
+    httpMock.expectOne(REGISTER_PATH).error(new ProgressEvent('error'));
+
+    expect((await screen.findByRole('alert')).textContent).toContain(ERROR_MESSAGES['network']);
+    expect(screen.getByLabelText(/^e-mail$/i)).toHaveValue('nova@example.com');
+    expect(screen.getByLabelText(/nome de exibição/i)).toHaveValue('Nova Pessoa');
+    // O código não limpa as senhas (o critério só dispensa preservá-las).
+    expect(screen.getByLabelText(/^senha$/i)).toHaveValue('abcdef12');
+
+    await userEvent.click(screen.getByRole('button', { name: /criar conta/i }));
+    httpMock.expectOne(REGISTER_PATH);
+  });
+
+  // FE-08, CA-18 (e FE-04, CA-13): label associado, mensagem ligada por aria-describedby, aria-invalid.
+  it('liga a mensagem de erro ao campo por aria-describedby e marca aria-invalid (CA-18)', async () => {
+    await setup();
+    const email = screen.getByLabelText(/^e-mail$/i);
+    expect(email).toHaveAttribute('aria-invalid', 'false');
+    expect(email).not.toHaveAttribute('aria-describedby');
+
+    await userEvent.type(email, 'invalido');
+    await userEvent.tab();
+
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    const describedBy = email.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy ?? '')?.textContent).toContain(
+      'Informe um e-mail válido.',
+    );
+  });
+
+  // FE-08, CA-20
+  it('após falha do servidor, o foco vai para o primeiro campo com erro (CA-20)', async () => {
+    const { httpMock } = await setup();
+    await fillValidForm();
+
+    await userEvent.click(screen.getByRole('button', { name: /criar conta/i }));
+    httpMock
+      .expectOne(REGISTER_PATH)
+      .flush(
+        { errors: { password: ['Senha fraca.'], displayName: ['Nome inválido.'] } },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+    await vi.waitFor(() => expect(screen.getByLabelText(/^senha$/i)).toHaveFocus());
   });
 });

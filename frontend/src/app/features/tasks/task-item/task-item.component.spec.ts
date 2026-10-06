@@ -144,4 +144,44 @@ describe('TaskItemComponent', () => {
 
     expect(screen.getByRole('link', { name: /editar/i })).toHaveAttribute('href', '/tasks/1/edit');
   });
+
+  // FE-15, CA-02 (12:00Z evita virar o dia em qualquer fuso razoável)
+  it('exibe título, prioridade, vencimento, estado e data de atualização (CA-02)', async () => {
+    await setup({
+      task: makeTask({
+        priority: 'High',
+        dueDate: '2026-02-03',
+        updatedAt: '2026-03-05T12:00:00Z',
+      }),
+    });
+
+    expect(screen.getByText('Comprar pão')).toBeTruthy();
+    expect(screen.getByText('Alta')).toBeTruthy();
+    expect(screen.getByText(/03\/02\/2026/)).toBeTruthy();
+    expect(screen.getByText('Pendente')).toBeTruthy();
+    expect(screen.getByText(/atualizada em 05\/03\/2026/i)).toBeTruthy();
+  });
+
+  // FE-15, CA-03
+  it('sem descrição nem vencimento não mostra campo vazio nem "null" (CA-03)', async () => {
+    const { container } = await setup({ task: makeTask({ description: null, dueDate: null }) });
+
+    expect(container.textContent).not.toMatch(/null|undefined/);
+    expect(screen.getByText('Sem vencimento')).toBeTruthy();
+    expect(container.querySelector('.task-item__description')).toBeNull();
+  });
+
+  // FE-15, CA-07
+  it('tarefa concluída com vencimento passado não mostra "Atrasada" (CA-07)', async () => {
+    await setup({
+      task: makeTask({
+        status: 'Completed',
+        completedAt: '2026-01-02T12:00:00Z',
+        dueDate: '2000-01-01',
+        isOverdue: false,
+      }),
+    });
+
+    expect(screen.queryByText('Atrasada')).toBeNull();
+  });
 });

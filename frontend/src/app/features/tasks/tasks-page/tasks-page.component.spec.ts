@@ -1,6 +1,6 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Routes } from '@angular/router';
+import { Router, Routes } from '@angular/router';
 import { render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
@@ -983,6 +983,202 @@ describe('TasksPageComponent', () => {
       httpMock.expectOne('/api/tasks/2/complete').flush(makeTask({ id: '2', status: 'Completed' }));
 
       await waitFor(() => expect(region()?.textContent?.trim()).toBe(''));
+    });
+  });
+
+  describe('critérios de listagem, URL e ações (FE-15, FE-16, FE-19, FE-20)', () => {
+    const page = (
+      items: TaskResponse[],
+      extra: Partial<{ page: number; pageSize: number; totalCount: number }> = {},
+    ) => ({ items, page: 1, pageSize: 20, totalCount: items.length, ...extra });
+    const reloads = (httpMock: HttpTestingController) =>
+      httpMock.match((r) => r.url === '/api/tasks' && r.method === 'GET');
+    const done = (t: TaskResponse): TaskResponse => ({
+      ...t,
+      status: 'Completed',
+      completedAt: '2026-01-02T12:00:00Z',
+    });
+
+    // FE-15, CA-11 e CA-12
+    it('a ordem na tela é exatamente a da resposta, sem reordenar no cliente (CA-11, CA-12)', async () => {
+      const { httpMock } = await setup();
+      // Ordem deliberadamente não ordenada por título, estado, vencimento nem data.
+      const titles = ['Zeta', 'Alfa', 'Mu sem vencimento', 'Beta sem vencimento', 'Ômega'];
+      firstListRequest(httpMock).flush(
+        page([
+          makeTask({ id: '1', title: titles[0] }),
+          makeTask({ id: '2', title: titles[1], status: 'Completed', dueDate: '2030-01-01' }),
+          makeTask({ id: '3', title: titles[2], dueDate: null, createdAt: '2027-01-01T00:00:00Z' }),
+          makeTask({ id: '4', title: titles[3], status: 'Completed', dueDate: null }),
+          makeTask({ id: '5', title: titles[4], dueDate: '1999-01-01' }),
+        ]),
+      );
+
+      await screen.findByText('Zeta');
+      const shown = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent?.trim());
+      expect(shown).toEqual(titles);
+    });
+
+    // FE-15, CA-15
+    it('"próxima" fica desabilitado na última página (CA-15)', async () => {
+      const { httpMock } = await setup('tasks?page=2');
+      firstListRequest(httpMock).flush(page([makeTask()], { page: 2, totalCount: 40 }));
+
+      expect(await screen.findByText(/página 2 de 2/i)).toBeTruthy();
+      expect(screen.getByRole('button', { name: /próxima/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /anterior/i })).not.toBeDisabled();
+    });
+
+    // FE-15, CA-17. A página passa a pedir com o pageSize que a API devolveu (5), não com 20.
+    it('usa o pageSize devolvido pela API, não uma constante (CA-17)', async () => {
+      const { httpMock } = await setup();
+      const apiPage = page([makeTask()], { pageSize: 5, totalCount: 12 });
+      firstListRequest(httpMock).flush(apiPage);
+
+      // Com 12 itens, 20 por página seria 1 página (sem controles); com 5, são 3.
+      expect(await screen.findByText(/página 1 de 3/i)).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+      const next = await waitFor(() =>
+        httpMock.expectOne(
+          (r) =>
+            r.url === '/api/tasks' &&
+            r.params.get('pageSize') === '5' &&
+            r.params.get('page') === '2',
+        ),
+      );
+      next.flush({ ...apiPage, page: 2 });
+    });
+
+    // FE-16, CA-17
+    it('filtros ausentes não aparecem na URL (CA-17)', async () => {
+      const { httpMock, fixture } = await setup();
+      const router = fixture.debugElement.injector.get(Router);
+      firstListRequest(httpMock).flush(page([makeTask()]));
+      await screen.findByText('Estudar para a prova');
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Pendentes' }));
+      await waitFor(() => expect(router.url).toBe('/tasks?status=pending'));
+      reloads(httpMock).forEach((r) => r.flush(page([makeTask()])));
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Todas' }));
+      await waitFor(() => expect(router.url).toBe('/tasks'));
+      reloads(httpMock).forEach((r) => r.flush(page([makeTask()])));
+    });
+
+    // FE-16, CA-19
+    it('mudar filtro navega com replaceUrl (CA-19)', async () => {
+      const { httpMock, fixture } = await setup();
+      const navigate = vi.spyOn(fixture.debugElement.injector.get(Router), 'navigate');
+      firstListRequest(httpMock).flush(page([makeTask()]));
+      await screen.findByText('Estudar para a prova');
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Pendentes' }));
+
+      expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ replaceUrl: true }));
+    });
+
+    it('mudar de página navega sem replaceUrl, mantendo o histórico (CA-19)', async () => {
+      const { httpMock, fixture } = await setup();
+      const navigate = vi.spyOn(fixture.debugElement.injector.get(Router), 'navigate');
+      firstListRequest(httpMock).flush(page([makeTask()], { totalCount: 40 }));
+
+      await userEvent.click(await screen.findByRole('button', { name: /próxima/i }));
+
+      expect(navigate).toHaveBeenCalledWith([], expect.objectContaining({ replaceUrl: false }));
+    });
+
+    // FE-19, CA-04
+    it('concluir uma tarefa atrasada remove o selo "Atrasada" (CA-04)', async () => {
+      const { httpMock } = await setup();
+      const overdue = makeTask({ id: '1', dueDate: '2000-01-01', isOverdue: true });
+      firstListRequest(httpMock).flush(page([overdue]));
+      expect(await screen.findByText('Atrasada')).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('checkbox', { name: /concluir/i }));
+      const completed = { ...done(overdue), isOverdue: false };
+      httpMock.expectOne('/api/tasks/1/complete').flush(completed);
+
+      await waitFor(() => expect(screen.queryByText('Atrasada')).toBeNull());
+      reloads(httpMock).forEach((r) => r.flush(page([completed])));
+      expect(screen.queryByText('Atrasada')).toBeNull();
+    });
+
+    // FE-19, CA-09 e CA-10
+    describe('reabrir', () => {
+      const completed = done(makeTask({ id: '1', dueDate: '2000-01-01' }));
+
+      it('esconde a data de conclusão (CA-09)', async () => {
+        const { httpMock } = await setup();
+        firstListRequest(httpMock).flush(page([completed]));
+        expect(await screen.findByText(/concluída em 02\/01\/2026/i)).toBeTruthy();
+
+        await userEvent.click(screen.getByRole('checkbox', { name: /reabrir/i }));
+        httpMock
+          .expectOne('/api/tasks/1/reopen')
+          .flush({ ...completed, status: 'Pending', completedAt: null });
+
+        await waitFor(() => expect(screen.queryByText(/concluída em/i)).toBeNull());
+      });
+
+      it('com vencimento passado, o selo "Atrasada" volta com o isOverdue devolvido pela API (CA-10)', async () => {
+        const { httpMock } = await setup();
+        firstListRequest(httpMock).flush(page([completed]));
+        await screen.findByText(/concluída em 02\/01\/2026/i);
+        expect(screen.queryByText('Atrasada')).toBeNull();
+
+        await userEvent.click(screen.getByRole('checkbox', { name: /reabrir/i }));
+        const reopened: TaskResponse = {
+          ...completed,
+          status: 'Pending',
+          completedAt: null,
+          isOverdue: true,
+        };
+        httpMock.expectOne('/api/tasks/1/reopen').flush(reopened);
+        reloads(httpMock).forEach((r) => r.flush(page([reopened])));
+
+        expect(await screen.findByText('Atrasada')).toBeTruthy();
+      });
+    });
+
+    // FE-19, CA-18
+    it('concluir duas tarefas em sequência rápida faz duas requisições e atualiza os dois itens (CA-18)', async () => {
+      const { httpMock } = await setup();
+      const one = makeTask({ id: '1', title: 'Primeira' });
+      const two = makeTask({ id: '2', title: 'Segunda' });
+      firstListRequest(httpMock).flush(page([one, two]));
+      await screen.findByText('Primeira');
+
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Segunda' }));
+
+      httpMock.expectOne('/api/tasks/1/complete').flush(done(one));
+      httpMock.expectOne('/api/tasks/2/complete').flush(done(two));
+      reloads(httpMock).forEach((r) => r.flush(page([done(one), done(two)])));
+
+      expect(await screen.findByRole('checkbox', { name: 'Reabrir: Primeira' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Reabrir: Segunda' })).toBeChecked();
+    });
+
+    // FE-20, CA-18
+    it('após um erro ao remover, remover de novo funciona (CA-18)', async () => {
+      const { httpMock } = await setup();
+      firstListRequest(httpMock).flush(page([makeTask({ id: '1' })]));
+      await screen.findByText('Estudar para a prova');
+
+      await userEvent.click(screen.getByRole('button', { name: /remover/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+      httpMock
+        .expectOne('/api/tasks/1')
+        .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+      expect(await screen.findByRole('alert')).toBeTruthy();
+      expect(screen.getByText('Estudar para a prova')).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: /remover/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^remover$/i }));
+      httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
+
+      await waitFor(() => expect(screen.queryByText('Estudar para a prova')).toBeNull());
     });
   });
 });

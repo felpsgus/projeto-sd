@@ -32,7 +32,7 @@ export class AuthApi {
   private readonly apiClient = inject(ApiClient);
 
   login(request: LoginRequest): Observable<LoginResponse> {
-    return this.apiClient.post<LoginResponse>(LOGIN_PATH, request);
+    return this.apiClient.post<LoginResponse>(LOGIN_PATH, request, { withCredentials: true });
   }
 
   /**
@@ -55,6 +55,8 @@ export class AuthApi {
 
   /** 201 em sucesso — não autentica automaticamente (o backend não emite tokens no cadastro). */
   register(request: RegisterRequest): Observable<RegisterResponse> {
-    return this.apiClient.post<RegisterResponse>(REGISTER_PATH, request);
+    return this.apiClient.post<RegisterResponse>(REGISTER_PATH, request, {
+      withCredentials: true,
+    });
   }
 }

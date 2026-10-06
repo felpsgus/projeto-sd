@@ -96,6 +96,11 @@ test('7. trocar senha -> sessão cai -> login com a nova senha', async ({ page }
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByText('Sua senha foi alterada.')).toBeVisible();
 
+  // FE-12 CA-04: a senha antiga deixou de valer
+  await page.getByLabel('Senha', { exact: true }).fill(user.password);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page.getByRole('alert')).toHaveText(/E-mail ou senha inválidos./);
+
   await page.getByLabel('Senha', { exact: true }).fill(NEW_TEST_PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Tarefas' })).toBeVisible();
@@ -187,4 +192,39 @@ test('12. excluir conta -> login com as credenciais antigas falha', async ({ pag
 
   await login(page, user);
   await expect(page.getByRole('alert')).toHaveText(/E-mail ou senha inválidos\./);
+});
+
+test.describe('fuso (FE-15 CA-08b)', () => {
+  test.use({ timezoneId: 'America/Sao_Paulo' });
+
+  test('21:30 do dia 20 em UTC-3 (UTC já no dia 21): vencendo no dia 20 não é "Atrasada"', async ({
+    page,
+  }) => {
+    // O servidor calcula isOverdue só com o header X-Client-Date (o relógio dele não conta).
+    // Dia local "20" = ontem em UTC; 21:30 de lá = 00:30Z de hoje, sempre <= agora (+30 min).
+    const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const dayBefore = new Date(Date.parse(day) - 86_400_000).toISOString().slice(0, 10);
+    const instant = new Date(`${day}T21:30:00-03:00`);
+    const utcDay = instant.toISOString().slice(0, 10);
+    expect(utcDay).not.toBe(day);
+
+    const sentDates = new Set<string>();
+    page.on('request', (r) => {
+      const d = r.headers()['x-client-date'];
+      if (r.url().includes('/api/tasks') && d) sentDates.add(d);
+    });
+    await page.clock.install({ time: instant });
+    await page.clock.resume();
+    await registerAndLogin(page);
+
+    await createTask(page, 'Vence no dia 20', 'Alta', day);
+    await createTask(page, 'Venceu no dia 19', 'Alta', dayBefore);
+    await expect(
+      taskItem(page, 'Venceu no dia 19').getByText('Atrasada', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      taskItem(page, 'Vence no dia 20').getByText('Atrasada', { exact: true }),
+    ).toHaveCount(0);
+    expect([...sentDates]).toEqual([day]);
+  });
 });

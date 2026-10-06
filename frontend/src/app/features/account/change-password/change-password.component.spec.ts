@@ -83,6 +83,42 @@ describe('ChangePasswordComponent (FE-12)', () => {
     expect(screen.getByText(/não atende aos requisitos/i)).toBeTruthy();
   });
 
+  // FE-12, CA-07. A mensagem do campo é única ("não atende aos requisitos abaixo"); o critério
+  // que falta é apontado pelo indicador ao vivo logo acima dela — o teste verifica os dois.
+  it.each([
+    ['7 caracteres', 'abc1234', /pelo menos 8 caracteres/i],
+    ['só letras', 'abcdefgh', /pelo menos um número/i],
+    ['só números', '12345678', /pelo menos uma letra/i],
+  ])(
+    'nova senha com %s é rejeitada e o indicador mostra o critério pendente (CA-07)',
+    async (_n, password, missing) => {
+      const { httpMock } = await setup();
+      const input = screen.getByLabelText(/^nova senha$/i);
+
+      await userEvent.type(input, password);
+      await userEvent.tab();
+
+      expect(screen.getByText(/não atende aos requisitos/i)).toBeTruthy();
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText(missing).closest('li')).toHaveTextContent('(pendente)');
+
+      await userEvent.type(screen.getByLabelText(/senha atual/i), 'senhaAtual1');
+      await userEvent.type(screen.getByLabelText(/confirmar nova senha/i), password);
+      await userEvent.click(screen.getByRole('button', { name: /alterar senha/i }));
+      httpMock.expectNone(CHANGE_PASSWORD_PATH);
+    },
+  );
+
+  // FE-12, CA-19
+  it('após falha, o foco vai para o primeiro campo com erro (CA-19)', async () => {
+    await setup();
+
+    await userEvent.type(screen.getByLabelText(/senha atual/i), 'senhaAtual1');
+    await userEvent.click(screen.getByRole('button', { name: /alterar senha/i }));
+
+    await vi.waitFor(() => expect(screen.getByLabelText(/^nova senha$/i)).toHaveFocus());
+  });
+
   it('nova senha e confirmação divergentes impedem o envio (CA-09)', async () => {
     await setup();
 

@@ -8,6 +8,7 @@ import { AccountComponent } from './account.component';
 import { ME_PATH } from '../../core/api/user-api.service';
 import { SessionStore } from '../../core/auth/session-store';
 import { errorInterceptor } from '../../core/errors/error.interceptor';
+import { ERROR_MESSAGES } from '../../core/errors/error-messages';
 import { TasksStore } from '../tasks/tasks.store';
 import { PROFILE_RESPONSE_FIXTURE } from '../../../testing/fixtures/user.fixtures';
 
@@ -135,6 +136,42 @@ describe('AccountComponent (FE-11)', () => {
     expect(screen.getByRole('button', { name: /salvar/i })).toBeDisabled();
   });
 
+  async function editName(httpMock: HttpTestingController, name: string) {
+    await loadProfile(httpMock);
+    await screen.findByDisplayValue('Ana');
+    const nameInput = screen.getByLabelText(/nome de exibição/i);
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, name);
+  }
+
+  // FE-11, CA-10 (parte "durante o envio")
+  it('salvar fica desabilitado enquanto o PATCH está em voo (CA-10)', async () => {
+    const { httpMock, fixture } = await setup();
+    await editName(httpMock, 'Ana Paula');
+    expect(screen.getByRole('button', { name: /salvar/i })).toBeEnabled();
+
+    await userEvent.dblClick(screen.getByRole('button', { name: /salvar/i }));
+    fixture.detectChanges();
+
+    expect(screen.getByRole('button', { name: /salvando/i })).toBeDisabled();
+    httpMock.expectOne(ME_PATH).flush({ ...PROFILE_RESPONSE_FIXTURE, displayName: 'Ana Paula' });
+  });
+
+  // FE-11, CA-11
+  it('PATCH com falha mostra a mensagem e mantém o valor digitado (CA-11)', async () => {
+    const { httpMock } = await setup();
+    await editName(httpMock, 'Ana Paula');
+
+    await userEvent.click(screen.getByRole('button', { name: /salvar/i }));
+    httpMock
+      .expectOne(ME_PATH)
+      .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByLabelText(/nome de exibição/i)).toHaveValue('Ana Paula');
+    expect(screen.getByRole('button', { name: /salvar/i })).toBeEnabled();
+  });
+
   it('erro ao carregar mostra "tentar novamente" (CA-12)', async () => {
     const { httpMock } = await setup();
 
@@ -258,6 +295,38 @@ describe('AccountComponent (FE-11)', () => {
       await userEvent.click(screen.getByRole('button', { name: /excluir permanentemente/i }));
       httpMock.expectOne(ME_PATH).flush(null, { status: 204, statusText: 'No Content' });
       expect(session.isAuthenticated()).toBe(false);
+    });
+
+    async function openDeleteDialog(httpMock: HttpTestingController) {
+      await loadProfile(httpMock);
+      await screen.findByDisplayValue('Ana');
+      await userEvent.click(screen.getByRole('button', { name: /excluir minha conta/i }));
+      await userEvent.type(screen.getByLabelText(/confirme sua senha/i), 'minhaSenha1');
+    }
+
+    // FE-13, CA-06
+    it('Enter no campo de senha não confirma a exclusão (CA-06)', async () => {
+      const { httpMock, session } = await setup();
+      await openDeleteDialog(httpMock);
+
+      await userEvent.type(screen.getByLabelText(/confirme sua senha/i), '{Enter}');
+
+      httpMock.expectNone(ME_PATH);
+      expect(session.isAuthenticated()).toBe(true);
+    });
+
+    // FE-13, CA-18
+    it('erro de rede mostra mensagem, o diálogo segue aberto e o usuário continua autenticado (CA-18)', async () => {
+      const { httpMock, session } = await setup();
+      await openDeleteDialog(httpMock);
+
+      await userEvent.click(screen.getByRole('button', { name: /excluir permanentemente/i }));
+      httpMock.expectOne(ME_PATH).error(new ProgressEvent('error'));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(ERROR_MESSAGES['network']);
+      expect(screen.getByText(/excluir sua conta/i)).toBeTruthy();
+      expect(session.isAuthenticated()).toBe(true);
+      expect(session.lastEndReason()).toBeNull();
     });
   });
 });

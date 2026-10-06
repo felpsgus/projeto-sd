@@ -164,6 +164,7 @@ button {
 input,
 textarea,
 select {
+  max-width: 100%; /* largura intrínseca (atributo size) não pode vazar da coluna, p.ex. no zoom de texto */
   font-family: inherit;
   font-size: var(--font-size-base);
   color: var(--color-text);
@@ -241,6 +242,20 @@ select {
   button {
     min-height: 2.75rem;
     min-width: 2.75rem;
+  }
+
+  /* Links fora de frase (navegação, ações de item): alvo de 44 px. Link em linha dentro de um
+     parágrafo fica de fora — WCAG 2.5.8 o isenta, e esticá-lo quebraria a linha do texto. */
+  a:not(p a) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  input:not([type='checkbox'], [type='radio']),
+  select {
+    min-height: 2.75rem;
   }
 
   label:has(> input[type='checkbox']),

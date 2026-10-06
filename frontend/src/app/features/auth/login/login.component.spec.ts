@@ -22,6 +22,23 @@ async function setup() {
   return { ...utils, httpMock, sessionStore, router };
 }
 
+async function setupWithReturnUrl(returnUrl: string) {
+  const utils = await render(LoginComponent, {
+    providers: [
+      provideHttpClient(withInterceptors([errorInterceptor])),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      {
+        provide: ActivatedRoute,
+        useValue: { snapshot: { queryParamMap: convertToParamMap({ returnUrl }) } },
+      },
+    ],
+  });
+  const httpMock = utils.fixture.debugElement.injector.get(HttpTestingController);
+  const router = utils.fixture.debugElement.injector.get(Router);
+  return { ...utils, httpMock, router };
+}
+
 describe('LoginComponent', () => {
   it('exige e-mail e senha antes de enviar (CA-04)', async () => {
     const { httpMock } = await setup();
@@ -60,6 +77,97 @@ describe('LoginComponent', () => {
       expect(screen.getByLabelText(/e-mail/i)).toHaveAttribute('aria-invalid', 'false');
     }
   });
+
+  // FE-09, CA-10 (guardião de RN-AUTH-09): senha errada e e-mail inexistente chegam como
+  // 401 que só difere no corpo (title, detail, traceId) — o DOM do erro tem de ser idêntico.
+  describe('falhas de credencial (CA-10)', () => {
+    const rendered: string[] = [];
+
+    it.each([
+      [
+        'senha errada',
+        { errorCode: 'auth.invalid_credentials', title: 'senha errada', traceId: 'a' },
+      ],
+      [
+        'e-mail inexistente',
+        { errorCode: 'auth.invalid_credentials', title: 'sem e-mail', traceId: 'b' },
+      ],
+      [
+        'corpo só com detail',
+        { errorCode: 'auth.invalid_credentials', detail: 'outro texto', traceId: 'c' },
+      ],
+    ])('%s mostra a mensagem única', async (_name, body) => {
+      const { httpMock, fixture } = await setup();
+      await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
+      await userEvent.type(screen.getByLabelText(/senha/i), 'wrong');
+      await userEvent.click(screen.getByRole('button', { name: /entrar/i }));
+      httpMock
+        .expectOne('/api/auth/login')
+        .flush(body, { status: 401, statusText: 'Unauthorized' });
+      fixture.detectChanges();
+
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent?.trim()).toBe('E-mail ou senha inválidos.');
+      rendered.push(alert.outerHTML.replace(/\s+/g, ' '));
+    });
+
+    it('o DOM renderizado é idêntico nos três cenários', () => {
+      expect(rendered.length).toBe(3);
+      expect(new Set(rendered).size).toBe(1);
+    });
+  });
+
+  // FE-09, CA-03
+  it('desabilita o botão durante o envio e o clique duplo dispara uma única chamada (CA-03)', async () => {
+    const { httpMock, fixture } = await setup();
+    await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
+    await userEvent.type(screen.getByLabelText(/senha/i), 'secret123');
+
+    await userEvent.dblClick(screen.getByRole('button', { name: /entrar/i }));
+    fixture.detectChanges();
+
+    expect(screen.getByRole('button', { name: /entrando/i })).toBeDisabled();
+    httpMock.expectOne('/api/auth/login');
+  });
+
+  // FE-09, CA-21
+  it('anuncia o erro (alert/aria-live) e leva o foco até ele (CA-21)', async () => {
+    const { httpMock, fixture } = await setup();
+    await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
+    await userEvent.type(screen.getByLabelText(/senha/i), 'wrong');
+    await userEvent.click(screen.getByRole('button', { name: /entrar/i }));
+    httpMock
+      .expectOne('/api/auth/login')
+      .flush(
+        { errorCode: 'auth.invalid_credentials' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveAttribute('aria-live', 'assertive');
+    await vi.waitFor(() => expect(alert).toHaveFocus());
+  });
+
+  // FE-09, CA-02 / FE-07, CA-08 e CA-10: após autenticar, vai para a returnUrl — inclusive
+  // uma rota interna inexistente (que a rota curinga trata como 404).
+  it.each(['/tasks/abc/edit', '/nao/existe'])(
+    'após o login navega para a returnUrl %s (FE-09 CA-02, FE-07 CA-08/CA-10)',
+    async (returnUrl) => {
+      const { httpMock, router } = await setupWithReturnUrl(returnUrl);
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+      await userEvent.type(screen.getByLabelText(/e-mail/i), 'user@example.com');
+      await userEvent.type(screen.getByLabelText(/senha/i), 'secret123');
+      await userEvent.click(screen.getByRole('button', { name: /entrar/i }));
+      httpMock
+        .expectOne('/api/auth/login')
+        .flush({ accessToken: 'tok', expiresAt: new Date().toISOString() });
+
+      expect(navigate).toHaveBeenCalledWith(returnUrl);
+    },
+  );
 
   it('não existe link de "esqueci minha senha" (CA-18)', async () => {
     await setup();

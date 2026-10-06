@@ -179,6 +179,137 @@ describe('CreateTaskComponent', () => {
     });
   });
 
+  const POST_BODY = {
+    id: '1',
+    title: 'x',
+    description: null,
+    priority: 'Medium',
+    status: 'Pending',
+    dueDate: null,
+    completedAt: null,
+    isOverdue: false,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  };
+  const create = () =>
+    screen.getByRole<HTMLButtonElement>('button', { name: /criar tarefa|criando/i });
+  const setValue = (label: RegExp, value: string) =>
+    fireEvent.input(screen.getByLabelText(label), { target: { value } });
+
+  // FE-17, CA-04 e CA-13: todos os campos vão no corpo; a data é o dia escolhido, sem conversão de fuso.
+  it('criar com todos os campos envia todos, com o vencimento yyyy-MM-dd escolhido (CA-04, CA-13)', async () => {
+    const { httpMock } = await setup();
+
+    await userEvent.type(screen.getByLabelText(/título/i), 'Estudar');
+    setValue(/descrição/i, 'Capítulos 1 a 3');
+    await userEvent.selectOptions(screen.getByLabelText(/prioridade/i), 'High');
+    setValue(/vencimento/i, '2026-03-05');
+    await userEvent.click(create());
+
+    const req = httpMock.expectOne('/api/tasks');
+    expect(req.request.body).toEqual({
+      title: 'Estudar',
+      description: 'Capítulos 1 a 3',
+      priority: 'High',
+      dueDate: '2026-03-05',
+    });
+    req.flush(POST_BODY);
+  });
+
+  // FE-17, CA-06
+  it('desabilita o botão durante o envio e o clique duplo cria uma única tarefa (CA-06)', async () => {
+    const { httpMock, fixture } = await setup();
+    await userEvent.type(screen.getByLabelText(/título/i), 'Estudar');
+
+    await userEvent.dblClick(create());
+    fixture.detectChanges();
+
+    expect(create()).toBeDisabled();
+    httpMock.expectOne('/api/tasks').flush(POST_BODY);
+  });
+
+  // FE-17, CA-08 e FE-18, CA-14 (formulário compartilhado)
+  describe('limites do título (CA-08)', () => {
+    it.each([1, 200])('título com %s caractere(s) é aceito', async (length) => {
+      const { httpMock } = await setup();
+
+      setValue(/título/i, 'a'.repeat(length));
+      await userEvent.click(create());
+
+      httpMock.expectOne('/api/tasks').flush(POST_BODY);
+    });
+
+    it('título com 201 caracteres é rejeitado', async () => {
+      const { httpMock } = await setup();
+
+      setValue(/título/i, 'a'.repeat(201));
+      await userEvent.click(create());
+
+      httpMock.expectNone('/api/tasks');
+      expect(screen.getByText(/no máximo 200 caracteres/i)).toBeTruthy();
+    });
+  });
+
+  // FE-17, CA-09
+  describe('limites da descrição (CA-09)', () => {
+    it('descrição com 2000 caracteres é aceita', async () => {
+      const { httpMock } = await setup();
+
+      setValue(/título/i, 'Estudar');
+      setValue(/descrição/i, 'a'.repeat(2000));
+      await userEvent.click(create());
+
+      httpMock.expectOne('/api/tasks').flush(POST_BODY);
+    });
+
+    it('descrição com 2001 caracteres é rejeitada', async () => {
+      const { httpMock } = await setup();
+
+      setValue(/título/i, 'Estudar');
+      setValue(/descrição/i, 'a'.repeat(2001));
+      await userEvent.click(create());
+
+      httpMock.expectNone('/api/tasks');
+      expect(screen.getByText(/no máximo 2000 caracteres/i)).toBeTruthy();
+    });
+  });
+
+  // FE-17, CA-10 (o contador é sempre visível, não só perto do limite — só o valor real é verificado)
+  it('o contador de caracteres reflete o valor real (CA-10)', async () => {
+    await setup();
+    expect(screen.getByText('0/200')).toBeTruthy();
+
+    await userEvent.type(screen.getByLabelText(/título/i), 'abc');
+
+    expect(screen.getByText('3/200')).toBeTruthy();
+  });
+
+  // FE-17, CA-25
+  describe('foco no primeiro campo com erro (CA-25)', () => {
+    it('validação de cliente: título vazio recebe o foco', async () => {
+      await setup();
+
+      await userEvent.click(create());
+
+      await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveFocus());
+    });
+
+    it('400 do servidor: o primeiro campo com erro recebe o foco', async () => {
+      const { httpMock } = await setup();
+      await userEvent.type(screen.getByLabelText(/título/i), 'Estudar');
+      await userEvent.click(create());
+
+      httpMock
+        .expectOne('/api/tasks')
+        .flush(
+          { errors: { description: ['Inválida.'], dueDate: ['Inválida.'] } },
+          { status: 400, statusText: 'Bad Request' },
+        );
+
+      await waitFor(() => expect(screen.getByLabelText(/descrição/i)).toHaveFocus());
+    });
+  });
+
   describe('canDeactivate (CA-18, CA-19)', () => {
     afterEach(() => vi.restoreAllMocks());
 

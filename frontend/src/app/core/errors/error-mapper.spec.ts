@@ -73,6 +73,14 @@ describe('mapHttpErrorToAppError', () => {
     expect(result.message).not.toContain('algo.nao_mapeado');
   });
 
+  // FE-03, CA-07
+  it('a mensagem genérica inclui o traceId (CA-07)', () => {
+    const result = mapHttpErrorToAppError(httpError(500, { traceId: 'trace-abc' }));
+
+    expect(result.traceId).toBe('trace-abc');
+    expect(result.message).toContain('trace-abc');
+  });
+
   it('400 de validação preenche fieldErrors com as chaves em camelCase (CA-01)', () => {
     const result = mapHttpErrorToAppError(
       httpError(400, { errors: { title: ['Obrigatório.'], dueDate: ['Data inválida.'] } }),
