@@ -97,7 +97,8 @@ describe('TasksPageComponent', () => {
     const list = within(screen.getByRole('list'));
     expect(list.getByText('Média')).toBeTruthy();
     expect(list.getByText('Pendente')).toBeTruthy();
-    expect(screen.getByText(/01\/01\/2026/)).toBeTruthy();
+    // `getAll`: em UTC (runner do CI) a data de criação do fixture também cai em 01/01/2026.
+    expect(screen.getAllByText(/01\/01\/2026/).length).toBeGreaterThan(0);
   });
 
   it('exibe erro com "tentar novamente" e refaz a chamada ao clicar', async () => {

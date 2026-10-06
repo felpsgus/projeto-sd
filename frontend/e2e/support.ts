@@ -44,6 +44,9 @@ export async function createTask(
   dueDate?: string,
 ): Promise<void> {
   await page.getByRole('link', { name: 'Nova tarefa' }).first().click();
+  // O contador só aparece depois da primeira detecção de mudanças, que é quando o campo é ligado
+  // ao formulário. Preencher antes disso (o CI já fez, 1 ms após a troca de rota) perde o valor.
+  await expect(page.getByText('0/200', { exact: true })).toBeVisible();
   await page.getByLabel('Título', { exact: true }).fill(title);
   if (priority) {
     await page.getByLabel('Prioridade', { exact: true }).selectOption({ label: priority });
