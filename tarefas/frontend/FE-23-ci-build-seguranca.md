@@ -81,7 +81,7 @@ Todo PR do frontend passa por um pipeline que compila, verifica lint e formataç
 - [x] **CA-08** — Um PR que derruba a cobertura global abaixo de **75%** **falha** — comprovado com um PR de teste. *(PR descartável de 06/10/2026, #20, run 37540920139: `Coverage for lines (68.63%) does not meet global threshold (75%)`.)*
 - [x] **CA-09** — Um PR que derruba serviços/estado abaixo de **80%** **falha**. *(PR descartável de 06/10/2026, #21, run 37540926383: `Coverage for lines (74.19%) does not meet "src/app/core/**/*.ts" threshold (80%)`, com o global ainda em 87%.)*
 - [x] **CA-10** — Queda em relação ao baseline é sinalizada no PR mesmo acima do piso. *(PR descartável de 06/10/2026, #22, run 37540932508: o pipeline passou com a anotação `Cobertura de linhas do frontend caiu: 93.05% < baseline 93.81%`.)*
-- [ ] **CA-11** — As exclusões estão declaradas e visíveis no relatório, não inflando o número em silêncio.
+- [x] **CA-11** — As exclusões estão declaradas e visíveis no relatório, não inflando o número em silêncio. *(06/10/2026: as exclusões estão declaradas em `coverageExclude` do `angular.json` (specs, `models/`, `app.config.ts`, `app.routes.ts`) e o `coverage-summary.mjs` passou a listá-las no resumo de cobertura do job, ao lado dos números.)*
 
 ### Build
 

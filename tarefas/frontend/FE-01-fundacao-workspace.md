@@ -67,7 +67,7 @@ Existe um workspace Angular 22 zoneless que compila, roda, passa no lint e execu
 - [x] **CA-09** — Um erro de tipo em template (`strictTemplates`) **falha** o build — comprovado uma vez com um binding inválido.
 - [x] **CA-10** — Nenhum `NgModule` existe na base de código.
 - [x] **CA-11** — A versão do Node está fixada em `.nvmrc` e casa com a usada no CI.
-- [ ] **CA-12** — `@angular/core` e `@angular/cli` estão no mesmo major (**22.x**) e o TypeScript está em `~5.9`.
+- [x] ~~**CA-12** — `@angular/core` e `@angular/cli` estão no mesmo major (**22.x**) e o TypeScript está em `~5.9`.~~ **Substituído (06/10/2026)**: `@angular/core` e `@angular/cli` estão em 22.x, mas o `@angular/compiler-cli` 22.2.1 exige `typescript >=6.0 <6.1`, então `~5.9` não é mais instalável; o projeto usa `~6.0.2`.
 - [x] **CA-13** — Nenhum segredo, chave ou URL de produção com credencial está versionado em `environments/`.
 - [x] **CA-14** — Navegar para uma rota inexistente exibe a página 404, não uma tela em branco.
 - [x] **CA-15** — O `README.md` do frontend permite a uma pessoa nova instalar, rodar e testar seguindo apenas o que está escrito.
