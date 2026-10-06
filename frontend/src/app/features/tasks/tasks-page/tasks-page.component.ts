@@ -41,8 +41,8 @@ const SEARCH_DEBOUNCE_MS = 300;
  *
  * **A URL é a única fonte de verdade dos filtros (FE-16, FD-08, CA-20):** este componente não
  * guarda página nem filtro em signal próprio — `queryState` é só a leitura saneada de
- * `ActivatedRoute.queryParamMap` (via `toSignal`). Um `effect()` observa `queryState()` e
- * chama `TasksStore.load()` sempre que ela mudar — por navegação do usuário, pelo botão
+ * `ActivatedRoute.queryParamMap` (via `toSignal`). Uma assinatura de `queryParamMap` (não um
+ * `effect()`: FE-14, CA-12) chama `TasksStore.load()` a cada emissão — por navegação do usuário, pelo botão
  * "voltar", por um link colado direto no navegador ou por `F5`. Mudar um filtro **navega**
  * (com `replaceUrl: true`, para não entupir o histórico a cada tecla ou clique — CA-19);
  * mudar de página navega normalmente (histórico completo).
@@ -118,10 +118,11 @@ export class TasksPageComponent {
   protected readonly announcement = signal('');
 
   constructor() {
-    // Carrega a lista sempre que página/filtros da URL mudarem — deep link, F5, "voltar" e
-    // navegação normal passam todos por aqui, sem lógica duplicada (FE-16, CA-15/CA-16).
-    effect(() => {
-      const state = this.queryState();
+    // Carrega a lista a cada emissão da URL — deep link, F5, "voltar" e navegação normal passam
+    // todos por aqui, sem lógica duplicada (FE-16, CA-15/CA-16). Assinatura, não `effect()`:
+    // a rota comanda a chamada (FE-14, CA-12).
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const state = parseTasksQueryParams(params);
       this.pageNoticeSignal.set(null);
       this.announcement.set('');
       this.store.load(state.page, this.store.pageSize(), state.filters);

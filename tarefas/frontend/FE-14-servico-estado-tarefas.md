@@ -65,7 +65,7 @@ Existe uma camada única de estado para tarefas, exposta por signals, que todas 
 - [x] **CA-09** — `clear()` esvazia `items`, `pagination`, `query` e `error`.
 - [x] **CA-10** — `endSession` dispara `clear()`: após trocar de usuário na mesma aba, nenhum dado do anterior aparece.
 - [x] **CA-11** — Nenhum componente injeta `TasksApi` diretamente (verificado por busca no código e lint).
-- [ ] **CA-12** — Nenhum `effect()` é usado para disparar requisição.
+- [x] **CA-12** — Nenhum `effect()` é usado para disparar requisição. *(06/10/2026: o `effect()` de `TasksPageComponent` que chamava `store.load()` virou assinatura de `route.queryParamMap`; os `effect()` restantes em `src/app` só mexem em foco, formulário, anúncio e limpeza de estado.)*
 - [x] **CA-13** — Um erro em uma mutação **não** corrompe a lista: `items` permanece no último estado válido conhecido.
 - [x] **CA-14** — `TaskResponse` é consumido como veio da API; `isOverdue` **não** é recalculado no cliente (FD-09).
 
