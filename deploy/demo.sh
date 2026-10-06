@@ -59,7 +59,8 @@ login() {
         -d "{\"email\":\"$EMAIL_ATIVO\",\"password\":\"$DEMO_PASSWORD\"}" \
         -o "$CORPO" -D - \
     | sed -n '1p'
-    cat "$CORPO"
+    # O corpo vai para a tela projetada: o access token sai truncado (RN-AUTH-05).
+    sed 's/"accessToken":"\([^"]\{12\}\)[^"]*"/"accessToken":"\1...(truncado)"/' "$CORPO"
 }
 
 criar_tarefa() {

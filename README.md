@@ -896,8 +896,11 @@ Retry-After: 5
 ```json
 {"type":"https://httpstatuses.io/503","title":"Serviço temporariamente indisponível.","status":503,
  "detail":"Não foi possível concluir a requisição no momento. Tente novamente em instantes.",
- "errorCode":"identity.unavailable","traceId":"0HNOG09J8NE3D:00000001"}
+ "errorCode":"tasks.unavailable","traceId":"<32 hex>"}
 ```
+
+O `errorCode` da criação de tarefa é `tasks.unavailable`: quem falha é o `ValidateUser` que o Tasks faz ao
+Identity. Já `POST /api/auth/login`, que o Gateway envia direto ao Identity, responde `identity.unavailable`.
 
 Verificado com o Identity de fato encerrado (BE-39 CA-07, CA-23 de BE-40): nunca `401` nem `500`.
 **A causa mudou com BE-40 (D-38), o status observado não**: até BE-40, o 503 vinha do Gateway não
