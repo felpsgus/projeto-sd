@@ -34,6 +34,12 @@ async function fillValidForm() {
 }
 
 describe('ChangePasswordComponent (FE-12)', () => {
+  it('"Cancelar" é um link de volta para /account', async () => {
+    await setup();
+
+    expect(screen.getByRole('link', { name: 'Cancelar' })).toHaveAttribute('href', '/account');
+  });
+
   it('o aviso de desconexão aparece antes do envio (CA-06) com texto verdadeiro (sem "todos os dispositivos")', async () => {
     await setup();
 

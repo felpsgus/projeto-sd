@@ -82,10 +82,16 @@ export class AccountComponent implements OnInit {
   protected readonly deleteErrorMessage = signal<string | null>(null);
 
   /** `null` enquanto a listagem de tarefas não carregou (FE-13, notas técnicas: não
-   * disparar uma chamada só para popular a contagem do diálogo). */
+   * disparar uma chamada só para popular a contagem do diálogo) **ou** se a última carga tinha
+   * filtro ativo — `totalCount` é então só o recorte filtrado, não o total do usuário. */
   protected readonly taskCount = computed(() =>
-    this.tasksStore.status() === 'success' ? this.tasksStore.totalCount() : null,
+    this.tasksStore.status() === 'success' && !this.tasksStore.hasActiveFilters()
+      ? this.tasksStore.totalCount()
+      : null,
   );
+
+  /** Confirmação de "Nome atualizado." (região `role="status"` sempre no DOM); vazia até salvar. */
+  protected readonly savedMessage = signal('');
 
   protected readonly form = this.formBuilder.nonNullable.group({
     displayName: ['', [displayNameValidator]],
@@ -93,6 +99,7 @@ export class AccountComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.form.controls.displayName.valueChanges.subscribe(() => this.savedMessage.set(''));
   }
 
   protected retry(): void {
@@ -113,6 +120,7 @@ export class AccountComponent implements OnInit {
     }
     this.formError.set(null);
     this.serverFieldErrors.set({});
+    this.savedMessage.set('');
     this.submitting.set(true);
 
     // Só `displayName` vai no corpo (CA-05/CA-09) — `UpdateProfileRequest` nem tem campo
@@ -126,6 +134,8 @@ export class AccountComponent implements OnInit {
         this.form.reset({ displayName: profile.displayName });
         // Mesma fonte do cabeçalho (CA-07) — atualiza na hora, sem recarregar a página.
         this.session.setDisplayName(profile.displayName);
+        // Depois do `reset` (que emite `valueChanges` e limparia a mensagem).
+        this.savedMessage.set('Nome atualizado.');
       },
       error: (error: AppError) => {
         this.submitting.set(false);

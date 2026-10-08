@@ -3,6 +3,10 @@
 }
 
 .account {
+  h1 {
+    margin-bottom: var(--space-md);
+  }
+
   &__section {
     margin-bottom: var(--space-lg);
   }
@@ -53,6 +57,11 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
     align-self: flex-end;
+
+    &--over {
+      color: var(--color-danger);
+      font-weight: 600;
+    }
   }
 
   &__error {
@@ -64,6 +73,19 @@
     font-size: var(--font-size-sm);
   }
 
+  &__actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  &__saved {
+    margin: 0;
+    color: var(--color-success);
+    font-size: var(--font-size-sm);
+  }
+
   &__save {
     padding: var(--space-xs) var(--space-md);
     font-weight: 500;
@@ -72,6 +94,11 @@
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
+    transition: opacity 0.12s ease;
+
+    &:hover:not(:disabled) {
+      opacity: 0.92;
+    }
 
     &:disabled {
       opacity: 0.6;

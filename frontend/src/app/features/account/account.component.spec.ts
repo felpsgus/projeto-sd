@@ -10,6 +10,7 @@ import { SessionStore } from '../../core/auth/session-store';
 import { errorInterceptor } from '../../core/errors/error.interceptor';
 import { ERROR_MESSAGES } from '../../core/errors/error-messages';
 import { TasksStore } from '../tasks/tasks.store';
+import { DEFAULT_TASKS_FILTERS } from '../../core/api/models/task.models';
 import { PROFILE_RESPONSE_FIXTURE } from '../../../testing/fixtures/user.fixtures';
 
 async function setup() {
@@ -170,6 +171,36 @@ describe('AccountComponent (FE-11)', () => {
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByLabelText(/nome de exibição/i)).toHaveValue('Ana Paula');
     expect(screen.getByRole('button', { name: /salvar/i })).toBeEnabled();
+  });
+
+  it('"Nome atualizado." aparece após salvar e some ao editar o campo de novo', async () => {
+    const { httpMock } = await setup();
+    await editName(httpMock, 'Ana Paula');
+
+    await userEvent.click(screen.getByRole('button', { name: /salvar/i }));
+    httpMock.expectOne(ME_PATH).flush({ ...PROFILE_RESPONSE_FIXTURE, displayName: 'Ana Paula' });
+
+    expect(await screen.findByText('Nome atualizado.')).toBeTruthy();
+
+    await userEvent.type(screen.getByLabelText(/nome de exibição/i), 'x');
+    expect(screen.queryByText('Nome atualizado.')).toBeNull();
+  });
+
+  it('o diálogo de exclusão não afirma uma contagem quando a última carga tinha filtro (regressão)', async () => {
+    const { httpMock, fixture } = await setup();
+    const tasksStore = fixture.debugElement.injector.get(TasksStore);
+    await loadProfile(httpMock);
+    await screen.findByDisplayValue('Ana');
+
+    tasksStore.load(1, 20, { ...DEFAULT_TASKS_FILTERS, status: 'pending' });
+    httpMock
+      .expectOne((r) => r.url === '/api/tasks')
+      .flush({ items: [], page: 1, pageSize: 20, totalCount: 3 });
+
+    await userEvent.click(screen.getByRole('button', { name: /excluir minha conta/i }));
+
+    expect(screen.getByText(/todas as suas tarefas serão apagadas/i)).toBeTruthy();
+    expect(screen.queryByText(/todas as suas 3 tarefas/i)).toBeNull();
   });
 
   it('erro ao carregar mostra "tentar novamente" (CA-12)', async () => {

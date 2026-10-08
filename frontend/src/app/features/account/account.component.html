@@ -37,7 +37,12 @@
                 "
                 aria-describedby="displayName-error"
               />
-              <p class="account__count tabular-nums">
+              <p
+                class="account__count tabular-nums"
+                [class.account__count--over]="
+                  form.controls.displayName.value.length > displayNameMaxLength
+                "
+              >
                 {{ form.controls.displayName.value.length }}/{{ displayNameMaxLength }}
               </p>
               @if (
@@ -68,14 +73,17 @@
               <p class="account__error" role="alert" aria-live="assertive">{{ message }}</p>
             }
 
-            <button
-              type="submit"
-              class="account__save"
-              [disabled]="submitting() || !canSave()"
-              [attr.aria-busy]="submitting()"
-            >
-              {{ submitting() ? 'Salvando…' : 'Salvar' }}
-            </button>
+            <div class="account__actions-row">
+              <button
+                type="submit"
+                class="account__save"
+                [disabled]="submitting() || !canSave()"
+                [attr.aria-busy]="submitting()"
+              >
+                {{ submitting() ? 'Salvando…' : 'Salvar' }}
+              </button>
+              <p class="account__saved" role="status">{{ savedMessage() }}</p>
+            </div>
           </form>
         </section>
 

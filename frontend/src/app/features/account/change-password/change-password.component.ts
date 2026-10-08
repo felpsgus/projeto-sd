@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { UserApi } from '../../../core/api/user-api.service';
 import { SessionStore } from '../../../core/auth/session-store';
@@ -37,7 +37,12 @@ type ChangePasswordField = 'currentPassword' | 'newPassword' | 'confirmNewPasswo
  */
 @Component({
   selector: 'app-change-password',
-  imports: [ReactiveFormsModule, FormFieldErrorComponent, PasswordRequirementsComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    FormFieldErrorComponent,
+    PasswordRequirementsComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './change-password.component.html',
   styleUrl: './change-password.component.scss',
