@@ -15,7 +15,7 @@ import { SessionStore } from '../../../core/auth/session-store';
   template: `
     <div class="app-shell">
       <header class="app-shell__header">
-        <span class="app-shell__brand">TodoList</span>
+        <a routerLink="/tasks" class="app-shell__brand">TodoList</a>
         <div class="app-shell__account">
           <a routerLink="/account" class="app-shell__name">{{ displayName() }}</a>
           <button type="button" class="app-shell__logout" (click)="logout()">Sair</button>

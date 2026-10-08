@@ -1,9 +1,12 @@
 .http-status-indicator {
-  position: fixed;
-  right: var(--space-sm);
-  bottom: var(--space-sm);
-  z-index: 1000;
+  /* Em tela pequena fica no fluxo, ao fim da página: fixo cobriria o conteúdo (ex.: o botão de
+     envio do cadastro a 360px). */
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-sm) auto;
   display: flex;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
   gap: var(--space-2xs);
   align-items: center;
   padding: var(--space-3xs) var(--space-xs);
@@ -13,6 +16,14 @@
   font-size: var(--font-size-sm);
   opacity: 0.9;
   pointer-events: none;
+
+  @media (min-width: 40rem) {
+    position: fixed;
+    right: var(--space-sm);
+    bottom: var(--space-sm);
+    z-index: 1000;
+    margin: 0;
+  }
 
   &__status {
     font-weight: 600;

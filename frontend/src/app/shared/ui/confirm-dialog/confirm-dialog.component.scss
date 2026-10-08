@@ -43,6 +43,7 @@
 
   &__actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--space-sm);
   }
@@ -54,6 +55,8 @@
     font-weight: 500;
     cursor: pointer;
     transition: opacity 0.12s ease;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 
     &:disabled {
       opacity: 0.6;

@@ -63,6 +63,14 @@ describe('AppShellComponent (FE-11, CA-07)', () => {
   });
 });
 
+describe('AppShellComponent — marca', () => {
+  it('a marca "TodoList" é um link para /tasks', async () => {
+    await setup();
+
+    expect(screen.getByRole('link', { name: 'TodoList' })).toHaveAttribute('href', '/tasks');
+  });
+});
+
 describe('AppShellComponent — Sair (FE-10)', () => {
   it('"Sair" chama POST /api/auth/logout, encerra a sessão e não pede confirmação (CA-01/CA-02/CA-12)', async () => {
     const { session, fixture, httpMock } = await setup();

@@ -18,6 +18,11 @@
     font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--color-text);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 
   &__account {
