@@ -146,8 +146,8 @@ describe('TaskItemComponent', () => {
   });
 
   // FE-15, CA-02 (12:00Z evita virar o dia em qualquer fuso razoável)
-  it('exibe título, prioridade, vencimento, estado e data de atualização (CA-02)', async () => {
-    await setup({
+  it('exibe título, prioridade e vencimento; sem palavra de estado nem "Atualizada em" (CA-02)', async () => {
+    const { container } = await setup({
       task: makeTask({
         priority: 'High',
         dueDate: '2026-02-03',
@@ -156,18 +156,34 @@ describe('TaskItemComponent', () => {
     });
 
     expect(screen.getByText('Comprar pão')).toBeTruthy();
-    expect(screen.getByText('Alta')).toBeTruthy();
+    expect(screen.getByText('Prioridade alta')).toBeTruthy();
     expect(screen.getByText(/03\/02\/2026/)).toBeTruthy();
-    expect(screen.getByText('Pendente')).toBeTruthy();
-    expect(screen.getByText(/atualizada em 05\/03\/2026/i)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/pendente|atualizada em/i);
+  });
+
+  it.each([
+    ['Low', 'Prioridade baixa'],
+    ['Medium', 'Prioridade média'],
+    ['High', 'Prioridade alta'],
+  ] as const)('prioridade %s aparece como "%s"', async (priority, phrase) => {
+    await setup({ task: makeTask({ priority }) });
+
+    expect(screen.getByText(phrase)).toBeTruthy();
+  });
+
+  it('tarefa concluída mostra "Concluída em" e nenhuma palavra de estado solta', async () => {
+    await setup({ task: makeTask({ status: 'Completed', completedAt: '2026-01-02T12:00:00Z' }) });
+
+    expect(screen.getByText(/^Concluída em 02\/01\/2026/)).toBeTruthy();
+    expect(screen.queryByText(/^Concluída$/)).toBeNull();
   });
 
   // FE-15, CA-03
-  it('sem descrição nem vencimento não mostra campo vazio nem "null" (CA-03)', async () => {
+  it('sem descrição nem vencimento não mostra campo vazio, "null" nem "Sem vencimento" (CA-03)', async () => {
     const { container } = await setup({ task: makeTask({ description: null, dueDate: null }) });
 
-    expect(container.textContent).not.toMatch(/null|undefined/);
-    expect(screen.getByText('Sem vencimento')).toBeTruthy();
+    expect(container.textContent).not.toMatch(/null|undefined|sem vencimento/i);
+    expect(container.querySelector('.task-item__due-group')).toBeNull();
     expect(container.querySelector('.task-item__description')).toBeNull();
   });
 

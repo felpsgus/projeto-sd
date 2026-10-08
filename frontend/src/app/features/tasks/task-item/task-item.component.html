@@ -21,54 +21,33 @@
     <div class="task-item__heading">
       <h2 #title class="task-item__title" tabindex="-1">{{ task().title }}</h2>
 
-      <div class="task-item__due-group" [class.task-item__due-group--overdue]="task().isOverdue">
-        <p class="task-item__due tabular-nums">
-          <span class="visually-hidden">Vencimento: </span>
-          @if (task().isOverdue) {
-            <span class="task-item__due-dot" aria-hidden="true"></span>
-          }
-          @if (dueDateLabel(); as dueDate) {
+      @if (dueDateLabel(); as dueDate) {
+        <div class="task-item__due-group" [class.task-item__due-group--overdue]="task().isOverdue">
+          <p class="task-item__due tabular-nums">
+            <span class="visually-hidden">Vencimento: </span>
+            @if (task().isOverdue) {
+              <span class="task-item__due-dot" aria-hidden="true"></span>
+            }
             {{ dueDate }}
-          } @else {
-            Sem vencimento
-          }
-        </p>
+          </p>
 
-        @if (task().isOverdue) {
-          <p class="task-item__overdue-label">Atrasada</p>
-        }
-      </div>
+          @if (task().isOverdue) {
+            <p class="task-item__overdue-label">Atrasada</p>
+          }
+        </div>
+      }
     </div>
 
     @if (task().description; as description) {
       <p class="task-item__description">{{ description }}</p>
     }
 
-    <dl class="task-item__meta">
-      <div class="task-item__meta-item">
-        <dt class="visually-hidden">Prioridade</dt>
-        <dd>{{ priorityLabel() }}</dd>
-      </div>
-
-      <div class="task-item__meta-item">
-        <dt class="visually-hidden">Estado</dt>
-        <dd>{{ statusLabel() }}</dd>
-      </div>
-
+    <p class="task-item__meta">
+      <span>{{ priorityLabel() }}</span>
       @if (task().completedAt; as completedAt) {
-        <div class="task-item__meta-item">
-          <dt class="visually-hidden">Concluída em</dt>
-          <dd class="tabular-nums">Concluída em {{ completedAt | date: 'dd/MM/yyyy HH:mm' }}</dd>
-        </div>
+        <span class="tabular-nums">Concluída em {{ completedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
       }
-
-      <div class="task-item__meta-item task-item__meta-item--updated">
-        <dt class="visually-hidden">Última atualização</dt>
-        <dd class="tabular-nums">
-          Atualizada em {{ task().updatedAt | date: 'dd/MM/yyyy HH:mm' }}
-        </dd>
-      </div>
-    </dl>
+    </p>
 
     @if (actionError(); as message) {
       <p class="task-item__action-error" role="alert">{{ message }}</p>

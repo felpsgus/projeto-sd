@@ -11,7 +11,7 @@ import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { TaskResponse } from '../../../core/api/models/task.models';
-import { PRIORITY_LABELS, STATUS_LABELS } from '../task-labels';
+import { PRIORITY_LABELS } from '../task-labels';
 import { formatDueDate } from '../task-date.util';
 import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog/confirm-dialog.component';
 
@@ -58,11 +58,7 @@ export class TaskItemComponent {
 
   protected priorityLabel(): string {
     const priority = this.task().priority;
-    return priority ? PRIORITY_LABELS[priority] : 'Sem prioridade';
-  }
-
-  protected statusLabel(): string {
-    return STATUS_LABELS[this.task().status];
+    return priority ? `Prioridade ${PRIORITY_LABELS[priority].toLowerCase()}` : 'Sem prioridade';
   }
 
   protected dueDateLabel(): string | null {
