@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T00:00:00Z",
+  "title": "Design System: TodoList",
+  "extensions": {
+    "colorMeta": {
+      "azul-tinta": {
+        "role": "primary",
+        "displayName": "Azul Tinta",
+        "canonical": "#1f3fd8",
+        "tonalRamp": ["oklch(15% 0.1 266)", "oklch(27% 0.16 266)", "oklch(38% 0.21 266)", "oklch(50% 0.22 266)", "oklch(62% 0.18 266)", "oklch(74% 0.13 266)", "oklch(86% 0.07 266)", "oklch(95% 0.03 266)"]
+      },
+      "sobre-tinta": { "role": "primary", "displayName": "Sobre Tinta", "canonical": "#ffffff" },
+      "papel": { "role": "neutral", "displayName": "Papel", "canonical": "#fbfbfa" },
+      "folha": { "role": "neutral", "displayName": "Folha", "canonical": "#ffffff" },
+      "grafite": {
+        "role": "neutral",
+        "displayName": "Grafite",
+        "canonical": "#14161a",
+        "tonalRamp": ["oklch(15% 0.01 265)", "oklch(27% 0.01 265)", "oklch(38% 0.012 265)", "oklch(50% 0.014 265)", "oklch(62% 0.012 265)", "oklch(74% 0.01 265)", "oklch(86% 0.006 265)", "oklch(95% 0.003 265)"]
+      },
+      "grafite-suave": { "role": "neutral", "displayName": "Grafite Suave", "canonical": "#5b606b" },
+      "fio": { "role": "neutral", "displayName": "Fio", "canonical": "#e3e4e8" },
+      "perigo": {
+        "role": "tertiary",
+        "displayName": "Perigo",
+        "canonical": "#b42318",
+        "tonalRamp": ["oklch(15% 0.06 28)", "oklch(27% 0.1 28)", "oklch(38% 0.15 28)", "oklch(50% 0.18 28)", "oklch(62% 0.17 28)", "oklch(74% 0.12 28)", "oklch(86% 0.06 28)", "oklch(95% 0.025 28)"]
+      },
+      "sucesso": {
+        "role": "tertiary",
+        "displayName": "Sucesso",
+        "canonical": "#15653f",
+        "tonalRamp": ["oklch(15% 0.04 157)", "oklch(27% 0.07 157)", "oklch(38% 0.09 157)", "oklch(50% 0.11 157)", "oklch(62% 0.12 157)", "oklch(74% 0.11 157)", "oklch(86% 0.07 157)", "oklch(95% 0.03 157)"]
+      },
+      "azul-tinta-escuro": { "role": "primary", "displayName": "Azul Tinta (escuro)", "canonical": "#8aa0ff" },
+      "sobre-tinta-escuro": { "role": "primary", "displayName": "Sobre Tinta (escuro)", "canonical": "#0b0d12" },
+      "papel-escuro": { "role": "neutral", "displayName": "Papel (escuro)", "canonical": "#101114" },
+      "folha-escuro": { "role": "neutral", "displayName": "Folha (escuro)", "canonical": "#16181c" },
+      "grafite-escuro": { "role": "neutral", "displayName": "Grafite (escuro)", "canonical": "#e9eaee" },
+      "grafite-suave-escuro": { "role": "neutral", "displayName": "Grafite Suave (escuro)", "canonical": "#9aa0ac" },
+      "fio-escuro": { "role": "neutral", "displayName": "Fio (escuro)", "canonical": "#26282e" },
+      "perigo-escuro": { "role": "tertiary", "displayName": "Perigo (escuro)", "canonical": "#ff6b5e" },
+      "sucesso-escuro": { "role": "tertiary", "displayName": "Sucesso (escuro)", "canonical": "#4ade80" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "O <h1> único de cada página." },
+      "title": { "displayName": "Title", "purpose": "<h2> de seção e título de diálogo." },
+      "subtitle": { "displayName": "Subtitle", "purpose": "Título da tarefa na lista, nome do app no cabeçalho e <h3>." },
+      "body": { "displayName": "Body", "purpose": "Texto corrido, valores e campos." },
+      "label": { "displayName": "Label", "purpose": "Rótulos de campo; em 400, metadados, dicas, contadores e erros." }
+    },
+    "shadows": [
+      { "name": "dialog", "value": "0 12px 32px color-mix(in srgb, var(--color-text) 18%, transparent)", "purpose": "Única sombra do sistema: o diálogo modal." }
+    ],
+    "motion": [
+      { "name": "state", "value": "0.12s ease", "purpose": "Transição de border-color e opacity em hover." },
+      { "name": "skip-link", "value": "0.15s ease-in-out", "purpose": "Entrada do skip link ao receber foco." },
+      { "name": "spinner", "value": "0.7s linear infinite", "purpose": "Rotação do spinner; parada sob prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "filtros-empilhados", "value": "22.5rem" },
+      { "name": "alvos-de-toque", "value": "40rem" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "A única ação principal da tela: Entrar, Salvar, Nova tarefa.",
+      "html": "<button class=\"ds-btn-primary\">Salvar</button>",
+      "css": ".ds-btn-primary { padding: var(--space-xs) var(--space-md); font: 500 var(--font-size-base) var(--font-family); color: var(--color-accent-contrast); background: var(--color-accent); border: none; border-radius: var(--radius-sm); cursor: pointer; transition: opacity 0.12s ease; } .ds-btn-primary:hover { opacity: 0.92; } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botão secundário",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Cancelar, Sair, Remover e paginação.",
+      "html": "<button class=\"ds-btn-secondary\">Cancelar</button>",
+      "css": ".ds-btn-secondary { padding: var(--space-xs) var(--space-md); font: 500 var(--font-size-base) var(--font-family); color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-sm); cursor: pointer; transition: border-color 0.12s ease; } .ds-btn-secondary:hover { border-color: var(--color-text-secondary); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botão de perigo",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Só na confirmação destrutiva dentro do diálogo.",
+      "html": "<button class=\"ds-btn-danger\">Remover</button>",
+      "css": ".ds-btn-danger { padding: var(--space-xs) var(--space-md); font: 500 var(--font-size-base) var(--font-family); color: var(--color-danger); background: var(--color-danger-surface); border: 1px solid var(--color-danger); border-radius: var(--radius-sm); cursor: pointer; transition: opacity 0.12s ease; } .ds-btn-danger:hover { background: color-mix(in srgb, var(--color-danger) 16%, var(--color-surface)); } .ds-btn-danger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Campo de formulário",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Rótulo acima, campo com borda fina; erro pela borda e mensagem abaixo.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-titulo\">Título</label><input id=\"ds-titulo\" type=\"text\" value=\"Revisar o relatório\" /></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: var(--space-3xs); font-family: var(--font-family); } .ds-field label { font-weight: 500; font-size: var(--font-size-sm); color: var(--color-text-secondary); } .ds-field input { padding: var(--space-xs) var(--space-sm); font: inherit; font-size: var(--font-size-base); color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); transition: border-color 0.12s ease; } .ds-field input:hover { border-color: var(--color-text-secondary); } .ds-field input:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; } .ds-field input[aria-invalid='true'] { border-color: var(--color-danger); }"
+    },
+    {
+      "name": "Cabeçalho",
+      "kind": "nav",
+      "description": "Nome do app à esquerda, conta e Sair à direita.",
+      "html": "<header class=\"ds-header\"><span class=\"ds-header-brand\">TodoList</span><span class=\"ds-header-account\"><a class=\"ds-header-name\" href=\"#\">maria</a><button class=\"ds-header-logout\">Sair</button></span></header>",
+      "css": ".ds-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); font-family: var(--font-family); background: var(--color-surface); border-bottom: 1px solid var(--color-border); } .ds-header-brand { font-size: var(--font-size-md); font-weight: 600; color: var(--color-text); } .ds-header-account { display: flex; align-items: center; gap: var(--space-sm); } .ds-header-name { color: var(--color-text-secondary); font-size: var(--font-size-sm); text-decoration: none; } .ds-header-name:hover { color: var(--color-text); text-decoration: underline; } .ds-header-logout { padding: var(--space-2xs) var(--space-sm); font: inherit; font-size: var(--font-size-sm); color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius-sm); cursor: pointer; transition: border-color 0.12s ease; } .ds-header-logout:hover { border-color: var(--color-text-secondary); } .ds-header-logout:focus-visible, .ds-header-name:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Linha de tarefa",
+      "kind": "custom",
+      "description": "Régua de prioridade à esquerda, título, vencimento à direita; atraso em vermelho com ponto e rótulo.",
+      "html": "<div class=\"ds-task\"><span class=\"ds-task-rule\"></span><div class=\"ds-task-body\"><div class=\"ds-task-heading\"><h3 class=\"ds-task-title\">Entregar o trabalho de SD</h3><div class=\"ds-task-due-group\"><p class=\"ds-task-due\"><span class=\"ds-task-dot\"></span>05/10/2026</p><p class=\"ds-task-overdue\">Atrasada</p></div></div><p class=\"ds-task-desc\">Subir a stack e ensaiar a demo.</p></div></div>",
+      "css": ".ds-task { display: flex; gap: var(--space-sm); padding: var(--space-sm) 0; font-family: var(--font-family); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); } .ds-task-rule { flex: none; width: var(--priority-high-width); align-self: stretch; background: var(--color-accent); opacity: var(--priority-high-opacity); border-radius: 1px; } .ds-task-body { flex: 1; min-width: 0; } .ds-task-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); } .ds-task-title { margin: 0; font-size: var(--font-size-md); font-weight: 500; color: var(--color-text); } .ds-task-due-group { display: flex; flex-direction: column; align-items: flex-end; flex: none; } .ds-task-due { display: inline-flex; align-items: center; gap: var(--space-3xs); margin: 0; color: var(--color-danger); font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; } .ds-task-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-danger); } .ds-task-overdue { margin: var(--space-3xs) 0 0; color: var(--color-danger); font-size: var(--font-size-sm); font-weight: 600; } .ds-task-desc { margin: var(--space-3xs) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-base); }"
+    },
+    {
+      "name": "Aviso em linha",
+      "kind": "custom",
+      "description": "Barra de 2 px à esquerda com fundo tingido: erro de formulário, de ação ou de página.",
+      "html": "<p class=\"ds-notice\" role=\"alert\">E-mail ou senha inválidos.</p>",
+      "css": ".ds-notice { margin: 0; padding: var(--space-xs) var(--space-sm); font-family: var(--font-family); font-size: var(--font-size-sm); color: var(--color-danger); background: var(--color-danger-surface); border-left: 2px solid var(--color-danger); }"
+    },
+    {
+      "name": "Cartão de autenticação",
+      "kind": "card",
+      "refersTo": "auth-card",
+      "description": "O único cartão do sistema: login e cadastro, centralizado na tela.",
+      "html": "<div class=\"ds-auth-card\"><h1 class=\"ds-auth-title\">Entrar</h1><p class=\"ds-auth-text\">Acesse a sua lista de tarefas.</p></div>",
+      "css": ".ds-auth-card { max-width: 24rem; padding: var(--space-lg); font-family: var(--font-family); color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); } .ds-auth-title { margin: 0 0 var(--space-md); font-size: var(--font-size-xl); font-weight: 600; line-height: var(--line-height-tight); } .ds-auth-text { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-base); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "A Bancada Limpa",
+    "overview": "Uma mesa de trabalho sem nada sobrando. Só a ferramenta em uso está à vista, e um único acento indica onde agir. A interface é contida e exata: superfície calma, fios de 1 px, sombra quase ausente, e a hierarquia vem de peso tipográfico e espaço — nunca de cartões empilhados.\n\nA densidade é confortável, não compacta: coluna única de leitura, linhas de lista separadas por fio, espaço generoso entre blocos. Cor é rara e sempre significa algo: azul é ação, vermelho é atraso ou erro, e o resto é neutro levemente frio.\n\nO sistema funciona sem nada de fora da própria origem. A fonte é servida pelo app, não há ícones de biblioteca nem imagens, e o tema escuro segue o sistema operacional sem botão e sem persistência.",
+    "keyCharacteristics": [
+      "Um único acento (Azul Tinta); todo o resto é neutro.",
+      "Fios de 1 px no lugar de cartões e sombras.",
+      "Um só raio (0.5rem) em tudo que tem canto.",
+      "Uma só família tipográfica, hierarquia por peso (400/500/600).",
+      "Transições de 120 ms, só em `border-color` e `opacity`.",
+      "Tema claro e escuro por `prefers-color-scheme`."
+    ],
+    "rules": [
+      { "name": "A Regra da Tinta Única", "body": "Só existe um acento. Prioridade, seleção e ação usam o Azul Tinta variando espessura e opacidade; nunca se introduz um segundo matiz para diferenciar.", "section": "colors" },
+      { "name": "A Regra do Vermelho Reservado", "body": "Vermelho só aparece para atraso e erro. Remover uma tarefa não é perigo — o botão da linha é neutro; só a confirmação no diálogo usa a cor de perigo.", "section": "colors" },
+      { "name": "A Regra do Arquivo Único", "body": "Nenhum valor de cor literal existe fora de `styles.scss`.", "section": "colors" },
+      { "name": "A Regra dos Três Pesos", "body": "Só 400, 500 e 600. Ênfase é peso, nunca itálico, caixa alta ou cor.", "section": "typography" },
+      { "name": "A Regra dos Números Tabulares", "body": "Datas e contadores usam `.tabular-nums`; prosa corrida, nunca.", "section": "typography" },
+      { "name": "A Regra do Plano", "body": "Nada flutua em repouso. Sombra só existe no diálogo modal, que de fato está acima da página.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar só custom properties de `styles.scss` para cor, espaço, raio e tipografia.",
+      "Do derivar superfícies tingidas com `color-mix` sobre `--color-surface` (8% acento, 10% perigo/sucesso).",
+      "Do separar itens e blocos com fio de 1 px na cor Fio.",
+      "Do manter um único botão primário por tela.",
+      "Do acompanhar toda cor com texto ou forma (rótulo \"Atrasada\", espessura da régua).",
+      "Do limitar transições a `border-color` e `opacity`, em 120 ms.",
+      "Do servir fontes e assets pela própria origem.",
+      "Do conferir contraste ≥ 4.5:1 nos dois temas ao tocar em qualquer token de cor."
+    ],
+    "donts": [
+      "Don't escrever cor literal (`#hex`, `rgb()`) fora de `styles.scss`.",
+      "Don't introduzir um segundo acento nem cores de semáforo para prioridade.",
+      "Don't usar vermelho em ação que não seja erro, atraso ou confirmação destrutiva.",
+      "Don't envolver linhas de lista ou seções em cartões com sombra.",
+      "Don't adicionar sombra fora do diálogo modal.",
+      "Don't preencher botão destrutivo com vermelho sólido.",
+      "Don't carregar fonte, ícone, script ou imagem de CDN.",
+      "Don't criar alternância manual de tema nem gravar preferência em `localStorage`.",
+      "Don't remover `outline` de foco sem substituto visível."
+    ]
+  }
+}
