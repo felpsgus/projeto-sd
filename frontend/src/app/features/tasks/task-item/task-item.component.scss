@@ -14,21 +14,34 @@
   /* A prioridade é uma régua vertical à esquerda: espessura e opacidade crescem de Baixa
      para Alta — nunca uma cor de semáforo (FE-04). */
   &__rule {
+    --rule-width: var(--priority-low-width);
+    --rule-opacity: var(--priority-low-opacity);
+
+    position: relative;
     flex: none;
-    width: var(--priority-low-width);
+    width: var(--priority-high-width);
     align-self: stretch;
-    background: var(--color-accent);
-    opacity: var(--priority-low-opacity);
-    border-radius: 1px;
+
+    /* A coluna tem largura constante (alinha checkbox e título entre linhas); a barra é
+       desenhada à esquerda com a espessura e a opacidade da prioridade. */
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--rule-width);
+      background: var(--color-accent);
+      opacity: var(--rule-opacity);
+      border-radius: 1px;
+    }
 
     &--medium {
-      width: var(--priority-medium-width);
-      opacity: var(--priority-medium-opacity);
+      --rule-width: var(--priority-medium-width);
+      --rule-opacity: var(--priority-medium-opacity);
     }
 
     &--high {
-      width: var(--priority-high-width);
-      opacity: var(--priority-high-opacity);
+      --rule-width: var(--priority-high-width);
+      --rule-opacity: var(--priority-high-opacity);
     }
   }
 
@@ -91,6 +104,25 @@
     white-space: nowrap;
   }
 
+  /* Tela pequena: com o checkbox à esquerda não sobra largura para título e vencimento lado a
+     lado (nem com zoom de texto a 200%) — o vencimento desce para baixo do título e pode quebrar. */
+  @media (max-width: 40rem) {
+    &__heading {
+      flex-direction: column;
+      gap: var(--space-3xs);
+    }
+
+    &__due-group {
+      align-items: flex-start;
+    }
+
+    &__due,
+    &__overdue-label {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+
   &__description {
     margin: var(--space-3xs) 0 0;
     color: var(--color-text-secondary);
@@ -113,6 +145,11 @@
 
   &__meta-item--updated {
     margin-left: auto;
+
+    /* Em tela pequena quebra de linha: alinha à esquerda com os outros metadados. */
+    @media (max-width: 40rem) {
+      margin-left: 0;
+    }
   }
 
   &__action-error {
@@ -132,15 +169,25 @@
     margin-top: var(--space-2xs);
   }
 
+  /* Primeiro gesto da linha: alinhado à primeira linha do título, não ao centro da linha alta. */
   &__toggle {
     display: inline-flex;
+    flex: none;
     align-items: center;
-    gap: var(--space-3xs);
-    font-size: var(--font-size-sm);
+    align-self: flex-start;
+    min-height: calc(var(--font-size-md) * var(--line-height-tight));
     cursor: pointer;
 
     input[disabled] {
       cursor: not-allowed;
+    }
+
+    @media (max-width: 40rem), (pointer: coarse) {
+      justify-content: center;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      /* Centra o checkbox na primeira linha do título, sem aumentar a altura da linha. */
+      margin-top: calc((var(--font-size-md) * var(--line-height-tight) - 2.75rem) / 2);
     }
   }
 

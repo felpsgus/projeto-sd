@@ -4,77 +4,102 @@
     <a routerLink="/tasks/new" class="tasks-page__new">Nova tarefa</a>
   </header>
 
-  <form class="tasks-page__filters" (submit)="$event.preventDefault()" aria-label="Filtrar tarefas">
-    <fieldset class="tasks-page__filter-group">
-      <legend>Estado</legend>
-      <label>
-        <input
-          type="radio"
-          name="tasks-status"
-          [checked]="isStatusSelected('all')"
-          (change)="onStatusChange('all')"
-        />
-        Todas
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="tasks-status"
-          [checked]="isStatusSelected('pending')"
-          (change)="onStatusChange('pending')"
-        />
-        Pendentes
-      </label>
-      <label>
-        <input
-          type="radio"
-          name="tasks-status"
-          [checked]="isStatusSelected('completed')"
-          (change)="onStatusChange('completed')"
-        />
-        Concluídas
-      </label>
-    </fieldset>
-
-    <fieldset class="tasks-page__filter-group">
-      <legend>Prioridade</legend>
-      @for (priority of priorityOptions; track priority) {
+  @if (!store.isEmpty()) {
+    <form
+      class="tasks-page__filters"
+      (submit)="$event.preventDefault()"
+      aria-label="Filtrar tarefas"
+    >
+      <fieldset class="tasks-page__filter-group">
+        <legend>Estado</legend>
         <label>
           <input
-            type="checkbox"
-            [checked]="isPriorityChecked(priority)"
-            (change)="onPriorityToggle(priority)"
+            type="radio"
+            name="tasks-status"
+            [checked]="isStatusSelected('all')"
+            (change)="onStatusChange('all')"
           />
-          {{ priorityLabels[priority] }}
+          Todas
         </label>
+        <label>
+          <input
+            type="radio"
+            name="tasks-status"
+            [checked]="isStatusSelected('pending')"
+            (change)="onStatusChange('pending')"
+          />
+          Pendentes
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="tasks-status"
+            [checked]="isStatusSelected('completed')"
+            (change)="onStatusChange('completed')"
+          />
+          Concluídas
+        </label>
+      </fieldset>
+
+      <label class="tasks-page__filter-search">
+        <span>Buscar</span>
+        <input
+          type="search"
+          name="tasks-search"
+          placeholder="Título ou descrição"
+          [value]="searchInputValue()"
+          (input)="onSearchInput($event)"
+        />
+      </label>
+
+      <details class="tasks-page__more-filters" [open]="moreFiltersInitiallyOpen">
+        <summary>{{ moreFiltersLabel() }}</summary>
+        <div class="tasks-page__more-filters-body">
+          <fieldset class="tasks-page__filter-group">
+            <legend>Prioridade</legend>
+            @for (priority of priorityOptions; track priority) {
+              <label>
+                <input
+                  type="checkbox"
+                  [checked]="isPriorityChecked(priority)"
+                  (change)="onPriorityToggle(priority)"
+                />
+                {{ priorityLabels[priority] }}
+              </label>
+            }
+          </fieldset>
+
+          <label class="tasks-page__filter-toggle">
+            <input
+              type="checkbox"
+              [checked]="isOverdueChecked()"
+              [disabled]="isStatusSelected('completed')"
+              (change)="onOverdueToggle($event)"
+            />
+            Somente atrasadas
+          </label>
+        </div>
+      </details>
+
+      @if (hasActiveFilters()) {
+        <button type="button" class="tasks-page__clear-filters" (click)="clearFilters()">
+          Limpar filtros
+        </button>
       }
-    </fieldset>
-
-    <label class="tasks-page__filter-toggle">
-      <input type="checkbox" [checked]="isOverdueChecked()" (change)="onOverdueToggle($event)" />
-      Somente atrasadas
-    </label>
-
-    <label class="tasks-page__filter-search">
-      <span>Buscar</span>
-      <input
-        type="search"
-        name="tasks-search"
-        placeholder="Título ou descrição"
-        [value]="searchInputValue()"
-        (input)="onSearchInput($event)"
-      />
-    </label>
-
-    @if (hasActiveFilters()) {
-      <button type="button" class="tasks-page__clear-filters" (click)="clearFilters()">
-        Limpar filtros
-      </button>
-    }
-  </form>
+    </form>
+  }
 
   @if (pageNotice(); as notice) {
     <p class="tasks-page__notice" role="alert">{{ notice }}</p>
+  }
+
+  @if (successNotice(); as notice) {
+    <p class="tasks-page__notice tasks-page__notice--success">
+      {{ notice.text }}
+      @if (notice.undo; as action) {
+        <button type="button" class="tasks-page__undo" (click)="undo(action)">Desfazer</button>
+      }
+    </p>
   }
 
   <p class="visually-hidden tasks-page__announcement" aria-live="polite">{{ announcement() }}</p>

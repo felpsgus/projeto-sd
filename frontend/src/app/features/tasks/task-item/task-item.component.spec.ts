@@ -73,13 +73,13 @@ describe('TaskItemComponent', () => {
     expect(screen.getByRole('button', { name: /remover/i })).toBeDisabled();
   });
 
-  it('anuncia a mudança de estado num elemento aria-live (CA-20 de FE-19)', async () => {
-    const { fixture, detectChanges } = await setup({ task: makeTask({ status: 'Pending' }) });
+  it('a caixa de conclusão vem antes do título e não repete o rótulo como texto visível', async () => {
+    await setup();
 
-    fixture.componentRef.setInput('task', makeTask({ status: 'Completed' }));
-    detectChanges();
-
-    expect(await screen.findByText('Tarefa concluída.')).toBeTruthy();
+    const checkbox = screen.getByRole('checkbox', { name: 'Concluir: Comprar pão' });
+    const title = screen.getByRole('heading', { name: 'Comprar pão' });
+    expect(checkbox.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText('Concluir')).toBeNull();
   });
 
   it('clicar em "Remover" abre o diálogo de confirmação com o título da tarefa (CA-01/CA-02 de FE-20)', async () => {

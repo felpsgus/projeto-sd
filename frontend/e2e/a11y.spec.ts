@@ -508,7 +508,7 @@ function expectedTabbables(page: Page): Promise<{ id: number; name: string }[]> 
     const seenGroups = new Set<string>();
     return Array.from(
       document.querySelectorAll<HTMLElement>(
-        'a[href], button, input, select, textarea, [tabindex]',
+        'a[href], button, input, select, textarea, summary, [tabindex]',
       ),
     )
       .filter((el) => {
@@ -742,7 +742,7 @@ test.describe('só teclado', () => {
     page,
   }) => {
     const user = await registerAndLoginViaApi(page);
-    await press(page, page.getByRole('banner').getByRole('link'));
+    await press(page, page.getByRole('banner').locator('a[href="/account"]'));
     await expect(page.getByRole('heading', { level: 1, name: 'Minha conta' })).toBeVisible();
 
     // o formulário é preenchido quando o perfil chega: digitar antes seria sobrescrito
@@ -874,7 +874,7 @@ test('erro é anunciado em região assertiva; sucesso e aviso em região educada
   await createTask(page, 'Tarefa do aviso');
   await page.getByRole('checkbox', { name: 'Concluir: Tarefa do aviso' }).check();
   await expect(
-    page.locator('[aria-live="polite"]').filter({ hasText: 'Tarefa concluída.' }),
+    page.locator('[aria-live="polite"]').filter({ hasText: 'Tarefa "Tarefa do aviso" concluída.' }),
   ).toHaveCount(1);
 
   await page.getByRole('link', { name: 'Nova tarefa' }).click();

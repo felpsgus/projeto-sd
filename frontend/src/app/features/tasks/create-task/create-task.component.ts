@@ -33,7 +33,7 @@ export class CreateTaskComponent implements CanComponentDeactivate {
     this.tasksStore.create(value).subscribe({
       next: () => {
         this.savedSuccessfully = true;
-        void this.router.navigateByUrl('/tasks');
+        void this.router.navigateByUrl('/tasks', { state: { notice: 'Tarefa criada.' } });
       },
       error: (error: AppError) => {
         this.taskForm?.submitFailed(error);

@@ -44,6 +44,11 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
     text-align: right;
+
+    &--over {
+      color: var(--color-danger);
+      font-weight: 600;
+    }
   }
 
   &__hint {

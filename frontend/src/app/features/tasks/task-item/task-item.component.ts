@@ -3,16 +3,14 @@ import {
   Component,
   ElementRef,
   ViewChild,
-  effect,
   input,
   output,
-  signal,
   viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
-import { TaskResponse, TaskStatus } from '../../../core/api/models/task.models';
+import { TaskResponse } from '../../../core/api/models/task.models';
 import { PRIORITY_LABELS, STATUS_LABELS } from '../task-labels';
 import { formatDueDate } from '../task-date.util';
 import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog/confirm-dialog.component';
@@ -53,22 +51,6 @@ export class TaskItemComponent {
 
   private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
 
-  protected readonly liveMessage = signal('');
-
-  private previousStatus: TaskStatus | null = null;
-
-  constructor() {
-    // Anuncia a mudança de estado a leitor de tela (FE-19, CA-20) — só quando o status
-    // efetivamente mudar (não no primeiro render, que não é uma "mudança").
-    effect(() => {
-      const current = this.task().status;
-      if (this.previousStatus !== null && this.previousStatus !== current) {
-        this.liveMessage.set(current === 'Completed' ? 'Tarefa concluída.' : 'Tarefa reaberta.');
-      }
-      this.previousStatus = current;
-    });
-  }
-
   /** Move o foco para o título — alvo quando o item vizinho sai da lista (FE-20, CA-20). */
   focusTitle(): void {
     this.title().nativeElement.focus();
@@ -85,10 +67,6 @@ export class TaskItemComponent {
 
   protected dueDateLabel(): string | null {
     return formatDueDate(this.task().dueDate);
-  }
-
-  protected toggleLabel(): string {
-    return this.task().status === 'Completed' ? 'Reabrir' : 'Concluir';
   }
 
   protected toggleAriaLabel(): string {

@@ -97,12 +97,27 @@
       border: 1px solid var(--color-border);
       border-radius: var(--radius-sm);
       min-width: min(12rem, 100%);
+    }
+  }
 
-      &:focus-visible {
-        outline: none;
-        box-shadow: var(--shadow-focus);
+  &__more-filters {
+    summary {
+      align-content: center; /* centraliza no alvo de 44 px sem perder o marcador nativo */
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+
+      @media (max-width: 40rem), (pointer: coarse) {
+        min-height: 2.75rem;
       }
     }
+  }
+
+  &__more-filters-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    padding-top: var(--space-2xs);
   }
 
   &__clear-filters {
@@ -179,4 +194,28 @@
   background: var(--color-danger-surface);
   border-left: 2px solid var(--color-danger);
   font-size: var(--font-size-sm);
+
+  &--success {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--color-success);
+    background: var(--color-success-surface);
+    border-left-color: var(--color-success);
+  }
+}
+
+.tasks-page__undo {
+  padding: 0 var(--space-2xs);
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
 }

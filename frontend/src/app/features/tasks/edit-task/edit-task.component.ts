@@ -99,7 +99,7 @@ export class EditTaskComponent implements OnInit, CanComponentDeactivate {
     this.tasksStore.update(this.taskId, value).subscribe({
       next: () => {
         this.savedSuccessfully = true;
-        void this.router.navigateByUrl('/tasks');
+        void this.router.navigateByUrl('/tasks', { state: { notice: 'Tarefa atualizada.' } });
       },
       error: (error: AppError) => {
         if (error.status === 404) {

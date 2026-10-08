@@ -7,6 +7,16 @@
     aria-hidden="true"
   ></span>
 
+  <label class="task-item__toggle">
+    <input
+      type="checkbox"
+      [checked]="task().status === 'Completed'"
+      [disabled]="pending()"
+      [attr.aria-label]="toggleAriaLabel()"
+      (change)="onToggle()"
+    />
+  </label>
+
   <div class="task-item__body">
     <div class="task-item__heading">
       <h2 #title class="task-item__title" tabindex="-1">{{ task().title }}</h2>
@@ -41,7 +51,7 @@
       </div>
 
       <div class="task-item__meta-item">
-        <dt class="visually-hidden">Situação</dt>
+        <dt class="visually-hidden">Estado</dt>
         <dd>{{ statusLabel() }}</dd>
       </div>
 
@@ -60,24 +70,11 @@
       </div>
     </dl>
 
-    <p class="visually-hidden" aria-live="polite">{{ liveMessage() }}</p>
-
     @if (actionError(); as message) {
       <p class="task-item__action-error" role="alert">{{ message }}</p>
     }
 
     <div class="task-item__actions">
-      <label class="task-item__toggle">
-        <input
-          type="checkbox"
-          [checked]="task().status === 'Completed'"
-          [disabled]="pending()"
-          [attr.aria-label]="toggleAriaLabel()"
-          (change)="onToggle()"
-        />
-        <span aria-hidden="true">{{ toggleLabel() }}</span>
-      </label>
-
       <a
         class="task-item__edit"
         [routerLink]="['/tasks', task().id, 'edit']"

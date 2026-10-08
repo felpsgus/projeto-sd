@@ -97,6 +97,21 @@ export class TasksPageComponent {
     hasActiveTaskFilters(this.queryState().filters),
   );
 
+  /** Filtros dentro de "Mais filtros": prioridades marcadas + "somente atrasadas". */
+  private readonly moreFiltersCount = computed(() => {
+    const { priority, overdue } = this.queryState().filters;
+    return priority.length + (overdue === true ? 1 : 0);
+  });
+
+  protected readonly moreFiltersLabel = computed(() => {
+    const count = this.moreFiltersCount();
+    return count > 0 ? `Mais filtros (${count})` : 'Mais filtros';
+  });
+
+  /** Estado inicial do `<details>`: aberto se a URL já traz um desses filtros. Lido uma vez, de
+   * propósito não reativo — depois disso quem manda é o usuário. */
+  protected readonly moreFiltersInitiallyOpen = this.moreFiltersCount() > 0;
+
   protected readonly resultsSummary = computed(() => {
     const total = this.store.totalCount();
     const base = total === 1 ? '1 tarefa encontrada' : `${total} tarefas encontradas`;
@@ -114,6 +129,11 @@ export class TasksPageComponent {
   /** Aviso de 404 (item já sumiu da lista): fica na página, não no item removido. */
   private readonly pageNoticeSignal = signal<string | null>(null);
   protected readonly pageNotice = this.pageNoticeSignal.asReadonly();
+  /** Confirmação de criar/editar (vinda do estado da navegação, não do `history.state`, para não
+   * reaparecer no F5) ou de concluir/reabrir (com `undo`). Some junto com o aviso de página:
+   * filtro, página ou ação de item — por isso só a última ação pode ser desfeita. */
+  private readonly successNoticeSignal = signal<{ text: string; undo?: () => void } | null>(null);
+  protected readonly successNotice = this.successNoticeSignal.asReadonly();
   /** Anúncio a leitor de tela (região viva da página, sempre no DOM): sobrevive à remoção do item. */
   protected readonly announcement = signal('');
 
@@ -124,9 +144,17 @@ export class TasksPageComponent {
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const state = parseTasksQueryParams(params);
       this.pageNoticeSignal.set(null);
+      this.successNoticeSignal.set(null);
       this.announcement.set('');
       this.store.load(state.page, this.store.pageSize(), state.filters);
     });
+
+    // A primeira emissão acima é síncrona e limpa os avisos; o da navegação entra depois dela.
+    const notice: unknown = this.router.currentNavigation()?.extras.state?.['notice'];
+    if (typeof notice === 'string') {
+      this.successNoticeSignal.set({ text: notice });
+      afterNextRender(() => this.announcement.set(notice), { injector: this.injector });
+    }
 
     // Troca de página: quando a nova página termina de carregar, o foco vai para o primeiro item
     // (ou o <h1>) — o botão Próxima/Anterior some durante o carregamento (FE-15, CA-18).
@@ -189,7 +217,13 @@ export class TasksPageComponent {
   }
 
   protected onStatusChange(status: TaskStatusFilter): void {
-    this.applyFilters({ ...this.queryState().filters, status });
+    const filters = this.queryState().filters;
+    // "Concluídas" + "atrasadas" nunca casa: limpa as atrasadas na mesma navegação.
+    this.applyFilters({
+      ...filters,
+      status,
+      overdue: status === 'completed' ? null : filters.overdue,
+    });
   }
 
   protected isPriorityChecked(priority: TaskPriorityFilter): boolean {
@@ -232,11 +266,30 @@ export class TasksPageComponent {
   }
 
   protected onComplete(task: TaskResponse): void {
-    this.runItemAction(task.id, () => this.store.complete(task.id));
+    this.runItemAction(
+      task.id,
+      () => this.store.complete(task.id),
+      () => this.confirm(`Tarefa "${task.title}" concluída.`, () => this.onReopen(task)),
+    );
   }
 
   protected onReopen(task: TaskResponse): void {
-    this.runItemAction(task.id, () => this.store.reopen(task.id));
+    this.runItemAction(
+      task.id,
+      () => this.store.reopen(task.id),
+      () => this.confirm(`Tarefa "${task.title}" reaberta.`, () => this.onComplete(task)),
+    );
+  }
+
+  /** "Desfazer": o botão some ao iniciar a ação inversa, então o foco vai antes para o <h1>. */
+  protected undo(action: () => void): void {
+    this.heading()?.nativeElement.focus();
+    action();
+  }
+
+  private confirm(text: string, undo: () => void): void {
+    this.successNoticeSignal.set({ text, undo });
+    this.announcement.set(text);
   }
 
   protected onRemove(task: TaskResponse): void {
@@ -266,6 +319,7 @@ export class TasksPageComponent {
     this.setPending(taskId, true);
     this.clearError(taskId);
     this.pageNoticeSignal.set(null);
+    this.successNoticeSignal.set(null);
     this.announcement.set('');
 
     // Índice capturado ANTES de chamar o store: concluir/reabrir com filtro ativo tira o item
@@ -292,7 +346,8 @@ export class TasksPageComponent {
       error: (error: AppError) => {
         this.setPending(taskId, false);
         moveFocusIfLeft();
-        if (error.status === 404) {
+        // Item fora da lista visível (ex.: "Desfazer" sob filtro): um erro por item não apareceria.
+        if (error.status === 404 || !this.store.items().some((i) => i.id === taskId)) {
           this.pageNoticeSignal.set(error.message);
         } else {
           this.setError(taskId, error.message);

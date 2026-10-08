@@ -84,7 +84,7 @@ describe('CreateTaskComponent', () => {
       updatedAt: '2026-01-01T00:00:00Z',
     });
 
-    expect(navigateSpy).toHaveBeenCalledWith('/tasks');
+    expect(navigateSpy).toHaveBeenCalledWith('/tasks', { state: { notice: 'Tarefa criada.' } });
   });
 
   it('um 400 do servidor preenche o erro no campo correspondente (chave camelCase)', async () => {
@@ -282,6 +282,16 @@ describe('CreateTaskComponent', () => {
     await userEvent.type(screen.getByLabelText(/título/i), 'abc');
 
     expect(screen.getByText('3/200')).toBeTruthy();
+  });
+
+  it('o contador ganha o modificador de excesso só quando o título passa de 200', async () => {
+    await setup();
+
+    setValue(/título/i, 'a'.repeat(200));
+    expect(screen.getByText('200/200')).not.toHaveClass('task-form__count--over');
+
+    setValue(/título/i, 'a'.repeat(201));
+    expect(screen.getByText('201/200')).toHaveClass('task-form__count--over');
   });
 
   // FE-17, CA-25

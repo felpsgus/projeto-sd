@@ -113,7 +113,7 @@ describe('EditTaskComponent', () => {
     });
     req.flush({ ...makeTask(), title: 'Título novo' });
 
-    expect(navigateSpy).toHaveBeenCalledWith('/tasks');
+    expect(navigateSpy).toHaveBeenCalledWith('/tasks', { state: { notice: 'Tarefa atualizada.' } });
   });
 
   it('limpar a descrição e o vencimento os envia como null (CA-08/CA-09)', async () => {

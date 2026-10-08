@@ -1,6 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router, Routes } from '@angular/router';
+import { Component } from '@angular/core';
+import { Router, RouterOutlet, Routes } from '@angular/router';
 import { render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
@@ -8,6 +9,9 @@ import { TasksPageComponent } from './tasks-page.component';
 import { errorInterceptor } from '../../../core/errors/error.interceptor';
 import { TaskResponse } from '../../../core/api/models/task.models';
 import { SessionStore } from '../../../core/auth/session-store';
+
+@Component({ selector: 'app-outlet-host', imports: [RouterOutlet], template: '<router-outlet />' })
+class OutletHostComponent {}
 
 const ROUTES: Routes = [
   { path: 'tasks', children: [] },
@@ -298,8 +302,13 @@ describe('TasksPageComponent', () => {
     it('buscar por termo presente na descrição também encontra a tarefa (CA-09)', async () => {
       const { httpMock } = await setup();
 
-      firstListRequest(httpMock).flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
-      await screen.findByText(/você ainda não tem tarefas/i);
+      firstListRequest(httpMock).flush({
+        items: [makeTask({ id: '0', title: 'Tarefa inicial' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+      await screen.findByText('Tarefa inicial');
 
       await userEvent.type(screen.getByLabelText(/buscar/i), 'capítulo');
 
@@ -323,8 +332,13 @@ describe('TasksPageComponent', () => {
     it('digitar rapidamente dispara uma única requisição, não uma por tecla (CA-10)', async () => {
       const { httpMock } = await setup();
 
-      firstListRequest(httpMock).flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
-      await screen.findByText(/você ainda não tem tarefas/i);
+      firstListRequest(httpMock).flush({
+        items: [makeTask({ id: '0', title: 'Tarefa inicial' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+      await screen.findByText('Tarefa inicial');
 
       await userEvent.type(screen.getByLabelText(/buscar/i), 'relatorio');
 
@@ -344,8 +358,13 @@ describe('TasksPageComponent', () => {
     it('resultado fora de ordem não deixa a lista com a resposta antiga (CA-11)', async () => {
       const { httpMock } = await setup();
 
-      firstListRequest(httpMock).flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
-      await screen.findByText(/você ainda não tem tarefas/i);
+      firstListRequest(httpMock).flush({
+        items: [makeTask({ id: '0', title: 'Tarefa inicial' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+      await screen.findByText('Tarefa inicial');
 
       await userEvent.click(screen.getByRole('radio', { name: 'Pendentes' }));
       const firstReq = await waitFor(() =>
@@ -406,6 +425,97 @@ describe('TasksPageComponent', () => {
       // visível com filtro ativo) e a do estado vazio (CA-13) — daqui, `getAllByRole`.
       expect(screen.getAllByRole('button', { name: /limpar filtros/i }).length).toBeGreaterThan(0);
       expect(screen.queryByText(/você ainda não tem tarefas/i)).toBeNull();
+    });
+
+    it('sem tarefas e sem filtro não há barra de filtros', async () => {
+      const { httpMock } = await setup();
+      firstListRequest(httpMock).flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+      await screen.findByText(/você ainda não tem tarefas/i);
+      expect(screen.queryByRole('form', { name: /filtrar tarefas/i })).toBeNull();
+    });
+
+    it('no vazio filtrado a barra de filtros continua', async () => {
+      const { httpMock } = await setup('tasks?search=inexistente');
+      firstListRequest(httpMock).flush({
+        items: [],
+        page: 1,
+        pageSize: 20,
+        totalCount: 0,
+      });
+      await screen.findByText(/nenhuma tarefa encontrada com esses filtros/i);
+      expect(screen.getByRole('form', { name: /filtrar tarefas/i })).toBeTruthy();
+    });
+
+    describe('"Mais filtros"', () => {
+      const details = () => document.querySelector('details.tasks-page__more-filters')!;
+
+      it('fechado e sem contagem por padrão', async () => {
+        const { httpMock } = await setup();
+        firstListRequest(httpMock).flush({
+          items: [makeTask()],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+        });
+        await screen.findByText('Estudar para a prova');
+
+        expect(screen.getByText('Mais filtros', { selector: 'summary' })).toBeTruthy();
+        expect((details() as HTMLDetailsElement).open).toBe(false);
+      });
+
+      it('aberto e com contagem quando a URL traz prioridade e atrasadas', async () => {
+        const { httpMock } = await setup('tasks?priority=high&overdue=true');
+        firstListRequest(httpMock).flush({
+          items: [makeTask({ isOverdue: true })],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+        });
+        await screen.findByText('Estudar para a prova');
+
+        expect(screen.getByText('Mais filtros (2)', { selector: 'summary' })).toBeTruthy();
+        expect((details() as HTMLDetailsElement).open).toBe(true);
+      });
+    });
+
+    describe('Concluídas x atrasadas', () => {
+      it('com "Concluídas" o checkbox de atrasadas fica desabilitado', async () => {
+        const { httpMock } = await setup('tasks?status=completed');
+        firstListRequest(httpMock).flush({
+          items: [makeTask({ status: 'Completed' })],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+        });
+        await screen.findByText('Estudar para a prova');
+
+        expect(
+          (screen.getByRole('checkbox', { name: /somente atrasadas/i }) as HTMLInputElement)
+            .disabled,
+        ).toBe(true);
+      });
+
+      it('selecionar "Concluídas" com atrasadas ligado faz uma só requisição, sem overdue', async () => {
+        const { httpMock } = await setup('tasks?overdue=true');
+        firstListRequest(httpMock).flush({
+          items: [makeTask({ isOverdue: true })],
+          page: 1,
+          pageSize: 20,
+          totalCount: 1,
+        });
+        await screen.findByText('Estudar para a prova');
+
+        await userEvent.click(screen.getByRole('radio', { name: 'Concluídas' }));
+
+        const req = await waitFor(() =>
+          httpMock.expectOne(
+            (r) => r.url === '/api/tasks' && r.params.get('status') === 'completed',
+          ),
+        );
+        expect(req.request.params.has('overdue')).toBe(false);
+        req.flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
+        httpMock.verify();
+      });
     });
   });
 
@@ -518,8 +628,13 @@ describe('TasksPageComponent', () => {
     it('os controles de filtro têm rótulo associado (CA-23)', async () => {
       const { httpMock } = await setup();
 
-      firstListRequest(httpMock).flush({ items: [], page: 1, pageSize: 20, totalCount: 0 });
-      await screen.findByText(/você ainda não tem tarefas/i);
+      firstListRequest(httpMock).flush({
+        items: [makeTask({ id: '0', title: 'Tarefa inicial' })],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+      await screen.findByText('Tarefa inicial');
 
       expect(screen.getByRole('radio', { name: 'Todas' })).toBeTruthy();
       expect(screen.getByRole('radio', { name: 'Pendentes' })).toBeTruthy();
@@ -981,9 +1096,84 @@ describe('TasksPageComponent', () => {
       await waitFor(() => expect(region()?.textContent).toMatch(/removida/i));
 
       await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Segunda' }));
-      httpMock.expectOne('/api/tasks/2/complete').flush(makeTask({ id: '2', status: 'Completed' }));
 
-      await waitFor(() => expect(region()?.textContent?.trim()).toBe(''));
+      // Limpo ao iniciar a ação (antes da resposta): concluir passa a anunciar o próprio sucesso.
+      expect(region()?.textContent?.trim()).toBe('');
+      httpMock.expectOne('/api/tasks/2/complete').flush(makeTask({ id: '2', status: 'Completed' }));
+    });
+  });
+
+  describe('confirmação com "Desfazer" (concluir/reabrir)', () => {
+    const three = [
+      makeTask({ id: '1', title: 'Primeira' }),
+      makeTask({ id: '2', title: 'Segunda' }),
+    ];
+    const done = (task: TaskResponse) => ({
+      ...task,
+      status: 'Completed' as const,
+      completedAt: '2026-01-02T00:00:00Z',
+    });
+    const region = () => document.querySelector('.tasks-page__announcement')?.textContent;
+
+    async function loadList(route = 'tasks') {
+      const ctx = await setup(route);
+      firstListRequest(ctx.httpMock).flush({ items: three, page: 1, pageSize: 20, totalCount: 2 });
+      await screen.findByText('Primeira');
+      return ctx;
+    }
+
+    it('concluir mostra o aviso com "Desfazer" e o anuncia, mesmo se a linha sair (filtro)', async () => {
+      const { httpMock } = await loadList('tasks?status=pending');
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      httpMock.expectOne('/api/tasks/1/complete').flush(done(three[0]!));
+
+      const notice = await screen.findByText(/Tarefa "Primeira" concluída./, {
+        selector: 'p.tasks-page__notice',
+      });
+      expect(within(notice).getByRole('button', { name: 'Desfazer' })).toBeTruthy();
+      expect(region()).toContain('Tarefa "Primeira" concluída.');
+    });
+
+    it('"Desfazer" pede a reabertura da tarefa e leva o foco ao <h1>', async () => {
+      const { httpMock } = await loadList();
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      httpMock.expectOne('/api/tasks/1/complete').flush(done(three[0]!));
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Desfazer' }));
+
+      httpMock.expectOne('/api/tasks/1/reopen').flush(three[0]!);
+      expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
+      expect(
+        await screen.findByText(/Tarefa "Primeira" reaberta./, {
+          selector: 'p.tasks-page__notice',
+        }),
+      ).toBeTruthy();
+    });
+
+    it('concluir com erro não mostra aviso de sucesso', async () => {
+      const { httpMock } = await loadList();
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      httpMock
+        .expectOne('/api/tasks/1/complete')
+        .flush({ errorCode: 'task.already_completed' }, { status: 409, statusText: 'Conflict' });
+
+      await screen.findByText(/já foi concluída em outro lugar/i);
+      expect(document.querySelector('.tasks-page__notice--success')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Desfazer' })).toBeNull();
+    });
+
+    it('"Desfazer" que falha com a tarefa fora da lista mostra o erro no aviso da página', async () => {
+      const { httpMock } = await loadList('tasks?status=pending');
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Concluir: Primeira' }));
+      httpMock.expectOne('/api/tasks/1/complete').flush(done(three[0]!));
+      await userEvent.click(await screen.findByRole('button', { name: 'Desfazer' }));
+
+      httpMock
+        .expectOne('/api/tasks/1/reopen')
+        .flush({}, { status: 500, statusText: 'Server Error' });
+
+      const alert = await screen.findByRole('alert');
+      expect(alert.className).toContain('tasks-page__notice');
     });
   });
 
@@ -1180,6 +1370,64 @@ describe('TasksPageComponent', () => {
       httpMock.expectOne('/api/tasks/1').flush(null, { status: 204, statusText: 'No Content' });
 
       await waitFor(() => expect(screen.queryByText('Estudar para a prova')).toBeNull());
+    });
+  });
+
+  describe('aviso de sucesso vindo da navegação (criar/editar)', () => {
+    // O componente precisa nascer DENTRO de uma navegação para enxergar o `state`.
+    async function setupFromNavigation(state?: Record<string, unknown>) {
+      const utils = await render(OutletHostComponent, {
+        routes: [{ path: 'tasks', component: TasksPageComponent }, ...ROUTES.slice(1)],
+        initialRoute: 'tasks/new',
+        providers: [
+          provideHttpClient(withInterceptors([errorInterceptor])),
+          provideHttpClientTesting(),
+          {
+            provide: SessionStore,
+            useFactory: () => {
+              const session = new SessionStore();
+              session.startSession(
+                { accessToken: 'tok', expiresAt: '2099-01-01T00:00:00Z' },
+                'a@b.com',
+              );
+              return session;
+            },
+          },
+        ],
+      });
+      const httpMock = utils.fixture.debugElement.injector.get(HttpTestingController);
+      const router = utils.fixture.debugElement.injector.get(Router);
+      await router.navigateByUrl('/tasks', { state });
+      return { ...utils, httpMock };
+    }
+
+    const EMPTY_PAGE = { items: [], page: 1, pageSize: 20, totalCount: 0 };
+
+    it('mostra o aviso e o anuncia na região viva; some ao mudar um filtro', async () => {
+      const { httpMock } = await setupFromNavigation({ notice: 'Tarefa criada.' });
+      firstListRequest(httpMock).flush({ ...EMPTY_PAGE, items: [makeTask()], totalCount: 1 });
+
+      expect(
+        await screen.findByText('Tarefa criada.', { selector: 'p.tasks-page__notice' }),
+      ).toBeTruthy();
+      await waitFor(() =>
+        expect(document.querySelector('.tasks-page__announcement')?.textContent).toContain(
+          'Tarefa criada.',
+        ),
+      );
+
+      await userEvent.click(screen.getByLabelText('Pendentes'));
+      httpMock.expectOne((r) => r.url === '/api/tasks').flush(EMPTY_PAGE);
+
+      await waitFor(() => expect(screen.queryByText('Tarefa criada.')).toBeNull());
+    });
+
+    it('não mostra nada sem estado de navegação', async () => {
+      const { httpMock } = await setupFromNavigation();
+      firstListRequest(httpMock).flush(EMPTY_PAGE);
+
+      await screen.findByText(/você ainda não tem tarefas/i);
+      expect(document.querySelector('.tasks-page__notice--success')).toBeNull();
     });
   });
 });
