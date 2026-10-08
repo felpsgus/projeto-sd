@@ -58,7 +58,7 @@
         formControlName="confirmPassword"
         autocomplete="new-password"
         [attr.aria-invalid]="hasError('confirmPassword')"
-        [attr.aria-describedby]="hasError('confirmPassword') ? 'confirmPassword-error' : null"
+        [attr.aria-describedby]="confirmPasswordDescribedBy()"
       />
       <button
         type="button"
@@ -74,7 +74,7 @@
       [messages]="fieldMessages('confirmPassword')"
     />
     @if (confirmPasswordMismatch()) {
-      <p class="register__hint">As senhas não coincidem.</p>
+      <p id="confirmPassword-mismatch" class="register__hint">As senhas não coincidem.</p>
     }
   </div>
 

@@ -105,6 +105,22 @@ describe('RegisterComponent (FE-08)', () => {
     expect(screen.getByRole('button', { name: /criar conta/i })).toBeDisabled();
   });
 
+  it('liga a mensagem de senhas diferentes ao campo de confirmação por aria-describedby', async () => {
+    await setup();
+
+    await userEvent.type(screen.getByLabelText(/^senha$/i), 'abcdef12');
+    await userEvent.type(screen.getByLabelText(/confirmar senha/i), 'outraSenha1');
+    await userEvent.tab();
+
+    const confirm = screen.getByLabelText(/confirmar senha/i);
+    const mismatch = screen.getByText(/as senhas não coincidem/i);
+    expect(confirm).toHaveAttribute('aria-invalid', 'true');
+    expect(mismatch.id).not.toBe('');
+    expect(confirm.getAttribute('aria-describedby')?.split(' ')).toContain(mismatch.id);
+    // regressão: senhas diferentes não marcam os outros campos como inválidos
+    expect(screen.getByLabelText(/^senha$/i)).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('nome de exibição com 101 caracteres é rejeitado; com 100 é aceito (CA-08)', async () => {
     await setup();
     const displayName = screen.getByLabelText(/nome de exibição/i);

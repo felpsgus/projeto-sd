@@ -54,6 +54,7 @@ h1 {
     border-radius: var(--radius-sm);
     cursor: pointer;
     white-space: nowrap;
+    transition: border-color 0.12s ease;
 
     &:hover {
       border-color: var(--color-text-secondary);
