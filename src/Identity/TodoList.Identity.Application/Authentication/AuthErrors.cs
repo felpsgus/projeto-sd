@@ -10,10 +10,10 @@ namespace TodoList.Identity.Application.Authentication;
 /// <para>
 /// <see cref="InvalidCredentials"/> é, de propósito, o <b>único</b> erro que
 /// <see cref="LoginHandler"/> produz — e-mail vazio/malformado, usuário
-/// inexistente, senha errada e usuário inativo resultam todos neste mesmo
+/// inexistente e senha errada resultam todos neste mesmo
 /// <see cref="Error"/> (RN-AUTH-09): expor um código diferente por causa
 /// permitiria a quem chama descobrir, por tentativa, se um e-mail está
-/// cadastrado ou se a conta está desativada.
+/// cadastrado.
 /// </para>
 /// </summary>
 public static class AuthErrors
@@ -24,8 +24,8 @@ public static class AuthErrors
         ErrorType.Unauthorized);
 
     /// <summary>
-    /// BE-10: único erro de refresh — token inexistente, expirado, revogado,
-    /// já consumido (reuso) ou de usuário inativo são indistinguíveis para o
+    /// BE-10: único erro de refresh — token inexistente, expirado, revogado
+    /// ou já consumido (reuso) são indistinguíveis para o
     /// cliente (CA-16), pela mesma razão de <see cref="InvalidCredentials"/>.
     /// </summary>
     public static readonly Error InvalidRefreshToken = new(

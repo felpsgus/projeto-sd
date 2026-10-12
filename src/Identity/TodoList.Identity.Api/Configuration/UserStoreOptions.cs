@@ -17,11 +17,7 @@ namespace TodoList.Identity.Api.Configuration;
 /// o seed virou exatamente o tipo de atalho que um avaliador repara: uma
 /// rota de "ligar em produção por engano" que não precisa mais existir. O
 /// roteiro de demonstração (<c>deploy/demo.sh</c>,
-/// <c>deploy/smoke.sh</c>) passou a cadastrar contas pela API/tela; o único
-/// cenário que o seed cobria e a API não cobre — um usuário **inativo**, para
-/// provar RN-AUTH-09 — passou a ser criado por um <c>UPDATE</c> direto em
-/// <c>identity.users</c>, documentado em <c>deploy/README.md</c> (não existe
-/// nem deve existir uma rota de desativação; ver decisão da Onda E).
+/// <c>deploy/smoke.sh</c>) passou a cadastrar contas pela API/tela.
 /// </remarks>
 public sealed class UserStoreOptions
 {

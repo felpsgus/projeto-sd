@@ -9,7 +9,7 @@ namespace TodoList.Identity.Application.Authentication;
 /// <summary>
 /// Renovação de sessão (BE-10, RN-AUTH-14/16/17/18): troca um refresh token
 /// válido por um novo par (access + refresh). Toda falha — inexistente,
-/// expirado, revogado, reuso, usuário inativo — é o mesmo
+/// expirado, revogado, reuso — é o mesmo
 /// <see cref="AuthErrors.InvalidRefreshToken"/>.
 /// </summary>
 public sealed class RefreshSessionHandler

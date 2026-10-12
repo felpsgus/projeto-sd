@@ -43,7 +43,7 @@ public sealed class TaskEndpoints : IEndpointRouteHandler
         endpoints.MapPost("/api/tasks", HandleCreateTaskAsync)
             .WithRequestValidation<CreateTaskHttpRequest>()
             .WithName("CreateTask")
-            .WithDescription("Título obrigatório; prioridade, descrição e vencimento opcionais. Responde 201 com Location. 404/409 quando o dono é inexistente/inativo ou o limite de tarefas ativas foi atingido; 503 se o Identity estiver fora do ar (a tarefa não é criada).")
+            .WithDescription("Título obrigatório; prioridade, descrição e vencimento opcionais. Responde 201 com Location. 404 quando o dono não existe; 409 quando o limite de tarefas ativas foi atingido; 503 se o Identity estiver fora do ar (a tarefa não é criada).")
             .Produces<TaskHttpResponse>(StatusCodes.Status201Created)
             .ProducesProblems(StatusCodes.Status400BadRequest, StatusCodes.Status401Unauthorized, StatusCodes.Status404NotFound, StatusCodes.Status409Conflict, StatusCodes.Status503ServiceUnavailable)
             .WithSummary("Cria uma tarefa em nome do usuário autenticado.")
