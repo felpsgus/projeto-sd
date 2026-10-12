@@ -218,8 +218,8 @@ são sempre 1 px sólido na cor Fio. Linhas de lista não têm canto nem caixa �
 Duas formas recorrentes carregam significado:
 - **Barra lateral de 2 px** à esquerda, com fundo tingido e sem raio: avisos em linha (erro em
   vermelho, contexto em azul).
-- **Régua de prioridade**: traço vertical à esquerda da tarefa, raio de 1 px, que engrossa e
-  escurece de Baixa a Alta.
+- **Régua de prioridade**: traço vertical à esquerda da tarefa, raio de 1 px, que engrossa
+  (2, 4 e 6 px) e escurece de Baixa a Alta, numa coluna de largura fixa.
 
 Círculos só aparecem no spinner e no ponto de 6 px que marca atraso.
 
@@ -239,7 +239,9 @@ Contidos e exatos: nada se destaca sem motivo.
   seção de perigo.
 - **Link:** botão sem caixa, Azul Tinta sublinhado, para ações secundárias da conta.
 - **Disabled / Loading:** opacidade 0.6 (0.5 na paginação), cursor `not-allowed`, `aria-busy`
-  enquanto envia.
+  enquanto envia. O envio de formulário só fica desabilitado durante o envio; um envio inválido
+  mostra os erros e foca o primeiro campo com problema.
+- **Ordem:** Cancelar primeiro, ação primária depois.
 - **Focus:** contorno de 2 px Azul Tinta com 2 px de afastamento, em qualquer elemento.
 
 ### Cards / Containers
@@ -262,12 +264,19 @@ link discreto em Grafite Suave que escurece e sublinha no hover; "Sair" é um bo
 compacto. Sem menu, sem abas.
 
 ### Linha de tarefa (signature)
-Sem caixa: régua de prioridade à esquerda, o checkbox de concluir logo depois dela, alinhado à
-primeira linha do título (Subtitle 500), vencimento alinhado à direita, descrição e metadados em
-Grafite Suave, e Editar e Remover embaixo. Concluir ou reabrir é confirmado na página, com
-"Desfazer". Concluída: título em Grafite
-Suave, riscado com a cor Fio. Atrasada: vencimento em Perigo, peso 600, precedido de um ponto
-cheio e do rótulo "Atrasada" — a informação nunca depende só da cor.
+Sem caixa: régua de prioridade à esquerda, o checkbox de concluir logo depois dela (1.25rem, na
+cor do acento, alinhado à primeira linha do título), título em Subtitle 500, vencimento à direita
+só quando existe, descrição, e uma linha de apoio em Grafite Suave com a prioridade por extenso
+("Prioridade alta") e, se concluída, "Concluída em …". Editar e Remover ficam embaixo. A linha não
+repete o estado nem a data de atualização. Concluir ou reabrir é confirmado na página, com
+"Desfazer". Concluída: título em Grafite Suave, riscado na mesma cor. Atrasada: vencimento em
+Perigo, peso 600, precedido de um ponto cheio e do rótulo "Atrasada" — a informação nunca
+depende só da cor. Em tela pequena o vencimento desce para baixo do título.
+
+### Adicionar rápido
+No topo da lista, acima dos filtros: um campo ("Adicionar tarefa…") e um botão secundário
+"Adicionar". Enter cria a tarefa com os padrões, limpa o campo e mantém o foco nele. "Nova
+tarefa" continua sendo o único botão primário e leva ao formulário completo.
 
 ### Avisos em linha
 Barra de 2 px à esquerda, fundo tingido, texto pequeno. Vermelho para erro de formulário, de
@@ -275,17 +284,20 @@ ação ou de página; azul para contexto (por exemplo, o motivo de ter voltado a
 confirmação ("Tarefa criada.", "Tarefa … concluída." com o botão de texto "Desfazer").
 
 ### Diálogo de confirmação
-Folha com borda Fio e a única sombra do sistema, sobre véu escuro. Título, mensagem em Grafite
-Suave, ações à direita: Cancelar (secundário) e confirmar (Danger).
+Folha sem borda, com a única sombra do sistema, sobre o véu. Título, mensagem em Grafite Suave,
+ações à direita: Cancelar (secundário) e confirmar (Danger). É também o aviso de alterações não
+salvas dos formulários de tarefa.
 
 ### Estados de lista
 Vazio, erro e carregando compartilham a forma: fio em cima e `4rem` de respiro. Vazio e erro
-são centralizados, com no máximo um botão primário; carregando fica alinhado à esquerda. O spinner é um anel de 1.125rem com o topo em Azul
-Tinta, parado sob `prefers-reduced-motion`.
+são centralizados; carregando fica alinhado à esquerda. O spinner é um anel de 1.125rem com o
+topo em Azul Tinta, parado sob `prefers-reduced-motion`. O bloco de carregando só aparece na
+primeira carga: depois, a lista anterior fica visível a 60% de opacidade enquanto a nova chega.
 
 ### Indicador de status HTTP
-Pílula fixa no canto inferior direito mostrando método, caminho e status da última requisição;
-fundo escuro invertido, ou Perigo quando a resposta é erro. Recurso de demonstração, desligável.
+Pílula mostrando método, caminho e status da última requisição; fundo escuro invertido, ou
+Perigo quando a resposta é erro. Fixa no canto inferior direito a partir de 40rem; abaixo disso
+fica no fluxo, ao fim da página. Recurso de demonstração, desligado no build de produção.
 
 ## Do's and Don'ts
 

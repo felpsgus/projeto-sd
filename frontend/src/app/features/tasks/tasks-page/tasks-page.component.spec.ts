@@ -96,11 +96,10 @@ describe('TasksPageComponent', () => {
     });
 
     expect(await screen.findByText('Estudar para a prova')).toBeTruthy();
-    // Escopado à lista: "Média"/"Pendente" também poderiam casar com rótulos da barra de
-    // filtros (o texto "Média" é compartilhado pelo filtro de prioridade e pelo item).
+    // Escopado à lista: a linha diz a prioridade por extenso e não repete o estado "Pendente"
+    // (o checkbox já o comunica).
     const list = within(screen.getByRole('list'));
-    expect(list.getByText('Média')).toBeTruthy();
-    expect(list.getByText('Pendente')).toBeTruthy();
+    expect(list.getByText('Prioridade média')).toBeTruthy();
     // `getAll`: em UTC (runner do CI) a data de criação do fixture também cai em 01/01/2026.
     expect(screen.getAllByText(/01\/01\/2026/).length).toBeGreaterThan(0);
   });
@@ -734,7 +733,7 @@ describe('TasksPageComponent', () => {
         totalCount: 2,
       });
 
-      expect(await screen.findAllByText('Concluída')).toHaveLength(1);
+      expect(await screen.findAllByText(/^Concluída em /)).toHaveLength(1);
     });
 
     it('erro ao concluir exibe a mensagem na linha e a tarefa continua pendente', async () => {
@@ -984,7 +983,7 @@ describe('TasksPageComponent', () => {
         status: 'Completed',
         completedAt: '2026-01-02T00:00:00Z',
       });
-      await screen.findAllByText('Concluída');
+      await screen.findAllByText(/^Concluída em /);
 
       expect(document.activeElement).toBe(checkbox);
       noReload(httpMock);

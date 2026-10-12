@@ -42,10 +42,6 @@
       flex: 1;
       min-width: 0;
       padding: var(--space-xs) var(--space-sm);
-      color: var(--color-text);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-sm);
       transition: border-color 0.12s ease;
 
       &:hover {
@@ -56,21 +52,36 @@
     button {
       flex: none;
       padding: var(--space-xs) var(--space-sm);
-      color: var(--color-text);
-      background: transparent;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: border-color 0.12s ease;
+    }
+  }
 
-      &:hover:not(:disabled) {
-        border-color: var(--color-text-secondary);
-      }
+  /* Campos de texto da página: mesma superfície e borda. */
+  &__quick-add-form input,
+  &__filter-search input {
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
 
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
+  /* Botões secundários da página (adicionar, limpar filtros, paginação). */
+  &__quick-add-form button,
+  &__clear-filters,
+  &__pagination button {
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-text-secondary);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 
@@ -136,10 +147,6 @@
 
     input {
       padding: var(--space-3xs) var(--space-2xs);
-      color: var(--color-text);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-sm);
       min-width: min(12rem, 100%);
     }
   }
@@ -168,13 +175,8 @@
     align-self: center;
     padding: var(--space-3xs) var(--space-sm);
     color: var(--color-accent);
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: border-color 0.12s ease;
 
-    &:hover {
+    &:hover:not(:disabled) {
       border-color: var(--color-accent);
     }
   }
@@ -211,21 +213,6 @@
 
     button {
       padding: var(--space-2xs) var(--space-sm);
-      color: var(--color-text);
-      background: transparent;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: border-color 0.12s ease;
-
-      &:hover:not(:disabled) {
-        border-color: var(--color-text-secondary);
-      }
-
-      &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
     }
   }
 

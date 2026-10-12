@@ -280,8 +280,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByLabel('Confirmar senha', { exact: true }).fill('outra');
     await page.getByLabel('Nome de exibição (opcional)').focus();
     await expect(page.locator('.form-field-error').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Criar conta' })).toBeDisabled();
-    await check('cadastro com erros e botão desabilitado');
+    await check('cadastro com erros');
 
     await openScreen(page, '/login');
     await page.getByRole('button', { name: 'Entrar' }).click();
@@ -654,7 +653,6 @@ test.describe('só teclado', () => {
     await typeInto(page, page.getByLabel('E-mail', { exact: true }), user.email);
     await typeInto(page, page.getByLabel('Senha', { exact: true }), user.password);
     await typeInto(page, page.getByLabel('Confirmar senha', { exact: true }), user.password);
-    // Enter com o botão ainda desabilitado não envia: espera a validação do formulário assentar
     await expect(page.getByRole('button', { name: 'Criar conta' })).toBeEnabled();
     await page.keyboard.press('Enter');
     await expect(page.getByText('Conta criada com sucesso.')).toBeVisible();
@@ -925,11 +923,10 @@ test('lista: ações nomeadas pela tarefa, contagem em role=status que muda ao f
   const pending = taskItem(page, 'Tarefa pendente');
   const done = taskItem(page, 'Tarefa concluída');
   const late = taskItem(page, 'Tarefa atrasada');
-  await expect(pending.locator('dd', { hasText: /^Média$/ })).toBeVisible();
-  await expect(pending.locator('dd', { hasText: /^Pendente$/ })).toBeVisible();
-  await expect(done.locator('dd', { hasText: /^Baixa$/ })).toBeVisible();
-  await expect(done.locator('dd', { hasText: /^Concluída$/ })).toBeVisible();
-  await expect(late.locator('dd', { hasText: /^Alta$/ })).toBeVisible();
+  await expect(pending.getByText('Prioridade média', { exact: true })).toBeVisible();
+  await expect(done.getByText('Prioridade baixa', { exact: true })).toBeVisible();
+  await expect(done.getByText(/^Concluída em \d/)).toBeVisible();
+  await expect(late.getByText('Prioridade alta', { exact: true })).toBeVisible();
   await expect(late.getByText('Atrasada', { exact: true })).toBeVisible();
   await expect(pending.getByText('Atrasada', { exact: true })).toHaveCount(0);
   await expect(done.getByText('Atrasada', { exact: true })).toHaveCount(0);
