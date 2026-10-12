@@ -3,10 +3,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using TodoList.Identity.Application.Authentication;
 using TodoList.Identity.Application.Persistence;
+using TodoList.Identity.Application.Sessions;
 using TodoList.Identity.Application.Users;
-using TodoList.Identity.Infrastructure.Persistence.Interceptors;
+using TodoList.Identity.Infrastructure.Authentication;
+using TodoList.Identity.Infrastructure.Retention;
+using TodoList.Identity.Infrastructure.Sessions;
 using TodoList.Identity.Infrastructure.Users;
+using TodoList.SharedKernel;
+using TodoList.SharedKernel.Persistence;
 
 namespace TodoList.Identity.Infrastructure.Persistence;
 
@@ -64,6 +71,24 @@ public static class ServiceCollectionExtensions
         // BE-04: Scoped, nunca Singleton — carrega o mesmo IdentityDbContext
         // (Scoped) desta requisição/escopo (nota técnica de PersistedUserLookup/BE-26).
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<ILoginAttemptStore, LoginAttemptStore>();
+
+        // BE-12: LockoutOptions validado na inicialização; o handler recebe o valor, não IOptions
+        // (a Application não referencia Microsoft.Extensions.Options).
+        services
+            .AddOptions<LockoutOptions>()
+            .Bind(configuration.GetSection(LockoutOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<LockoutOptions>>().Value);
+
+        // BE-23: retenção de refresh tokens (seção Auth).
+        services
+            .AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         return services;
     }

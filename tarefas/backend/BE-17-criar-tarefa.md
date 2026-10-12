@@ -69,39 +69,39 @@ O usuário autenticado cria uma tarefa informando ao menos o título, e não pas
 
 ### Criação
 
-- [ ] **CA-01** — `POST /api/tasks` apenas com `title` retorna **201** (RN-TASK-10).
-- [ ] **CA-02** — A resposta traz o cabeçalho `Location` apontando para o recurso criado, e o `GET` naquele endereço retorna a tarefa.
-- [ ] **CA-03** — A tarefa criada tem `status == "Pending"` e `completedAt == null` (RN-TASK-07).
-- [ ] **CA-04** — Sem `priority`, a tarefa nasce com `"Medium"` (RN-TASK-04).
-- [ ] **CA-05** — Com `priority: "High"`, o valor é preservado; `priority: "Urgente"` retorna **400**.
-- [ ] **CA-06** — A tarefa criada tem `OwnerId` igual ao usuário do token — verificado no banco (RN-AUTZ-01).
-- [ ] **CA-07** — `createdAt` e `updatedAt` vêm preenchidos e iguais na criação.
+- [x] **CA-01** — `POST /api/tasks` apenas com `title` retorna **201** (RN-TASK-10).
+- [x] **CA-02** — A resposta traz o cabeçalho `Location` apontando para o recurso criado, e o `GET` naquele endereço retorna a tarefa.
+- [x] **CA-03** — A tarefa criada tem `status == "Pending"` e `completedAt == null` (RN-TASK-07).
+- [x] **CA-04** — Sem `priority`, a tarefa nasce com `"Medium"` (RN-TASK-04).
+- [x] **CA-05** — Com `priority: "High"`, o valor é preservado; `priority: "Urgente"` retorna **400**.
+- [x] **CA-06** — A tarefa criada tem `OwnerId` igual ao usuário do token — verificado no banco (RN-AUTZ-01).
+- [x] **CA-07** — `createdAt` e `updatedAt` vêm preenchidos e iguais na criação.
 
 ### Validação
 
-- [ ] **CA-08** — Título ausente, vazio, `"   "` ou com 201 caracteres retorna **400** apontando o campo `title` (RN-TASK-02).
-- [ ] **CA-09** — Título com 1 e com 200 caracteres é aceito (bordas).
-- [ ] **CA-10** — Descrição com 2001 caracteres retorna **400**; com 2000 é aceita (RN-TASK-03).
-- [ ] **CA-11** — `dueDate` no passado é **aceita** (201) e a resposta traz `isOverdue: true` (RN-TASK-05, RN-TASK-16).
-- [ ] **CA-12** — `dueDate` igual a hoje é aceita com `isOverdue: false`.
-- [ ] **CA-12b** — Com o relógio UTC em `2026-08-21T00:30` e header `X-Client-Date: 2026-08-20` (usuário em UTC−3, ainda dia 20 para ele), uma tarefa com `dueDate: 2026-08-20` retorna **`isOverdue: false`** — o cenário exato que motivou a decisão **D-18**.
-- [ ] **CA-13** — `dueDate` em formato inválido (`"31/12/2026"`, `"2026-13-01"`) retorna **400**, não 500.
+- [x] **CA-08** — Título ausente, vazio, `"   "` ou com 201 caracteres retorna **400** apontando o campo `title` (RN-TASK-02).
+- [x] **CA-09** — Título com 1 e com 200 caracteres é aceito (bordas).
+- [x] **CA-10** — Descrição com 2001 caracteres retorna **400**; com 2000 é aceita (RN-TASK-03).
+- [x] **CA-11** — `dueDate` no passado é **aceita** (201) e a resposta traz `isOverdue: true` (RN-TASK-05, RN-TASK-16).
+- [x] **CA-12** — `dueDate` igual a hoje é aceita com `isOverdue: false`.
+- [x] **CA-12b** — Com o relógio UTC em `2026-08-21T00:30` e header `X-Client-Date: 2026-08-20` (usuário em UTC−3, ainda dia 20 para ele), uma tarefa com `dueDate: 2026-08-20` retorna **`isOverdue: false`** — o cenário exato que motivou a decisão **D-18**.
+- [x] **CA-13** — `dueDate` em formato inválido (`"31/12/2026"`, `"2026-13-01"`) retorna **400**, não 500.
 
 ### Limite
 
-- [ ] **CA-14** — Com 499 tarefas pendentes, a criação da 500ª sucede; a 501ª retorna **409** com `task.active_limit_reached` (RN-TASK-15).
-- [ ] **CA-15** — A mensagem do 409 informa o limite de forma clara para o usuário final.
-- [ ] **CA-16** — Tarefas **concluídas não contam** para o limite: com 500 concluídas, ainda é possível criar uma pendente.
-- [ ] **CA-17** — Tarefas **soft-deleted não contam**: remover uma tarefa libera espaço no limite imediatamente.
-- [ ] **CA-18** — O limite é **por usuário**: outro usuário com 0 tarefas cria normalmente enquanto o primeiro está no teto.
-- [ ] **CA-19** — Alterar `Tasks:MaxActivePerUser` para 3 faz o bloqueio ocorrer na 4ª tarefa, sem mudança de código.
-- [ ] **CA-20** — Com `Tasks:MaxActivePerUser` nulo, não há bloqueio.
+- [x] **CA-14** — Com 499 tarefas pendentes, a criação da 500ª sucede; a 501ª retorna **409** com `task.active_limit_reached` (RN-TASK-15).
+- [x] **CA-15** — A mensagem do 409 informa o limite de forma clara para o usuário final.
+- [x] **CA-16** — Tarefas **concluídas não contam** para o limite: com 500 concluídas, ainda é possível criar uma pendente.
+- [x] **CA-17** — Tarefas **soft-deleted não contam**: remover uma tarefa libera espaço no limite imediatamente.
+- [x] **CA-18** — O limite é **por usuário**: outro usuário com 0 tarefas cria normalmente enquanto o primeiro está no teto.
+- [x] **CA-19** — Alterar `Tasks:MaxActivePerUser` para 3 faz o bloqueio ocorrer na 4ª tarefa, sem mudança de código.
+- [x] **CA-20** — Com `Tasks:MaxActivePerUser` nulo, não há bloqueio.
 
 ### Autorização
 
-- [ ] **CA-21** — Requisição sem token retorna **401** (RN-AUTZ-04).
-- [ ] **CA-22** — Não é possível criar tarefa para outro usuário: o request **não tem** campo de dono, e enviar `ownerId` no corpo é ignorado (verificado no banco).
-- [ ] **CA-23** — `CreateTaskHandler` chama `IIdentityGateway.ValidateUserAsync` **exatamente uma vez** e **antes** de contar o limite e de persistir (unidade, com o gateway substituído). Os cenários de resposta do Identity são cobertos em [BE-28](BE-28-validacao-dono-grpc.md).
+- [x] **CA-21** — Requisição sem token retorna **401** (RN-AUTZ-04).
+- [x] **CA-22** — Não é possível criar tarefa para outro usuário: o request **não tem** campo de dono, e enviar `ownerId` no corpo é ignorado (verificado no banco).
+- [x] **CA-23** — `CreateTaskHandler` chama `IIdentityGateway.ValidateUserAsync` **exatamente uma vez** e **antes** de contar o limite e de persistir (unidade, com o gateway substituído). Os cenários de resposta do Identity são cobertos em [BE-28](BE-28-validacao-dono-grpc.md).
 
 ## Testes obrigatórios
 
@@ -115,3 +115,16 @@ O usuário autenticado cria uma tarefa informando ao menos o título, e não pas
 - **D-06** — Vencimento no passado aceito.
 - **D-08** — Limite de 500 tarefas ativas, configurável.
 - **D-18** — ✅ decidida: `isOverdue` calculado com a data local do usuário.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 24 de 24.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-22 | atendido em outro lugar | `tasks.proto` `CreateTaskRequest` e `CreateTaskHttpRequest` não têm campo de dono; o dono vem só da metadata `x-user-id` (D-34), provado por `CreateTaskGrpcTests.CreateTask_TarefaCriada_TemOwnerIdIgualAoUsuarioCorrente` (e `CreateTaskTests.CreateTask_MetadataDeSaida_TemUserIdDoClaimSub...` no Gateway). Não há teste que envie `ownerId` no corpo HTTP; o binder simplesmente o ignora. |
+| CA-01/CA-02/CA-11 e demais | atendidos em outro lugar | A rota HTTP vive no Gateway (D-32); o comportamento de negócio é testado no Tasks via gRPC (`CreateTaskGrpcTests`, `CreateTaskActiveLimitTests`) e a tradução HTTP (201, `Location`, 400/404/409/503) em `CreateTaskTests` do Gateway. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A justificativa da validação do dono por rede deixa de citar "usuário ativo" (RN-USER-04 removida, issue #16): a chamada confirma que o dono existe e foi mantida porque só o Identity sabe se ele foi excluído há instantes. `ValidateUser` não devolve mais `active` e o erro `task.owner_inactive` não existe.

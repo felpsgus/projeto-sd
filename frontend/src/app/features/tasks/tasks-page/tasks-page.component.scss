@@ -1,0 +1,261 @@
+:host {
+  display: block;
+}
+
+.tasks-page {
+  &__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+
+    h1 {
+      margin: 0;
+    }
+  }
+
+  &__new {
+    padding: var(--space-2xs) var(--space-sm);
+    font-weight: 500;
+    color: var(--color-accent-contrast);
+    background: var(--color-accent);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: opacity 0.12s ease;
+
+    &:hover {
+      opacity: 0.92;
+    }
+  }
+
+  &__quick-add {
+    margin-bottom: var(--space-md);
+  }
+
+  &__quick-add-form {
+    display: flex;
+    gap: var(--space-2xs);
+
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: var(--space-xs) var(--space-sm);
+      transition: border-color 0.12s ease;
+
+      &:hover {
+        border-color: var(--color-text-secondary);
+      }
+    }
+
+    button {
+      flex: none;
+      padding: var(--space-xs) var(--space-sm);
+    }
+  }
+
+  /* Campos de texto da página: mesma superfície e borda. */
+  &__quick-add-form input,
+  &__filter-search input {
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  /* Botões secundários da página (adicionar, limpar filtros, paginação). */
+  &__quick-add-form button,
+  &__clear-filters,
+  &__pagination button {
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-text-secondary);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-md);
+    padding: var(--space-sm) 0;
+    margin-bottom: var(--space-md);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+
+    @media (max-width: 22.5rem) {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-sm);
+    }
+  }
+
+  &__filters > * {
+    max-width: 100%;
+  }
+
+  &__filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    border: 0;
+
+    legend {
+      width: 100%;
+      margin-bottom: var(--space-3xs);
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3xs);
+      font-size: var(--font-size-sm);
+      white-space: nowrap;
+    }
+  }
+
+  &__filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    font-size: var(--font-size-sm);
+  }
+
+  &__filter-search {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+
+    input {
+      padding: var(--space-3xs) var(--space-2xs);
+      min-width: min(12rem, 100%);
+    }
+  }
+
+  &__more-filters {
+    summary {
+      align-content: center; /* centraliza no alvo de 44 px sem perder o marcador nativo */
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+
+      @media (max-width: 40rem), (pointer: coarse) {
+        min-height: 2.75rem;
+      }
+    }
+  }
+
+  &__more-filters-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    padding-top: var(--space-2xs);
+  }
+
+  &__clear-filters {
+    align-self: center;
+    padding: var(--space-3xs) var(--space-sm);
+    color: var(--color-accent);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-accent);
+    }
+  }
+
+  &__results-status {
+    margin: 0 0 var(--space-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  &__list {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    border-top: 1px solid var(--color-border);
+    transition: opacity 0.12s ease;
+
+    &[aria-busy='true'] {
+      opacity: 0.6;
+    }
+
+    .task-item-host {
+      border-bottom: 1px solid var(--color-border);
+    }
+  }
+
+  &__pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+
+    button {
+      padding: var(--space-2xs) var(--space-sm);
+    }
+  }
+
+  &__pagination-status {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+}
+
+.tasks-page__notice {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  border-left: 2px solid var(--color-danger);
+  font-size: var(--font-size-sm);
+
+  &--success {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--color-success);
+    background: var(--color-success-surface);
+    border-left-color: var(--color-success);
+  }
+}
+
+.tasks-page__quick-add-error {
+  margin: var(--space-2xs) 0 0;
+}
+
+.tasks-page__undo {
+  padding: 0 var(--space-2xs);
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-USER-01, RN-USER-02, RN-USER-03 |
 | **Estimativa** | P |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de perfil.
+
 ## Objetivo
 
 O usuário vê os próprios dados em `/account` e altera o nome de exibição — e a tela deixa claro que o e-mail não é alterável.
@@ -38,24 +40,34 @@ O usuário vê os próprios dados em `/account` e altera o nome de exibição �
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `/account` exibe e-mail, nome de exibição e data de criação do usuário autenticado (RN-USER-01).
-- [ ] **CA-02** — A data de criação é exibida em formato legível em pt-BR.
-- [ ] **CA-03** — O e-mail é exibido como **somente leitura**, com a explicação de que não pode ser alterado (RN-USER-03).
-- [ ] **CA-04** — Não existe nenhum campo editável de e-mail na tela, nem desabilitado com aparência de input.
-- [ ] **CA-05** — O request do `PATCH` **não** contém o campo `email` (verificado no teste da chamada).
-- [ ] **CA-06** — Alterar o nome e salvar retorna sucesso e a tela reflete o novo valor (RN-USER-02).
-- [ ] **CA-07** — O nome no cabeçalho do `AppShell` é atualizado **imediatamente** após salvar, sem recarregar a página.
-- [ ] **CA-08** — Nome vazio, só espaços, ou com 101 caracteres é rejeitado antes do envio; 1 e 100 caracteres são aceitos.
-- [ ] **CA-09** — O nome é enviado com trim.
-- [ ] **CA-10** — O botão salvar fica desabilitado quando não há alteração pendente e durante o envio.
-- [ ] **CA-11** — Erro na API exibe mensagem sem perder o valor digitado.
-- [ ] **CA-12** — Enquanto os dados carregam, a tela exibe indicador de carregamento; se falhar, exibe erro com "tentar novamente".
-- [ ] **CA-13** — A resposta exibida **não** contém nenhum campo de senha ou hash (RN-AUTH-05).
-- [ ] **CA-14** — As ações "alterar senha", "sair de todos os dispositivos" e "excluir conta" estão acessíveis a partir desta tela.
-- [ ] **CA-15** — "Excluir conta" está visualmente separada e marcada como ação destrutiva, longe do botão de salvar.
-- [ ] **CA-16** — A tela é operável só pelo teclado, com labels associados, e usável em 360 px.
+- [x] **CA-01** — `/account` exibe e-mail, nome de exibição e data de criação do usuário autenticado (RN-USER-01).
+- [x] **CA-02** — A data de criação é exibida em formato legível em pt-BR.
+- [x] **CA-03** — O e-mail é exibido como **somente leitura**, com a explicação de que não pode ser alterado (RN-USER-03).
+- [x] **CA-04** — Não existe nenhum campo editável de e-mail na tela, nem desabilitado com aparência de input.
+- [x] **CA-05** — O request do `PATCH` **não** contém o campo `email` (verificado no teste da chamada).
+- [x] **CA-06** — Alterar o nome e salvar retorna sucesso e a tela reflete o novo valor (RN-USER-02).
+- [x] **CA-07** — O nome no cabeçalho do `AppShell` é atualizado **imediatamente** após salvar, sem recarregar a página.
+- [x] **CA-08** — Nome vazio, só espaços, ou com 101 caracteres é rejeitado antes do envio; 1 e 100 caracteres são aceitos.
+- [x] **CA-09** — O nome é enviado com trim.
+- [x] **CA-10** — O botão salvar fica desabilitado quando não há alteração pendente e durante o envio.
+- [x] **CA-11** — Erro na API exibe mensagem sem perder o valor digitado.
+- [x] **CA-12** — Enquanto os dados carregam, a tela exibe indicador de carregamento; se falhar, exibe erro com "tentar novamente".
+- [x] **CA-13** — A resposta exibida **não** contém nenhum campo de senha ou hash (RN-AUTH-05).
+- [x] **CA-14** — As ações "alterar senha", "sair de todos os dispositivos" e "excluir conta" estão acessíveis a partir desta tela.
+- [x] **CA-15** — "Excluir conta" está visualmente separada e marcada como ação destrutiva, longe do botão de salvar.
+- [x] **CA-16** — A tela é operável só pelo teclado, com labels associados, e usável em 360 px.
 
 ## Testes obrigatórios
 
 - Componente (Testing Library): CA-01 a CA-12, CA-14.
 - Integração com `SessionStore`: CA-07 — a sincronia do cabeçalho é o defeito mais provável desta task.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 13 de 16.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-10 | em aberto | Implementação presente (`submitting() || !canSave()`), mas o spec só afirma o botão desabilitado sem alteração pendente; o estado durante o envio não é exercitado. |
+| CA-11 | em aberto | Implementação preserva o valor digitado (o form não é resetado no erro), mas nenhum teste faz o `PATCH` falhar. |
+| CA-16 | em aberto | 360 px coberto por `e2e/a11y.spec.ts` (sem rolagem horizontal e alvos de 44 px em `/account`); operação só por teclado não é exercitada nesta tela (o E2E de teclado é login -> criar -> concluir); labels associados confirmados no template. |

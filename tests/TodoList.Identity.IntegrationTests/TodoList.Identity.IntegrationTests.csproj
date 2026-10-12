@@ -2,6 +2,20 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Identity\TodoList.Identity.Api\TodoList.Identity.Api.csproj" />
+    <!-- BE-16, CA-04/CA-05/CA-08: a prova da cascata `tasks.tasks.owner_id →
+         identity.users(id) ON DELETE CASCADE` (D-27) exige consultar
+         tasks.tasks pelo TasksDbContext real — não há como verificar isso
+         só com o Identity. Referência só de teste, nunca de src/Identity/**
+         (a barreira de D-27/CA-13 continua valendo em produção).
+         `Aliases=TasksInfra`: TodoList.Tasks.Infrastructure gera, do mesmo
+         identity.proto (lado Client), os mesmos tipos de mensagem que
+         TodoList.Identity.Api gera (lado Server) — sem alias, os dois
+         assemblies na mesma compilação colidem (CS0433) mesmo sem uso direto.
+         O alias exige `extern alias TasksInfra;` em quem precisa de
+         TasksDbContext/TodoTask, sem afetar o restante do projeto de teste. -->
+    <ProjectReference Include="..\..\src\Tasks\TodoList.Tasks.Infrastructure\TodoList.Tasks.Infrastructure.csproj">
+      <Aliases>TasksInfra</Aliases>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>

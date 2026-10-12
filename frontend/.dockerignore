@@ -1,0 +1,27 @@
+# Etapa 13 (Onda A). Contexto de build = a pasta frontend/ (diferente dos
+# Dockerfiles .NET, que usam a raiz do repositório) — o .dockerignore da raiz
+# NÃO se aplica aqui, e ele não exclui node_modules mesmo se aplicasse.
+#
+# node_modules é o item crítico: sem excluí-lo, o COPY traria o node_modules
+# instalado no HOST (Windows, com binários nativos compilados para Windows)
+# para dentro da imagem Linux, contaminando o `npm ci` do estágio de build.
+
+node_modules/
+dist/
+.angular/
+coverage/
+
+# IDE / OS
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Não usados pela imagem
+.git/
+.gitignore
+README.md
+*.md
+e2e/

@@ -1,4 +1,4 @@
-using TodoList.Tasks.Domain.Common;
+using TodoList.SharedKernel;
 
 namespace TodoList.Tasks.IntegrationTests.Persistence;
 

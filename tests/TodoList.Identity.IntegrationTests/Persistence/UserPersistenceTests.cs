@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
+using TodoList.Identity.Application.Persistence;
 using TodoList.Identity.Domain.Users;
 using TodoList.Identity.Infrastructure.Persistence;
 using Xunit;
@@ -17,6 +18,15 @@ namespace TodoList.Identity.IntegrationTests.Persistence;
 /// quem cria <c>identity.users</c> aqui — <c>Database.MigrateAsync()</c>, não
 /// <c>EnsureCreated()</c>, para provar a migration de verdade, não só o
 /// modelo atual do EF.
+///
+/// <para>
+/// <b>BE-07, CA-12:</b> desde a tradução de exceção adicionada a
+/// <see cref="IdentityDbContext.SaveChangesAsync"/>, a violação real do
+/// Postgres chega aqui como <see cref="UniqueConstraintViolationException"/>
+/// (o tipo que a Application conhece), não mais <see cref="DbUpdateException"/>
+/// cru — CA-10/CA-11 continuam provando a mesma garantia de banco, só que pelo
+/// tipo que <c>RegisterUserHandler</c> efetivamente trata.
+/// </para>
 /// </summary>
 [Collection("Postgres")]
 public class UserPersistenceTests : IAsyncLifetime
@@ -61,8 +71,9 @@ public class UserPersistenceTests : IAsyncLifetime
 
         var act = async () => await contextComDuplicata.SaveChangesAsync();
 
-        await act.Should().ThrowAsync<DbUpdateException>(
+        var exception = await act.Should().ThrowAsync<UniqueConstraintViolationException>(
             "o índice único do banco precisa rejeitar e-mail duplicado (CA-10) — não é só a checagem em memória do caso de uso");
+        exception.Which.InnerException.Should().BeOfType<DbUpdateException>();
     }
 
     [Fact]
@@ -85,8 +96,9 @@ public class UserPersistenceTests : IAsyncLifetime
 
         var act = async () => await contextComDuplicata.SaveChangesAsync();
 
-        await act.Should().ThrowAsync<DbUpdateException>(
+        var exception = await act.Should().ThrowAsync<UniqueConstraintViolationException>(
             "e-mails que diferem só em maiúsculas/minúsculas são o mesmo usuário (CA-11) — o banco precisa rejeitar igual");
+        exception.Which.InnerException.Should().BeOfType<DbUpdateException>();
     }
 
     [Fact]

@@ -8,7 +8,7 @@ namespace TodoList.Identity.Domain.Users;
 /// garantidas pela própria entidade, não pelo caso de uso: o construtor é
 /// privado, a única forma de criar um <see cref="User"/> válido é <see cref="Create"/>,
 /// e todo estado muda por método de domínio — <see cref="Rename"/>,
-/// <see cref="Deactivate"/>, <see cref="ChangePasswordHash"/>. Nenhuma
+/// <see cref="ChangePasswordHash"/>. Nenhuma
 /// propriedade expõe setter público (CA-07, verificado por teste de
 /// reflection); <see cref="Email"/> não expõe setter nenhum, nem privado
 /// (CA-08, RN-USER-03) — é passado só pelo construtor.
@@ -24,13 +24,6 @@ namespace TodoList.Identity.Domain.Users;
 /// <c>DateTime.UtcNow</c> direto), o que também mantém os testes
 /// determinísticos com um <c>FakeTimeProvider</c>.
 /// </para>
-///
-/// <para>
-/// <see cref="User"/> não implementa <c>ISoftDeletable</c>: <see cref="Deactivate"/>
-/// (RN-USER-04) é um estado de negócio distinto de exclusão de conta
-/// (RN-USER-05, BE-16, fora do escopo de BE-04) — um usuário inativo continua
-/// existindo e sendo consultável, só não pode autenticar.
-/// </para>
 /// </summary>
 public sealed class User
 {
@@ -43,13 +36,12 @@ public sealed class User
     /// único jeito de reconstituir um <see cref="User"/> vindo do banco é por
     /// aqui, exatamente como o domínio constrói um novo (nota técnica de BE-04).
     /// </summary>
-    private User(Guid id, Email email, string displayName, string passwordHash, bool isActive, DateTime createdAt, DateTime updatedAt)
+    private User(Guid id, Email email, string displayName, string passwordHash, DateTime createdAt, DateTime updatedAt)
     {
         Id = id;
         Email = email;
         DisplayName = displayName;
         PasswordHash = passwordHash;
-        IsActive = isActive;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
     }
@@ -80,9 +72,6 @@ public sealed class User
     [JsonIgnore]
     public string PasswordHash { get; private set; }
 
-    /// <summary>Nasce <c>true</c> (RN-AUTH-06); <c>false</c> depois de <see cref="Deactivate"/> (RN-USER-04).</summary>
-    public bool IsActive { get; private set; }
-
     /// <summary>Preenchido na criação (UTC) — nunca muda depois (RN-USER-01).</summary>
     public DateTime CreatedAt { get; }
 
@@ -102,8 +91,7 @@ public sealed class User
     /// <summary>
     /// Cria um usuário novo com o <paramref name="id"/> informado. Se
     /// <paramref name="displayName"/> estiver ausente/vazio, usa a parte do
-    /// e-mail antes do "@" (RN-AUTH-07). Nasce sempre <see cref="IsActive"/> =
-    /// <c>true</c> (RN-AUTH-06, CA-06).
+    /// e-mail antes do "@" (RN-AUTH-07).
     /// </summary>
     public static Result<User> Create(Guid id, Email email, string? displayName, string passwordHash, TimeProvider timeProvider)
     {
@@ -125,7 +113,7 @@ public sealed class User
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        return Result.Success(new User(id, email, validatedDisplayName.Value, passwordHash, isActive: true, now, now));
+        return Result.Success(new User(id, email, validatedDisplayName.Value, passwordHash, now, now));
     }
 
     /// <summary>
@@ -146,17 +134,6 @@ public sealed class User
         UpdatedAt = timeProvider.GetUtcNow().UtcDateTime;
 
         return Result.Success();
-    }
-
-    /// <summary>
-    /// Desativa o usuário (RN-USER-04): a partir daqui ele não deve mais
-    /// conseguir autenticar-se — a checagem em si é do caso de uso de login
-    /// (BE-09), aqui só o estado é registrado.
-    /// </summary>
-    public void Deactivate(TimeProvider timeProvider)
-    {
-        IsActive = false;
-        UpdatedAt = timeProvider.GetUtcNow().UtcDateTime;
     }
 
     /// <summary>

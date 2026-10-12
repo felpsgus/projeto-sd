@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
-using TodoList.Tasks.Infrastructure.Persistence.Interceptors;
+using TodoList.SharedKernel.Persistence;
 using Xunit;
 
 namespace TodoList.Tasks.IntegrationTests.Persistence;

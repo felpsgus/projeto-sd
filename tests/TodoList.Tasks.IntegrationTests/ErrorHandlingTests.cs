@@ -1,30 +1,28 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
-using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using TodoList.SharedKernel;
+using Serilog.Core;
+using Serilog.Events;
+using TodoList.SharedKernel.Web;
 using TodoList.Tasks.Api.ErrorHandling;
-using TodoList.Tasks.Api.ResultMapping;
-using TodoList.Tasks.Api.Validation;
 using Xunit;
 
 namespace TodoList.Tasks.IntegrationTests;
 
 /// <summary>
-/// CA-03, CA-04, CA-05, CA-06, CA-08 e CA-09 de BE-03, exercitados sobre um
+/// CA-03, CA-05, CA-06, CA-08 e CA-09 de BE-03, exercitados sobre um
 /// host mínimo criado neste projeto de teste — não existem endpoints de
 /// negócio ainda, e nenhuma rota de exemplo entra na aplicação de produção
-/// (ver notas do BE-03). O host reaproveita exatamente a fiação de produção
-/// (<see cref="ApiErrorHandlingExtensions"/>, <see cref="ResultHttpResults"/>,
-/// <see cref="ValidationFilterExtensions"/>), então o que é verificado aqui é
-/// o mesmo mecanismo usado pelo <c>Program.cs</c> real.
+/// (ver notas do BE-03). O host replica a fiação de produção do <c>Program.cs</c>
+/// (<see cref="GlobalExceptionHandler"/> + <c>ProblemDetails</c> com <c>traceId</c>), então o que é verificado aqui é
+/// o mesmo mecanismo.
 /// </summary>
 public class ErrorHandlingTests
 {
@@ -47,30 +45,11 @@ public class ErrorHandlingTests
         body.GetProperty("traceId").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
-    [Fact] // CA-04
-    public async Task Endpoint_ComRequestInvalido_Retorna400ComErrosPorCampo()
-    {
-        using var host = await CreateHostAsync();
-        var client = host.GetTestClient();
-
-        var response = await client.PostAsJsonAsync(new Uri("/test/validate", UriKind.Relative), new ExampleRequest(string.Empty));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
-
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var errors = body.GetProperty("errors");
-
-        errors.GetProperty(nameof(ExampleRequest.Name)).EnumerateArray().Should().NotBeEmpty(
-            "CA-04 exige a lista de erros por campo, não uma mensagem única concatenada");
-        body.GetProperty("traceId").GetString().Should().NotBeNullOrWhiteSpace();
-    }
-
     [Fact] // CA-05, CA-06
     public async Task Endpoint_ComExcecaoNaoTratada_Retorna500GenericoENaoVazaDetalheForaDeDevelopment()
     {
-        var capturingProvider = new CapturingLoggerProvider();
-        using var host = await CreateHostAsync(environment: "Production", capturingProvider);
+        var sink = new EventSink();
+        using var host = await CreateHostAsync(environment: "Production", sink);
         var client = host.GetTestClient();
 
         var response = await client.GetAsync(new Uri("/test/boom", UriKind.Relative));
@@ -89,7 +68,8 @@ public class ErrorHandlingTests
         traceId.Should().NotBeNullOrWhiteSpace();
 
         // CA-06: o traceId da resposta corresponde ao da entrada de log da exceção.
-        capturingProvider.Messages.Should().Contain(message => message.Contains(traceId!, StringComparison.Ordinal));
+        sink.Events.Should().Contain(entry =>
+            entry.Exception is InvalidOperationException && entry.Properties["traceId"].ToString() == $"\"{traceId}\"");
     }
 
     [Fact] // CA-09 (metade Tasks — a outra metade é TodoList.Identity.IntegrationTests)
@@ -109,92 +89,39 @@ public class ErrorHandlingTests
         }
     }
 
-    private static async Task<IHost> CreateHostAsync(string environment = "Production", CapturingLoggerProvider? loggerProvider = null)
+    private static async Task<IHost> CreateHostAsync(string environment = "Production", ILogEventSink? sink = null)
     {
-        var hostBuilder = new HostBuilder()
-            .ConfigureWebHost(webHostBuilder =>
-            {
-                webHostBuilder
-                    .UseTestServer()
-                    .UseEnvironment(environment)
-                    .ConfigureServices(services =>
-                    {
-                        services.AddRouting();
-                        services.AddApiErrorHandling();
-                        services.AddValidatorsFromAssemblyContaining<ExampleRequestValidator>();
+        // Mesma fiação de produção, incluindo o enricher de traceId do log estruturado.
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = environment });
+        builder.WebHost.UseTestServer();
+        builder.AddStructuredLogging("test");
+        builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+        builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails =
+            context => context.ProblemDetails.Extensions["traceId"] = context.HttpContext.GetTraceId());
 
-                        if (loggerProvider is not null)
-                        {
-                            services.AddLogging(logging => logging.AddProvider(loggerProvider));
-                        }
-                    })
-                    .Configure(app =>
-                    {
-                        app.UseApiErrorHandling();
-                        app.UseRouting();
-                        app.UseEndpoints(endpoints =>
-                        {
-                            endpoints.MapPost("/test/validate", (ExampleRequest request) => Microsoft.AspNetCore.Http.Results.Ok())
-                                .WithRequestValidation<ExampleRequest>();
+        if (sink is not null)
+        {
+            builder.Services.AddSingleton(sink);
+        }
 
-                            endpoints.MapGet("/test/not-found", () =>
-                                Result.Failure(new Error("test.not_found", "Recurso de teste não encontrado.", ErrorType.NotFound))
-                                    .ToHttpResult());
+        var app = builder.Build();
+        app.UseExceptionHandler();
+        app.MapGet("/test/not-found", () =>
+            Microsoft.AspNetCore.Http.Results.Problem(detail: "Recurso de teste não encontrado.", statusCode: 404));
 
-                            Func<Microsoft.AspNetCore.Http.IResult> boom = () =>
-                                throw new InvalidOperationException("detalhe interno que não pode vazar para o cliente");
-                            endpoints.MapGet("/test/boom", boom);
-                        });
-                    });
-            });
+        Func<Microsoft.AspNetCore.Http.IResult> boom = () =>
+            throw new InvalidOperationException("detalhe interno que não pode vazar para o cliente");
+        app.MapGet("/test/boom", boom);
 
-        var host = hostBuilder.Build();
-        await host.StartAsync();
+        await app.StartAsync();
 
-        return host;
+        return app;
     }
 
-    public sealed record ExampleRequest(string Name);
-
-    public sealed class ExampleRequestValidator : AbstractValidator<ExampleRequest>
+    private sealed class EventSink : ILogEventSink
     {
-        public ExampleRequestValidator()
-        {
-            RuleFor(request => request.Name).NotEmpty();
-        }
-    }
+        public ConcurrentQueue<LogEvent> Events { get; } = new();
 
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        private readonly List<string> _messages = [];
-
-        public IReadOnlyList<string> Messages => _messages;
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(_messages);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger : ILogger
-        {
-            private readonly List<string> _messages;
-
-            public CapturingLogger(List<string> messages)
-            {
-                _messages = messages;
-            }
-
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(
-                LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            {
-                _messages.Add(formatter(state, exception));
-            }
-        }
+        public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
     }
 }

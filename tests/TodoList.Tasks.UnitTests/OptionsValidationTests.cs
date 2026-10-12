@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using TodoList.Tasks.Api.Configuration;
+using TodoList.SharedKernel.Web;
 using TodoList.Tasks.Infrastructure.Identity;
 using Xunit;
 

@@ -45,6 +45,16 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact] // BE-24, CA-07 — /health/live é alias do liveness e não toca no banco (aqui, indisponível)
+    public async Task GetHealthLive_ComBancoIndisponivel_RetornaOk()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync(new Uri("/health/live", UriKind.Relative));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     [Fact] // CA-03, CA-04
     public async Task GetHealthReady_ComBancoIndisponivel_RespondeDegradadoSemDerrubarOProcesso()
     {

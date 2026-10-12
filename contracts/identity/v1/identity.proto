@@ -4,20 +4,78 @@ option csharp_namespace = "TodoList.Contracts.Identity.V1";
 
 package identity.v1;
 
-// Fronteira de rede entre o Tasks Service (cliente) e o Identity Service
-// (servidor) — o único caminho pelo qual um serviço fala com o outro
-// (D-29). Alterar este arquivo e recompilar propaga a mudança para os
-// dois lados em um único build (CA-07 de BE-25).
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// Fronteira de rede entre o Tasks Service (cliente), o API Gateway (cliente)
+// e o Identity Service (servidor) — o único caminho pelo qual os outros
+// serviços falam com o Identity (D-29). Alterar este arquivo e recompilar
+// propaga a mudança para todos os lados em um único build (CA-07 de BE-25).
 service IdentityService {
-  // Valida o dono antes de criar a tarefa (RN-AUTZ-01, RN-USER-04): o
-  // Tasks pergunta se o `owner_id` recebido existe e está ativo antes de
-  // persistir a tarefa.
+  // Valida o dono antes de criar a tarefa (RN-AUTZ-01): o Tasks pergunta se
+  // o `owner_id` recebido ainda existe (o usuário pode ter sido excluído)
+  // antes de persistir a tarefa.
   rpc ValidateUser (ValidateUserRequest) returns (ValidateUserResponse);
 
-  // Único caminho para validar um token fora do Identity: a chave de
-  // assinatura não sai daqui (D-31). Stub nesta etapa (BE-26); usado pelo
-  // API Gateway na etapa seguinte para não ter que guardar a chave HS256.
-  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
+  // Login (RN-AUTH-08/10): troca e-mail + senha por um access token e por um
+  // refresh token de uma sessão nova (BE-09/BE-10; cada login = uma sessão,
+  // D-15). O cookie `refreshToken` (D-20) é escrito pelo Gateway — o Identity
+  // só devolve o valor opaco.
+  rpc Login (LoginRequest) returns (LoginResponse);
+
+  // Renovação de sessão (BE-10, RN-AUTH-14/16/17/18): troca um refresh token
+  // válido por um novo par de tokens, na mesma sessão. O refresh token só
+  // serve uma vez; reapresentar um já usado revoga a sessão inteira. Toda
+  // falha (inexistente, expirado, revogado, reuso, usuário excluído) é
+  // `succeeded=false`, indistinguível — nunca status gRPC de erro por causa do
+  // token, só por falha de infraestrutura.
+  rpc RefreshSession (RefreshSessionRequest) returns (RefreshSessionResponse);
+
+  // Logout da sessão do refresh token apresentado (BE-11, RN-AUTH-12): revoga
+  // a cadeia inteira daquela sessão. Idempotente — token ausente, desconhecido
+  // ou já revogado responde OK. Token de OUTRO usuário não revoga nada (e o
+  // Identity registra um aviso, sem o valor do token).
+  rpc Logout (LogoutRequest) returns (google.protobuf.Empty);
+
+  // "Sair de todos os dispositivos" (BE-11, RN-AUTH-19): revoga todas as
+  // sessões do usuário. O access token já emitido continua válido até
+  // expirar (D-41).
+  rpc LogoutAll (LogoutAllRequest) returns (google.protobuf.Empty);
+
+  // Cadastro de usuário (BE-07, RN-AUTH-01/02/03/04/06/07). Extensão
+  // aditiva da Fase 3 — o Gateway traduz `POST /api/auth/register` para
+  // este RPC, no mesmo estilo de `Login` (D-36). E-mail duplicado e senha
+  // fora da política são falha de negócio, sinalizada por status gRPC
+  // (D-35), nunca `succeeded=false`: ao contrário de `Login`, aqui o
+  // vazamento de existência é aceitável e desejável (nota técnica de
+  // BE-07) — não há motivo para esconder a causa da falha.
+  rpc Register (RegisterRequest) returns (RegisterResponse);
+
+  // Consulta o perfil do usuário autenticado (BE-14, RN-USER-01/02/03). O
+  // `user_id` vem do `sub` do token já validado pelo Gateway (D-38) — este
+  // RPC não valida token, apenas confia no id recebido, como `ValidateUser`
+  // já fazia.
+  rpc GetProfile (GetProfileRequest) returns (ProfileResponse);
+
+  // Altera o nome de exibição do usuário autenticado (BE-14, RN-USER-02).
+  // Não existe campo de e-mail nesta mensagem — imutabilidade estrutural
+  // (RN-USER-03), a mesma garantia de `Email` no domínio.
+  rpc UpdateProfile (UpdateProfileRequest) returns (ProfileResponse);
+
+  // Troca a senha do usuário autenticado (BE-15, RN-AUTH-04/21). Exige a
+  // senha atual. Em caso de sucesso, revoga todos os refresh tokens do usuário
+  // (RN-AUTH-19, BE-10) no mesmo commit da troca; o access token já emitido
+  // continua válido até expirar (D-41).
+  rpc ChangePassword (ChangePasswordRequest) returns (google.protobuf.Empty);
+
+  // Exclui a conta do usuário autenticado (BE-16, RN-USER-05). Exige a
+  // senha atual (D-19). A remoção das tarefas do usuário acontece em
+  // cascata no banco, pela FK `tasks.tasks.owner_id → identity.users(id)
+  // ON DELETE CASCADE` (D-27) — este RPC não enumera nem chama o Tasks
+  // Service (CA-05b de BE-16): nenhum RPC novo de exclusão de tarefas
+  // entra no contrato. Os refresh tokens do usuário saem na mesma cascata
+  // (`identity.refresh_tokens.user_id`, RN-AUTH-19).
+  rpc DeleteAccount (DeleteAccountRequest) returns (google.protobuf.Empty);
 }
 
 message ValidateUserRequest {
@@ -28,14 +86,12 @@ message ValidateUserRequest {
 }
 
 message ValidateUserResponse {
-  // Verdadeiro se existe um usuário com esse id no Identity. Separado de
-  // `active` porque "nunca existiu" e "existe mas está inativo"
-  // (RN-USER-04) são desfechos diferentes para quem chama.
+  // Verdadeiro se existe um usuário com esse id no Identity. O usuário não
+  // tem estado: ou existe, ou foi excluído (RN-USER-05).
   bool exists = 1;
 
-  // Estado atual do usuário (RN-USER-01, RN-USER-04). Só tem sentido
-  // quando `exists = true`; caso contrário vem `false`.
-  bool active = 2;
+  reserved 2;
+  reserved "active";
 
   // Nome de exibição do dono, para o Tasks poder exibir/registrar sem
   // manter cópia do dado (RN-AUTH-07). Único campo de usuário que
@@ -45,18 +101,138 @@ message ValidateUserResponse {
   string display_name = 3;
 }
 
-message ValidateTokenRequest {
-  // Token de acesso (JWT) emitido pelo Identity, a validar por quem está
-  // fora dele — hoje ninguém, pois o RPC é stub (D-31).
-  string access_token = 1;
+message LoginRequest {
+  // E-mail informado pelo usuário, normalizado no Identity antes da busca.
+  string email = 1;
+  // Senha em texto puro — trafega só nesta chamada interna, nunca em log.
+  string password = 2;
 }
 
-message ValidateTokenResponse {
-  // Verdadeiro se o token é válido e não expirou. Sempre `false` nesta
-  // etapa: o stub não implementa validação de JWT (BE-26, D-31).
-  bool valid = 1;
+message LoginResponse {
+  // Falso para e-mail inexistente ou senha errada — as duas causas são
+  // indistinguíveis (RN-AUTH-09). Nunca status de
+  // erro gRPC para credencial inválida, só para falha de infraestrutura.
+  bool succeeded = 1;
+  // Access token JWT, presente só quando succeeded=true.
+  string access_token = 2;
+  // Expiração do access token, presente só quando succeeded=true.
+  google.protobuf.Timestamp expires_at = 3;
+  // Id do usuário autenticado, presente só quando succeeded=true.
+  string user_id = 4;
+  // Refresh token opaco da sessão nova (BE-10, RN-AUTH-10), presente só
+  // quando succeeded=true. Credencial de longa duração: o Gateway o entrega
+  // por cookie HttpOnly e nunca o repassa no corpo JSON nem em log (D-20,
+  // RN-AUTH-20).
+  string refresh_token = 5;
+  // Expiração do refresh token, presente só quando succeeded=true — o Gateway
+  // deriva o Max-Age do cookie daqui.
+  google.protobuf.Timestamp refresh_token_expires_at = 6;
+  // Bloqueio temporário por tentativas (BE-12, RN-AUTH-13): verdadeiro quando o
+  // e-mail está bloqueado (existente ou não — ADR 0002); succeeded=false e nenhum
+  // token. O Gateway responde 429 + Retry-After. Extensão aditiva: clientes
+  // antigos enxergam só succeeded=false.
+  bool locked_out = 7;
+  // Segundos até poder tentar de novo (>= 1), presente só quando locked_out=true.
+  int32 retry_after_seconds = 8;
+}
 
-  // Id do usuário dono do token, quando válido. Sempre string vazia
-  // nesta etapa, pelo mesmo motivo de `valid`.
-  string user_id = 2;
+message RefreshSessionRequest {
+  // Valor opaco lido do cookie pelo Gateway. Nunca em log.
+  string refresh_token = 1;
+}
+
+message RefreshSessionResponse {
+  // Falso para qualquer falha de renovação — as causas são indistinguíveis.
+  bool succeeded = 1;
+  // Novo access token, presente só quando succeeded=true.
+  string access_token = 2;
+  // Expiração do novo access token, presente só quando succeeded=true.
+  google.protobuf.Timestamp expires_at = 3;
+  // Novo refresh token (rotação, RN-AUTH-16), presente só quando succeeded=true.
+  string refresh_token = 4;
+  // Expiração do novo refresh token, presente só quando succeeded=true.
+  google.protobuf.Timestamp refresh_token_expires_at = 5;
+  // Verdadeiro só quando succeeded=false porque o token foi revogado por ação
+  // do usuário (logout, logout-all, troca de senha — RN-AUTH-19). Expirado,
+  // inexistente e reuso (RN-AUTH-17) seguem com revoked=false.
+  bool revoked = 6;
+}
+
+message LogoutRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
+  // Refresh token da sessão a encerrar, lido do cookie. Pode vir vazio
+  // (logout sem cookie é idempotente). Nunca em log.
+  string refresh_token = 2;
+}
+
+message LogoutAllRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
+}
+
+message RegisterRequest {
+  // E-mail informado pelo visitante; normalizado (trim + lowercase) no
+  // Identity antes de checar duplicidade (RN-AUTH-02/RN-AUTH-03).
+  string email = 1;
+  // Senha em texto puro — trafega só nesta chamada interna, nunca em log
+  // (mesma regra de `LoginRequest.password`).
+  string password = 2;
+  // Nome de exibição opcional. String vazia (valor default de proto3) é
+  // tratada como "não informado": o Identity usa a parte do e-mail antes
+  // do "@" (RN-AUTH-07) — mesmo tratamento para ausente ou só espaços.
+  string display_name = 3;
+}
+
+message RegisterResponse {
+  // Id gerado pelo domínio (RN-USER-01), nunca pelo banco.
+  string id = 1;
+  // E-mail já normalizado.
+  string email = 2;
+  // Nome de exibição efetivo, já com o padrão aplicado (RN-AUTH-07).
+  string display_name = 3;
+  // Nunca contém senha nem hash (RN-AUTH-05) — a mensagem nem tem esse campo.
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message GetProfileRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway
+  // antes da chamada — este RPC não valida token (BE-14).
+  string user_id = 1;
+}
+
+message UpdateProfileRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
+  // Obrigatório; 1–100 caracteres após trim, não pode ser só espaços
+  // (RN-USER-02) — validado por `User.Rename`.
+  string display_name = 2;
+}
+
+message ProfileResponse {
+  // Id do usuário (RN-USER-01).
+  string id = 1;
+  // E-mail do usuário; imutável depois do cadastro (RN-USER-03).
+  string email = 2;
+  // Nome de exibição atual do usuário (RN-USER-02).
+  string display_name = 3;
+  // Data/hora do cadastro do usuário.
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message ChangePasswordRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
+  // Senha atual, exigida para autorizar a troca. Nunca em log (RN-AUTH-05,
+  // mesma regra de LoginRequest.password).
+  string current_password = 2;
+  // Nova senha, sujeita à política de senha (RN-AUTH-04). Nunca em log.
+  string new_password = 3;
+}
+
+message DeleteAccountRequest {
+  // Id do usuário autenticado (o `sub` do token), resolvido pelo Gateway.
+  string user_id = 1;
+  // Confirmação de senha (D-19) — mesma proteção da troca de senha.
+  string password = 2;
 }

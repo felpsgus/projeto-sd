@@ -61,24 +61,24 @@ Os dois serviços conversam com o **mesmo** banco PostgreSQL, cada um dentro do 
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `dotnet ef migrations add <Nome>` e `dotnet ef database update` funcionam a partir da raiz para **cada** serviço, com os dois comandos e a **ordem** (Identity primeiro) documentados no README.
-- [ ] **CA-02** — Existe ao menos uma migration inicial versionada no repositório **por serviço**, com `__EFMigrationsHistory` no schema do próprio serviço.
-- [ ] **CA-02b** — Rodar as migrations dos dois serviços em sequência, num banco vazio, produz os dois schemas completos — e rodar de novo é no-op, sem erro.
-- [ ] **CA-02c** — A FK `tasks.tasks.owner_id → identity.users(id)` existe, com `ON DELETE CASCADE`, verificado por consulta ao catálogo do Postgres.
-- [ ] **CA-03** — Subir a API com o banco indisponível **não** derruba o processo silenciosamente: o health check reporta o estado degradado.
-- [ ] **CA-04** — `GET /health` distingue *liveness* (app viva) de *readiness* (banco alcançável).
-- [ ] **CA-05** — Um `DateTime` gravado e lido de volta permanece em UTC, sem deslocamento (teste de integração).
-- [ ] **CA-06** — Uma entidade marcada como removida **não** aparece em consultas normais e **aparece** com `IgnoreQueryFilters()`.
-- [ ] **CA-07** — Ao salvar uma entidade auditável nova, `CreatedAt` e `UpdatedAt` são preenchidos; ao alterá-la, apenas `UpdatedAt` muda.
-- [ ] **CA-08** — O tempo usado pelo contexto vem de `TimeProvider` injetado: um teste que avança o tempo fake vê o novo valor sem `Thread.Sleep`.
-- [ ] **CA-09** — Os testes de integração sobem o Postgres via Testcontainers e passam em máquina limpa, sem banco pré-instalado.
-- [ ] **CA-10** — Testes de integração são independentes: rodar a suíte em ordem aleatória duas vezes seguidas produz o mesmo resultado.
-- [ ] **CA-11** — Nenhuma connection string real está versionada (verificável por varredura do repositório).
-- [ ] **CA-12** — A camada `Application` de **cada** serviço compila sem referência a `Microsoft.EntityFrameworkCore` (verificado por teste de arquitetura).
-- [ ] **CA-13** — `TasksDbContext.Model` não contém nenhuma entidade mapeada para o schema `identity`, e `IdentityDbContext.Model` nenhuma para o schema `tasks` — verificado inspecionando o modelo do EF, não por revisão.
-- [ ] **CA-14** — Nenhuma consulta do Tasks referencia `identity.*` e nenhuma do Identity referencia `tasks.*` (varredura por `JOIN`/nome de schema no CI, junto das varreduras de [BE-24](BE-24-observabilidade-ci.md)).
-- [ ] **CA-15** — Inserir em `tasks.tasks` um `owner_id` que não existe em `identity.users` é **rejeitado pelo banco** (`23503`) — comprovando que a FK está ativa. Este é o comportamento de rede de segurança; o caminho normal rejeita antes, em [BE-28](BE-28-validacao-dono-grpc.md).
-- [ ] **CA-16** — Apagar uma linha de `identity.users` remove em cascata as tarefas daquele dono, **inclusive as soft-deleted** — verificado com `IgnoreQueryFilters()`. É o que sustenta [BE-16](BE-16-exclusao-conta.md).
+- [x] **CA-01** — `dotnet ef migrations add <Nome>` e `dotnet ef database update` funcionam a partir da raiz para **cada** serviço, com os dois comandos e a **ordem** (Identity primeiro) documentados no README.
+- [x] **CA-02** — Existe ao menos uma migration inicial versionada no repositório **por serviço**, com `__EFMigrationsHistory` no schema do próprio serviço.
+- [x] **CA-02b** — Rodar as migrations dos dois serviços em sequência, num banco vazio, produz os dois schemas completos — e rodar de novo é no-op, sem erro.
+- [x] **CA-02c** — A FK `tasks.tasks.owner_id → identity.users(id)` existe, com `ON DELETE CASCADE`, verificado por consulta ao catálogo do Postgres.
+- [x] **CA-03** — Subir a API com o banco indisponível **não** derruba o processo silenciosamente: o health check reporta o estado degradado.
+- [x] **CA-04** — `GET /health` distingue *liveness* (app viva) de *readiness* (banco alcançável).
+- [x] **CA-05** — Um `DateTime` gravado e lido de volta permanece em UTC, sem deslocamento (teste de integração).
+- [x] **CA-06** — Uma entidade marcada como removida **não** aparece em consultas normais e **aparece** com `IgnoreQueryFilters()`.
+- [x] **CA-07** — Ao salvar uma entidade auditável nova, `CreatedAt` e `UpdatedAt` são preenchidos; ao alterá-la, apenas `UpdatedAt` muda.
+- [x] **CA-08** — O tempo usado pelo contexto vem de `TimeProvider` injetado: um teste que avança o tempo fake vê o novo valor sem `Thread.Sleep`.
+- [x] **CA-09** — Os testes de integração sobem o Postgres via Testcontainers e passam em máquina limpa, sem banco pré-instalado.
+- [x] **CA-10** — Testes de integração são independentes: rodar a suíte em ordem aleatória duas vezes seguidas produz o mesmo resultado.
+- [x] **CA-11** — Nenhuma connection string real está versionada (verificável por varredura do repositório).
+- [x] **CA-12** — A camada `Application` de **cada** serviço compila sem referência a `Microsoft.EntityFrameworkCore` (verificado por teste de arquitetura).
+- [x] **CA-13** — `TasksDbContext.Model` não contém nenhuma entidade mapeada para o schema `identity`, e `IdentityDbContext.Model` nenhuma para o schema `tasks` — verificado inspecionando o modelo do EF, não por revisão.
+- [x] **CA-14** — Nenhuma consulta do Tasks referencia `identity.*` e nenhuma do Identity referencia `tasks.*` (varredura por `JOIN`/nome de schema no CI, junto das varreduras de [BE-24](BE-24-observabilidade-ci.md)).
+- [x] **CA-15** — Inserir em `tasks.tasks` um `owner_id` que não existe em `identity.users` é **rejeitado pelo banco** (`23503`) — comprovando que a FK está ativa. Este é o comportamento de rede de segurança; o caminho normal rejeita antes, em [BE-28](BE-28-validacao-dono-grpc.md).
+- [x] **CA-16** — Apagar uma linha de `identity.users` remove em cascata as tarefas daquele dono, **inclusive as soft-deleted** — verificado com `IgnoreQueryFilters()`. É o que sustenta [BE-16](BE-16-exclusao-conta.md).
 
 ## Testes obrigatórios
 
@@ -90,3 +90,15 @@ Os dois serviços conversam com o **mesmo** banco PostgreSQL, cada um dentro do 
 
 - **D-17** — Banco alvo. Padrão adotado: PostgreSQL.
 - **D-27** — Banco único com um schema por serviço e FK cruzada com `ON DELETE CASCADE`. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 17 de 18.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-14 | em aberto | Não existe a varredura de `JOIN`/nome de schema no CI (`.github/workflows/ci.yml` e `scripts/` não a têm). Por construção está certo: não há SQL cru em `src/` fora das migrations e os dois `DbContext` mapeiam só o próprio schema (CA-13). |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A FK continua sendo rede de segurança, mas deixou de valer a ressalva "não diz se está ativo (RN-USER-04)": o usuário não tem estado, existe ou foi excluído (RN-USER-04 removida, issue #16). O que a FK não cobre é o nome de exibição e a confirmação de existência no momento da criação, que vêm de `ValidateUser`.

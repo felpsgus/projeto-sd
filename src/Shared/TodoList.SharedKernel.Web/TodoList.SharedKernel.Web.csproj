@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Peça web compartilhada entre Identity e Tasks (D-26): ServiceOptions, health
+    endpoints e descoberta de IEndpointRouteHandler. Só a Api de cada serviço
+    referencia este projeto.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="../TodoList.SharedKernel.Persistence/TodoList.SharedKernel.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

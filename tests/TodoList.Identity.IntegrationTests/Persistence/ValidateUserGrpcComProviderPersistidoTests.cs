@@ -58,7 +58,7 @@ public class ValidateUserGrpcComProviderPersistidoTests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "Docker")]
-    public async Task ValidateUser_ComProviderPersistido_RefleteDesativacaoNoBancoSemReiniciarOServico() // CA-13 de BE-26
+    public async Task ValidateUser_ComProviderPersistido_RefleteExclusaoNoBancoSemReiniciarOServico() // CA-13 de BE-26
     {
         var timeProvider = TimeProvider.System;
         Guid userId;
@@ -75,19 +75,17 @@ public class ValidateUserGrpcComProviderPersistidoTests : IAsyncLifetime
 
         var antes = await client.ValidateUserAsync(new ValidateUserRequest { UserId = userId.ToString() });
         antes.Exists.Should().BeTrue();
-        antes.Active.Should().BeTrue();
         antes.DisplayName.Should().Be("Usuário Ponta a Ponta");
 
         await using (var context = CreateContext())
         {
             var user = await context.Users.SingleAsync(u => u.Id == userId);
-            user.Deactivate(timeProvider);
+            context.Users.Remove(user);
             await context.SaveChangesAsync();
         }
 
         var depois = await client.ValidateUserAsync(new ValidateUserRequest { UserId = userId.ToString() });
-        depois.Exists.Should().BeTrue();
-        depois.Active.Should().BeFalse("desativar no banco precisa refletir na próxima chamada gRPC, sem reiniciar o serviço (CA-13)");
+        depois.Exists.Should().BeFalse("excluir no banco precisa refletir na próxima chamada gRPC, sem reiniciar o serviço (CA-13)");
     }
 
     [Fact]
@@ -99,7 +97,6 @@ public class ValidateUserGrpcComProviderPersistidoTests : IAsyncLifetime
         var response = await client.ValidateUserAsync(new ValidateUserRequest { UserId = Guid.NewGuid().ToString() });
 
         response.Exists.Should().BeFalse();
-        response.Active.Should().BeFalse();
         response.DisplayName.Should().Be(string.Empty);
     }
 

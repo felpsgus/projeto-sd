@@ -51,30 +51,30 @@ Nenhuma tarefa é persistida sem que o Identity Service confirme, por gRPC, que 
 
 ### Caminho de sucesso
 
-- [ ] **CA-01** — Usuário existente e ativo: a tarefa é criada e a resposta é **201** com o DTO completo ([BE-17](BE-17-criar-tarefa.md), CA-01).
-- [ ] **CA-02** — `ValidateUserAsync` é chamado **uma única vez** por criação (não uma vez por validação de campo, não duas por engano).
-- [ ] **CA-03** — A chamada acontece **antes** da contagem do limite e **antes** do `SaveChanges` — verificado por ordem de invocação no teste de unidade.
+- [x] **CA-01** — Usuário existente: a tarefa é criada e a resposta é **201** com o DTO completo ([BE-17](BE-17-criar-tarefa.md), CA-01). *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-02** — `ValidateUserAsync` é chamado **uma única vez** por criação (não uma vez por validação de campo, não duas por engano).
+- [x] **CA-03** — A chamada acontece **antes** da contagem do limite e **antes** do `SaveChanges` — verificado por ordem de invocação no teste de unidade.
 
 ### Rejeição
 
-- [ ] **CA-04** — Usuário inexistente no Identity (`exists=false`): resposta **404** com `task.owner_not_found`, e **nenhuma linha** é gravada em `tasks` (verificado no banco).
-- [ ] **CA-05** — A rejeição do CA-04 desaparece quando o mesmo usuário passa a existir no Identity, **sem mudança no Tasks** — prova de que a decisão vem da resposta gRPC e não de uma validação local.
-- [ ] **CA-06** — Usuário existente porém inativo (`active=false`): resposta **409** com `task.owner_inactive`, sem gravação (RN-USER-04).
-- [ ] **CA-07** — As duas rejeições geram log `Warning` com `userId` e motivo.
+- [x] **CA-04** — Usuário inexistente no Identity (`exists=false`): resposta **404** com `task.owner_not_found`, e **nenhuma linha** é gravada em `tasks` (verificado no banco).
+- [x] **CA-05** — A rejeição do CA-04 desaparece quando o mesmo usuário passa a existir no Identity, **sem mudança no Tasks** — prova de que a decisão vem da resposta gRPC e não de uma validação local.
+- [x] ~~**CA-06** — Usuário existente porém inativo (`active=false`): resposta **409** com `task.owner_inactive`, sem gravação (RN-USER-04).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
+- [x] **CA-07** — As duas rejeições geram log `Warning` com `userId` e motivo.
 
 ### Indisponibilidade
 
-- [ ] **CA-08** — Com o Identity **desligado**, `POST /tasks` responde **503** com `identity.unavailable` e cabeçalho `Retry-After` — nunca 500, nunca 201 (**D-28**).
-- [ ] **CA-09** — Nesse cenário **nenhuma** tarefa é persistida (verificado no banco).
-- [ ] **CA-10** — A resposta 503 não vaza detalhe de transporte (endereço do Identity, `StatusCode` gRPC, mensagem da `RpcException`).
-- [ ] **CA-11** — A requisição falha dentro do deadline configurado, não após espera indefinida ([BE-27](BE-27-tasks-cliente-grpc.md), CA-09).
+- [x] **CA-08** — Com o Identity **desligado**, `POST /tasks` responde **503** com `identity.unavailable` e cabeçalho `Retry-After` — nunca 500, nunca 201 (**D-28**).
+- [x] **CA-09** — Nesse cenário **nenhuma** tarefa é persistida (verificado no banco).
+- [x] **CA-10** — A resposta 503 não vaza detalhe de transporte (endereço do Identity, `StatusCode` gRPC, mensagem da `RpcException`).
+- [x] **CA-11** — A requisição falha dentro do deadline configurado, não após espera indefinida ([BE-27](BE-27-tasks-cliente-grpc.md), CA-09).
 
 ### Não regressão
 
-- [ ] **CA-12** — Todos os critérios de [BE-17](BE-17-criar-tarefa.md) continuam válidos: validação de campos ainda retorna **400** **antes** de qualquer chamada gRPC (não se gasta uma chamada de rede com request inválido).
-- [ ] **CA-13** — O limite de 500 tarefas ativas (RN-TASK-15) continua sendo aplicado e continua retornando **409** com `task.active_limit_reached` — código distinto do `task.owner_inactive`.
-- [ ] **CA-14** — A tarefa criada continua nascendo `Pending` com `OwnerId` igual ao usuário corrente (RN-TASK-07, RN-AUTZ-01).
-- [ ] **CA-15** — Nenhum cenário de teste produz violação de FK (`23503`) vinda do banco: a rejeição por dono inexistente sempre acontece na validação gRPC, **antes** do `SaveChanges` ([BE-02](BE-02-persistencia-base.md), CA-15).
+- [x] **CA-12** — Todos os critérios de [BE-17](BE-17-criar-tarefa.md) continuam válidos: validação de campos ainda retorna **400** **antes** de qualquer chamada gRPC (não se gasta uma chamada de rede com request inválido).
+- [x] **CA-13** — O limite de 500 tarefas ativas (RN-TASK-15) continua sendo aplicado e continua retornando **409** com `task.active_limit_reached`. *(emendado em 03/10/2026, issue #16)*
+- [x] **CA-14** — A tarefa criada continua nascendo `Pending` com `OwnerId` igual ao usuário corrente (RN-TASK-07, RN-AUTZ-01).
+- [x] **CA-15** — Nenhum cenário de teste produz violação de FK (`23503`) vinda do banco: a rejeição por dono inexistente sempre acontece na validação gRPC, **antes** do `SaveChanges` ([BE-02](BE-02-persistencia-base.md), CA-15).
 
 ## Testes obrigatórios
 
@@ -86,3 +86,15 @@ Nenhuma tarefa é persistida sem que o Identity Service confirme, por gRPC, que 
 
 - **D-28** — Fail-closed com 503 na indisponibilidade do Identity. Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
 - **D-27** — Banco único com schema por serviço e FK cruzada. A FK cobre a existência do dono; esta validação cobre o **estado** dele e produz a resposta de negócio.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 15 de 15.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 a CA-15 | atendidos em outro lugar | A rota HTTP `POST /api/tasks` vive no Gateway (D-32/D-35): 404/409/503 chegam como status gRPC `NotFound`/`FailedPrecondition`/`Unavailable` + trailer `error-code` do Tasks e são traduzidos em `CreateTaskTests` do Gateway. A validação do dono (`ValidateUser` uma vez, antes do limite e do `SaveChanges`, fail-closed) é testada em `CreateTaskHandlerTests`, `CreateTaskOwnerValidationTests` e `CreateTaskPostgresRejectionTests` (Postgres real, sem violação de FK). |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+Deixa de existir a rejeição de dono inativo: não há `task.owner_inactive` nem 409 por estado do dono (issue #16). A tabela de respostas fica com existe, não existe e Identity inalcançável (fail-closed, D-28, 503). O CA-06 está substituído; a explicação "409 e não 403 para dono inativo" não se aplica.

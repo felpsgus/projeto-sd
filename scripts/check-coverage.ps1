@@ -1,0 +1,59 @@
+#Requires -Version 7
+<#
+.SYNOPSIS
+    Gate de cobertura do backend (BE-24 CA-14): falha se algum piso não for atingido.
+.DESCRIPTION
+    Lê o JsonSummary do ReportGenerator. Falha (exit 1) se a cobertura de linhas global
+    for menor que -MinLine, ou se a agregada dos assemblies *.Domain + *.Application
+    for menor que -MinDomainApplication. Sempre imprime os números por assembly.
+    Queda abaixo do baseline (coverage-baseline.json), mesmo acima do piso, só avisa (BE-24 CA-15): não falha.
+#>
+[CmdletBinding()]
+param(
+    [string]$Summary = (Join-Path (Split-Path -Parent $PSScriptRoot) 'coverage-report/Summary.json'),
+    [double]$MinLine = 75,
+    [double]$MinDomainApplication = 85,
+    [string]$Baseline = (Join-Path (Split-Path -Parent $PSScriptRoot) 'coverage-baseline.json')
+)
+$ErrorActionPreference = 'Stop'
+if (-not (Test-Path $Summary)) { throw "Resumo não encontrado: $Summary (rode ./scripts/coverage.ps1)." }
+
+$json = Get-Content $Summary -Raw | ConvertFrom-Json
+$assemblies = @($json.coverage.assemblies)
+$pct = { param($c, $t) if ($t -eq 0) { 100.0 } else { [math]::Round(100.0 * $c / $t, 2) } }
+
+foreach ($a in $assemblies | Sort-Object name) {
+    '{0,-50} {1,6}%  ({2}/{3} linhas)' -f $a.name, (& $pct $a.coveredlines $a.coverablelines), $a.coveredlines, $a.coverablelines
+}
+
+$global = [double]$json.summary.linecoverage
+$da = @($assemblies | Where-Object { $_.name -match '\.(Domain|Application)$' })
+$daCovered = ($da | Measure-Object coveredlines -Sum).Sum
+$daTotal = ($da | Measure-Object coverablelines -Sum).Sum
+$daPct = & $pct $daCovered $daTotal
+
+''
+'Global (linhas):          {0}%  (piso {1}%)' -f $global, $MinLine
+'Domain + Application:     {0}%  (piso {1}%)  [{2}/{3} linhas]' -f $daPct, $MinDomainApplication, $daCovered, $daTotal
+
+# ponytail: baseline manual em coverage-baseline.json; trocar por artefato da `main` se virar incômodo.
+if (Test-Path $Baseline) {
+    $base = Get-Content $Baseline -Raw | ConvertFrom-Json
+    $quedas = @()
+    if ($global -lt $base.backendGlobal) { $quedas += "global $global% < baseline $($base.backendGlobal)%" }
+    if ($daPct -lt $base.backendDomainApplication) { $quedas += "Domain+Application $daPct% < baseline $($base.backendDomainApplication)%" }
+    foreach ($q in $quedas) {
+        Write-Host "::warning::Cobertura do backend caiu: $q"
+        if ($env:GITHUB_STEP_SUMMARY) { ":warning: Cobertura do backend caiu: $q" | Add-Content $env:GITHUB_STEP_SUMMARY }
+    }
+}
+
+$falhas = @()
+# Assembly de src/ fora do relatório = não foi instrumentado; o gate estaria medindo só uma parte do código.
+$esperados = Get-ChildItem (Join-Path (Split-Path -Parent $PSScriptRoot) 'src') -Recurse -Filter *.csproj | ForEach-Object BaseName
+$ausentes = @($esperados | Where-Object { $_ -notin $assemblies.name })
+if ($ausentes) { $falhas += "sem cobertura coletada: $($ausentes -join ', ')" }
+if ($global -lt $MinLine) { $falhas += "cobertura global $global% < $MinLine%" }
+if ($daPct -lt $MinDomainApplication) { $falhas += "Domain+Application $daPct% < $MinDomainApplication%" }
+if ($falhas) { Write-Host "GATE FALHOU: $($falhas -join '; ')" -ForegroundColor Red; exit 1 }
+Write-Host 'Gate de cobertura OK.' -ForegroundColor Green

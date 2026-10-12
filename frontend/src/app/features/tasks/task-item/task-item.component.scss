@@ -1,0 +1,222 @@
+.task-item {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+
+  &--completed {
+    .task-item__title {
+      color: var(--color-text-secondary);
+      text-decoration: line-through;
+      text-decoration-color: var(--color-text-secondary);
+    }
+  }
+
+  /* A prioridade é uma régua vertical à esquerda: espessura e opacidade crescem de Baixa
+     para Alta — nunca uma cor de semáforo (FE-04). */
+  &__rule {
+    --rule-width: var(--priority-low-width);
+    --rule-opacity: var(--priority-low-opacity);
+
+    position: relative;
+    flex: none;
+    width: var(--priority-high-width);
+    align-self: stretch;
+
+    /* A coluna tem largura constante (alinha checkbox e título entre linhas); a barra é
+       desenhada à esquerda com a espessura e a opacidade da prioridade. */
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--rule-width);
+      background: var(--color-accent);
+      opacity: var(--rule-opacity);
+      border-radius: 1px;
+    }
+
+    &--medium {
+      --rule-width: var(--priority-medium-width);
+      --rule-opacity: var(--priority-medium-opacity);
+    }
+
+    &--high {
+      --rule-width: var(--priority-high-width);
+      --rule-opacity: var(--priority-high-opacity);
+    }
+  }
+
+  &__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  /* Vencimento: em atraso, é o elemento mais chamativo da linha depois do título — cor de
+     perigo, peso maior e um ponto cheio à frente (FE-04: vermelho só para atraso/erro). */
+  &__due-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex: none;
+  }
+
+  &__due {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  &__due-group--overdue &__due {
+    color: var(--color-danger);
+    font-weight: 600;
+  }
+
+  &__due-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--color-danger);
+  }
+
+  &__overdue-label {
+    margin: var(--space-3xs) 0 0;
+    color: var(--color-danger);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Tela pequena: com o checkbox à esquerda não sobra largura para título e vencimento lado a
+     lado (nem com zoom de texto a 200%) — o vencimento desce para baixo do título e pode quebrar. */
+  @media (max-width: 40rem) {
+    &__heading {
+      flex-direction: column;
+      gap: var(--space-3xs);
+    }
+
+    &__due-group {
+      align-items: flex-start;
+    }
+
+    &__due,
+    &__overdue-label {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &__description {
+    margin: var(--space-3xs) 0 0;
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-sm);
+    margin: var(--space-2xs) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  &__action-error {
+    margin: var(--space-2xs) 0 0;
+    padding: var(--space-2xs) var(--space-xs);
+    color: var(--color-danger);
+    background: var(--color-danger-surface);
+    border-left: 2px solid var(--color-danger);
+    font-size: var(--font-size-sm);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-2xs);
+  }
+
+  /* Primeiro gesto da linha: alinhado à primeira linha do título, não ao centro da linha alta.
+     A área clicável (--toggle-hit) é maior que a linha; a margem negativa a centra na primeira
+     linha sem aumentar a altura da linha. */
+  &__toggle {
+    --toggle-hit: 2rem;
+
+    display: inline-flex;
+    flex: none;
+    justify-content: center;
+    align-items: center;
+    align-self: flex-start;
+    min-width: var(--toggle-hit);
+    min-height: var(--toggle-hit);
+    margin-top: calc((var(--font-size-md) * var(--line-height-tight) - var(--toggle-hit)) / 2);
+    cursor: pointer;
+
+    input {
+      width: 1.25rem;
+      height: 1.25rem;
+      margin: 0;
+      accent-color: var(--color-accent);
+      cursor: inherit;
+    }
+
+    input[disabled] {
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 40rem), (pointer: coarse) {
+      --toggle-hit: 2.75rem;
+    }
+  }
+
+  &__edit {
+    font-size: var(--font-size-sm);
+  }
+
+  /* Remover não é uma ação de perigo em si — a confirmação é (FE-04): o botão da linha
+     fica neutro, igual a um "cancelar"; só o botão de confirmar no diálogo usa cor de
+     perigo. */
+  &__remove {
+    padding: var(--space-3xs) var(--space-2xs);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-text-secondary);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+:host {
+  display: block;
+}

@@ -1,0 +1,7 @@
+# Matriz suportada (FE-23, CA-22) — coerente com os projetos do Playwright:
+# chromium (Chrome/Edge), firefox, webkit (Safari). Evergreen apenas; sem IE/legado.
+last 2 Chrome versions
+last 2 Edge versions
+last 2 Firefox versions
+last 2 Safari versions
+last 2 iOS versions

@@ -25,26 +25,14 @@ public class ValidateUserGrpcTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact] // CA-01, CA-03, CA-05
-    public async Task ValidateUser_UsuarioAtivoDoSeed_RetornaExistsEActiveTrue()
+    public async Task ValidateUser_UsuarioDoSeed_RetornaExistsTrue()
     {
         using var client = CreateClient();
 
-        var response = await client.ValidateUserAsync(new ValidateUserRequest { UserId = InMemoryUserLookup.ActiveUserId.ToString() });
+        var response = await client.ValidateUserAsync(new ValidateUserRequest { UserId = InMemoryUserLookup.SeedUserId.ToString() });
 
         response.Exists.Should().BeTrue();
-        response.Active.Should().BeTrue();
         response.DisplayName.Should().NotBeNullOrWhiteSpace();
-    }
-
-    [Fact] // CA-06
-    public async Task ValidateUser_UsuarioInativoDoSeed_RetornaActiveFalse()
-    {
-        using var client = CreateClient();
-
-        var response = await client.ValidateUserAsync(new ValidateUserRequest { UserId = InMemoryUserLookup.InactiveUserId.ToString() });
-
-        response.Exists.Should().BeTrue();
-        response.Active.Should().BeFalse();
     }
 
     [Fact] // CA-07
@@ -55,7 +43,6 @@ public class ValidateUserGrpcTests : IClassFixture<WebApplicationFactory<Program
         var response = await client.ValidateUserAsync(new ValidateUserRequest { UserId = Guid.NewGuid().ToString() });
 
         response.Exists.Should().BeFalse();
-        response.Active.Should().BeFalse();
         response.DisplayName.Should().Be(string.Empty);
     }
 
@@ -70,19 +57,18 @@ public class ValidateUserGrpcTests : IClassFixture<WebApplicationFactory<Program
 
         status.StatusCode.Should().Be(StatusCode.OK);
         response.Exists.Should().BeFalse();
-        response.Active.Should().BeFalse();
         response.DisplayName.Should().Be(string.Empty);
     }
 
-    [Fact] // CA-11 — ValidateToken stub responde valid=false mesmo por rede real.
-    public async Task ValidateToken_QualquerToken_RetornaValidFalse()
+    [Fact] // BE-33, CA-11 — UserStore:Provider=InMemory (padrão desta factory) nega qualquer login.
+    public async Task Login_ProviderInMemory_RetornaSucceededFalse()
     {
         using var client = CreateClient();
 
-        var response = await client.ValidateTokenAsync(new ValidateTokenRequest { AccessToken = "qualquer-coisa" });
+        var response = await client.LoginAsync(new LoginRequest { Email = "ada.lovelace@todolist.example", Password = "qualquer-senha" });
 
-        response.Valid.Should().BeFalse();
-        response.UserId.Should().Be(string.Empty);
+        response.Succeeded.Should().BeFalse();
+        response.AccessToken.Should().BeEmpty();
     }
 
     private IdentityGrpcTestClient CreateClient()

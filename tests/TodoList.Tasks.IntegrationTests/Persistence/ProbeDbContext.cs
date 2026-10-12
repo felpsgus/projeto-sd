@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using TodoList.Tasks.Infrastructure.Persistence.Conventions;
+using TodoList.SharedKernel.Persistence;
 
 namespace TodoList.Tasks.IntegrationTests.Persistence;
 

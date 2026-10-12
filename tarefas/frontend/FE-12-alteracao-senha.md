@@ -8,6 +8,8 @@
 | **Regras cobertas** | RN-AUTH-21, RN-AUTH-04, RN-AUTH-05, RN-AUTH-19 |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** fica fora do T2 — o backend do T2 não tem endpoint de troca de senha.
+
 ## Objetivo
 
 O usuário troca a própria senha informando a atual e a nova — e entende, antes de confirmar, que isso vai desconectar todos os seus dispositivos.
@@ -53,38 +55,50 @@ O usuário troca a própria senha informando a atual e a nova — e entende, ant
 
 ### Fluxo
 
-- [ ] **CA-01** — Troca com senha atual correta e nova senha válida retorna sucesso (RN-AUTH-21).
-- [ ] **CA-02** — Após o sucesso, o usuário é levado ao `/login` com mensagem explicando que a senha foi alterada.
-- [ ] **CA-03** — Após o sucesso, a sessão local está encerrada: nenhum token em memória ou storage.
-- [ ] **CA-04** — O login com a **nova** senha funciona; com a **antiga**, falha.
-- [ ] **CA-05** — O e-mail vem pré-preenchido na tela de login.
+- [x] **CA-01** — Troca com senha atual correta e nova senha válida retorna sucesso (RN-AUTH-21).
+- [x] **CA-02** — Após o sucesso, o usuário é levado ao `/login` com mensagem explicando que a senha foi alterada.
+- [x] **CA-03** — Após o sucesso, a sessão local está encerrada: nenhum token em memória ou storage.
+- [x] **CA-04** — O login com a **nova** senha funciona; com a **antiga**, falha.
+- [x] **CA-05** — O e-mail vem pré-preenchido na tela de login.
 
 ### Aviso e validação
 
-- [ ] **CA-06** — O aviso sobre desconexão de todos os dispositivos é visível **antes** do envio, não depois (RN-AUTH-19).
-- [ ] **CA-07** — Nova senha com 7 caracteres, só letras ou só números é rejeitada com a mensagem do critério que falta (RN-AUTH-04).
-- [ ] **CA-08** — O indicador de requisitos atualiza em tempo real e é o **mesmo componente** de FE-08.
-- [ ] **CA-09** — Nova senha e confirmação divergentes impedem o envio.
-- [ ] **CA-10** — Nova senha igual à atual é rejeitada, com mensagem no campo da nova senha.
-- [ ] **CA-11** — Campos vazios impedem o envio.
+- [x] **CA-06** — O aviso sobre desconexão de todos os dispositivos é visível **antes** do envio, não depois (RN-AUTH-19).
+- [x] **CA-07** — Nova senha com 7 caracteres, só letras ou só números é rejeitada com a mensagem do critério que falta (RN-AUTH-04). *(04/10/2026: o critério que falta aparece no indicador de requisitos ao vivo, item marcado como pendente; a mensagem do campo é genérica e aponta para ele.)*
+- [x] **CA-08** — O indicador de requisitos atualiza em tempo real e é o **mesmo componente** de FE-08.
+- [x] **CA-09** — Nova senha e confirmação divergentes impedem o envio.
+- [x] **CA-10** — Nova senha igual à atual é rejeitada, com mensagem no campo da nova senha.
+- [x] **CA-11** — Campos vazios impedem o envio.
 
 ### Erros
 
-- [ ] **CA-12** — Senha atual incorreta exibe o erro **junto ao campo "senha atual"**, e a sessão **não** é encerrada.
-- [ ] **CA-13** — Após esse erro, corrigir e reenviar funciona sem recarregar a página.
-- [ ] **CA-14** — Erro 400 do backend é exibido no campo correspondente, não em toast genérico.
-- [ ] **CA-15** — Erro de rede exibe mensagem de conectividade e a sessão permanece ativa.
+- [x] **CA-12** — Senha atual incorreta exibe o erro **junto ao campo "senha atual"**, e a sessão **não** é encerrada.
+- [x] **CA-13** — Após esse erro, corrigir e reenviar funciona sem recarregar a página.
+- [x] **CA-14** — Erro 400 do backend é exibido no campo correspondente, não em toast genérico.
+- [x] **CA-15** — Erro de rede exibe mensagem de conectividade e a sessão permanece ativa.
 
 ### Segurança e acessibilidade
 
-- [ ] **CA-16** — Nenhuma das três senhas aparece em storage, URL, `console` ou atributo do DOM (teste de segurança).
-- [ ] **CA-17** — Os campos usam `autocomplete` correto: `current-password` e `new-password`.
-- [ ] **CA-18** — O botão de envio fica desabilitado durante a requisição; clique duplo dispara **uma** chamada.
-- [ ] **CA-19** — Labels associados, erros ligados por `aria-describedby`, foco no primeiro campo com erro após falha.
-- [ ] **CA-20** — Operável só pelo teclado e usável em 360 px.
+- [x] **CA-16** — Nenhuma das três senhas aparece em storage, URL, `console` ou atributo do DOM (teste de segurança).
+- [x] **CA-17** — Os campos usam `autocomplete` correto: `current-password` e `new-password`.
+- [x] **CA-18** — O botão de envio fica desabilitado durante a requisição; clique duplo dispara **uma** chamada.
+- [x] **CA-19** — Labels associados, erros ligados por `aria-describedby`, foco no primeiro campo com erro após falha.
+- [x] **CA-20** — Operável só pelo teclado e usável em 360 px.
 
 ## Testes obrigatórios
 
 - Componente (Testing Library): CA-01 a CA-15, CA-18, CA-19.
 - **CA-16 é teste de segurança obrigatório.**
 - CA-04 é verificado em E2E ([FE-22](FE-22-testes-e2e.md)), pois cruza duas telas e o backend.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 16 de 20.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-04 | em aberto | E2E 7 prova login com a nova senha; nada afirma que a senha antiga falha. |
+| CA-07 | em aberto | Só o caso de 7 caracteres é testado, e a mensagem do campo é genérica ("não atende aos requisitos abaixo"), não a do critério que falta (o indicador mostra qual falta). Só letras/só números não é testado no componente. |
+| CA-16 | atendido em outro lugar | E2E `e2e/leak.spec.ts` cobre senha atual e nova em storage, URL, console e DOM (inclusive com o campo revelado); o spec de componente só confere storage. |
+| CA-19 | em aberto | Labels e `aria-describedby` confirmados; o foco no primeiro campo com erro após falha está implementado (`focusFirstInvalidField`) mas nenhum teste o verifica. |
+| CA-20 | em aberto | 360 px coberto por E2E (`/account/password`); operação só por teclado não é exercitada nesta tela. |

@@ -1,0 +1,83 @@
+<div class="task-item" [class.task-item--completed]="task().status === 'Completed'">
+  <span
+    class="task-item__rule"
+    [class.task-item__rule--low]="task().priority === 'Low'"
+    [class.task-item__rule--medium]="task().priority === 'Medium'"
+    [class.task-item__rule--high]="task().priority === 'High'"
+    aria-hidden="true"
+  ></span>
+
+  <label class="task-item__toggle">
+    <input
+      type="checkbox"
+      [checked]="task().status === 'Completed'"
+      [disabled]="pending()"
+      [attr.aria-label]="toggleAriaLabel()"
+      (change)="onToggle()"
+    />
+  </label>
+
+  <div class="task-item__body">
+    <div class="task-item__heading">
+      <h2 #title class="task-item__title" tabindex="-1">{{ task().title }}</h2>
+
+      @if (dueDateLabel(); as dueDate) {
+        <div class="task-item__due-group" [class.task-item__due-group--overdue]="task().isOverdue">
+          <p class="task-item__due tabular-nums">
+            <span class="visually-hidden">Vencimento: </span>
+            @if (task().isOverdue) {
+              <span class="task-item__due-dot" aria-hidden="true"></span>
+            }
+            {{ dueDate }}
+          </p>
+
+          @if (task().isOverdue) {
+            <p class="task-item__overdue-label">Atrasada</p>
+          }
+        </div>
+      }
+    </div>
+
+    @if (task().description; as description) {
+      <p class="task-item__description">{{ description }}</p>
+    }
+
+    <p class="task-item__meta">
+      <span>{{ priorityLabel() }}</span>
+      @if (task().completedAt; as completedAt) {
+        <span class="tabular-nums">Concluída em {{ completedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+      }
+    </p>
+
+    @if (actionError(); as message) {
+      <p class="task-item__action-error" role="alert">{{ message }}</p>
+    }
+
+    <div class="task-item__actions">
+      <a
+        class="task-item__edit"
+        [routerLink]="['/tasks', task().id, 'edit']"
+        [attr.aria-label]="editAriaLabel()"
+        >Editar</a
+      >
+
+      <button
+        type="button"
+        class="task-item__remove"
+        [disabled]="pending()"
+        [attr.aria-label]="removeAriaLabel()"
+        (click)="openRemoveDialog()"
+      >
+        Remover
+      </button>
+    </div>
+  </div>
+
+  <app-confirm-dialog
+    title="Remover tarefa"
+    [message]="removeConfirmMessage()"
+    confirmLabel="Remover"
+    [busy]="pending()"
+    (confirmed)="onRemoveConfirmed()"
+  />
+</div>

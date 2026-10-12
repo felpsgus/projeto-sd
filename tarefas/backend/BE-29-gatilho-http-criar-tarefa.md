@@ -9,6 +9,8 @@
 | **Regras cobertas** | RN-TASK-10, RN-AUTZ-01 |
 | **Estimativa** | P |
 
+> **Encerrada no T2 — gatilho removido por [BE-35](BE-35-tasks-servidor-grpc.md) (D-30 fechada).** O Tasks Service passa a ser alcançável só por gRPC: `POST /api/tasks` e o modo `Tasks:AllowAnonymousCreate` deixam de existir, junto com `HeaderCurrentUser` e `RequireValidUserIdHeaderFilter` no formato descritos abaixo. A borda REST do sistema passa a ser o **API Gateway** ([BE-36](BE-36-api-gateway.md)), único ponto público (**D-32**); a identidade que chega ao Tasks vem da metadata gRPC `x-user-id`, preenchida pelo Gateway depois de validar o token do usuário junto ao Identity (**D-34**).
+
 ## Objetivo
 
 Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a autenticação estar montada, para que a comunicação gRPC entre Tasks e Identity possa ser exercitada e demonstrada de ponta a ponta.
@@ -44,24 +46,24 @@ Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a auten
 
 ### Modo provisório ligado
 
-- [ ] **CA-01** — Com `Tasks:AllowAnonymousCreate=true`, `POST /api/tasks` sem cabeçalho `Authorization`, com `X-User-Id` de usuário ativo e corpo `{"title":"..."}`, responde **201** (RN-TASK-10).
-- [ ] **CA-02** — A tarefa criada tem `OwnerId` igual ao valor de `X-User-Id`, verificado no banco (RN-AUTZ-01).
-- [ ] **CA-03** — `X-User-Id` ausente, vazio ou não-`Guid` responde **400** com mensagem apontando o header — não 500, não fallback silencioso.
-- [ ] **CA-04** — O corpo continua sem campo de dono: enviar `"ownerId"` no JSON é ignorado ([BE-17](BE-17-criar-tarefa.md), CA-22 preservado).
-- [ ] **CA-05** — A criação passa pela validação de dono via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)): `X-User-Id` de usuário inexistente responde **404**, e de usuário inativo responde **409**.
-- [ ] **CA-06** — Subir com o modo ligado emite log de **aviso** na inicialização.
+- [x] ~~**CA-01** — Com `Tasks:AllowAnonymousCreate=true`, `POST /api/tasks` sem cabeçalho `Authorization`, com `X-User-Id` de usuário existente e corpo `{"title":"..."}`, responde **201** (RN-TASK-10). *(emendado em 03/10/2026, issue #16)*~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-02** — A tarefa criada tem `OwnerId` igual ao valor de `X-User-Id`, verificado no banco (RN-AUTZ-01).~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-03** — `X-User-Id` ausente, vazio ou não-`Guid` responde **400** com mensagem apontando o header — não 500, não fallback silencioso.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-04** — O corpo continua sem campo de dono: enviar `"ownerId"` no JSON é ignorado ([BE-17](BE-17-criar-tarefa.md), CA-22 preservado).~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-05** — A criação passa pela validação de dono via gRPC ([BE-28](BE-28-validacao-dono-grpc.md)): `X-User-Id` de usuário inexistente responde **404**. *(emendado em 03/10/2026, issue #16)*~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-06** — Subir com o modo ligado emite log de **aviso** na inicialização.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 
 ### Modo definitivo
 
-- [ ] **CA-07** — Com `Tasks:AllowAnonymousCreate=false` (padrão), `POST /api/tasks` sem token responde **401** ([BE-13](BE-13-protecao-endpoints.md)).
-- [ ] **CA-08** — Com o modo `false`, o header `X-User-Id` é **completamente ignorado**: enviá-lo junto de um token válido não muda o dono da tarefa. Este é o critério que garante que a porta provisória não vira escalada de privilégio.
-- [ ] **CA-09** — Trocar entre os dois modos é mudança de configuração, sem recompilar e **sem alterar o handler**.
+- [x] **CA-07** — Com `Tasks:AllowAnonymousCreate=false` (padrão), `POST /api/tasks` sem token responde **401** ([BE-13](BE-13-protecao-endpoints.md)).
+- [x] ~~**CA-08** — Com o modo `false`, o header `X-User-Id` é **completamente ignorado**: enviá-lo junto de um token válido não muda o dono da tarefa. Este é o critério que garante que a porta provisória não vira escalada de privilégio.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] ~~**CA-09** — Trocar entre os dois modos é mudança de configuração, sem recompilar e **sem alterar o handler**.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 
 ### Não regressão
 
-- [ ] **CA-10** — Nos dois modos, o `CreateTaskHandler` é exatamente o mesmo código e todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos.
-- [ ] **CA-11** — Os demais endpoints de tarefa continuam exigindo autenticação mesmo com o modo ligado.
-- [ ] **CA-12** — O endpoint consta da allowlist do teste de guarda de rotas com justificativa escrita, e **apenas** quando o modo está ligado.
+- [x] ~~**CA-10** — Nos dois modos, o `CreateTaskHandler` é exatamente o mesmo código e todos os critérios de [BE-17](BE-17-criar-tarefa.md) e [BE-28](BE-28-validacao-dono-grpc.md) continuam válidos.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
+- [x] **CA-11** — Os demais endpoints de tarefa continuam exigindo autenticação mesmo com o modo ligado.
+- [x] ~~**CA-12** — O endpoint consta da allowlist do teste de guarda de rotas com justificativa escrita, e **apenas** quando o modo está ligado.~~ **Substituído (04/10/2026)** pelas D-30 e D-34 ([BE-35](BE-35-tasks-servidor-grpc.md)): o gatilho REST do Tasks, o header `X-User-Id` e `Tasks:AllowAnonymousCreate` foram removidos; o Tasks é só gRPC e o dono vem do claim `sub` validado no Gateway.
 
 ## Testes obrigatórios
 
@@ -72,3 +74,19 @@ Existe uma forma de disparar a criação de tarefa por HTTP **antes** de a auten
 ## Decisões em aberto
 
 - **D-30** — Origem provisória da identidade no Tasks (`X-User-Id` sob flag). Ver [DECISOES-PENDENTES.md](DECISOES-PENDENTES.md).
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 2 de 12.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-01 a CA-06 | em aberto — superado por D-30 (fechada no T2) e D-34 | O gatilho REST do Tasks, o header `X-User-Id` e a flag `Tasks:AllowAnonymousCreate` foram removidos por BE-35: o Tasks é só gRPC e a identidade chega pela metadata `x-user-id`, preenchida pelo Gateway depois de validar o JWT. Não há mais "modo provisório ligado" a testar (restam só menções em comentários de `ICurrentUser`/`CallerIdentityCurrentUser`/`TaskOptions`). |
+| CA-07 | atendido em outro lugar | O "modo definitivo" é o único modo: `POST /api/tasks` sem token responde 401 no Gateway (`AuthenticationTests.CreateTask_SemAuthorizationHeader_Retorna401MesmoComPayloadValido`). |
+| CA-08 | em aberto — superado por D-30/D-34 (sem teste) | O dono vem só do claim `sub` (interceptor de metadata do Gateway; `CreateTaskTests.CreateTask_MetadataDeSaida_TemUserIdDoClaimSubEClientDateRepassado`), mas nenhum teste envia um header HTTP `X-User-Id` ao Gateway junto de token válido para provar que é ignorado. |
+| CA-09, CA-10, CA-12 | em aberto — superado por D-30 | Dependem da existência de dois modos de configuração; o modo provisório não existe mais. `RouteGuardTests` já garante que `POST /api/tasks` não é anônimo (nenhuma rota de tarefa está na allowlist). |
+| CA-11 | atendido em outro lugar | Todas as rotas fora da allowlist exigem autenticação: `RouteGuardTests.MapEndpoints_SoARotasDaAllowlistPermitemAcessoAnonimo` (Gateway). |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O gatilho HTTP não tem mais o desfecho "usuário inativo → 409" (issue #16). O CA-05 cobre só o usuário inexistente (404).

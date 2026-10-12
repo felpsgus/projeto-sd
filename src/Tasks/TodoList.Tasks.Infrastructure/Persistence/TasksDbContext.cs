@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using TodoList.SharedKernel;
+using TodoList.SharedKernel.Persistence;
 using TodoList.Tasks.Application.Persistence;
 using TodoList.Tasks.Domain.Tasks;
-using TodoList.Tasks.Infrastructure.Persistence.Conventions;
 
 namespace TodoList.Tasks.Infrastructure.Persistence;
 

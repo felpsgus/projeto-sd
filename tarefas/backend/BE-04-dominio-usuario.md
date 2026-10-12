@@ -51,21 +51,29 @@ Existe a entidade `User` no domínio, com as suas invariantes garantidas pela pr
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — `Email.Create` rejeita: vazio, sem `@`, sem domínio, com espaços, e com mais de 254 caracteres — retornando `Result` de falha, sem lançar exceção.
-- [ ] **CA-02** — `Email.Create(" João@Exemplo.COM ")` produz `joão@exemplo.com` (trim + lowercase).
-- [ ] **CA-03** — Dois `Email` criados de `A@X.com` e `a@x.com` são **iguais** (`Equals` e `GetHashCode`).
-- [ ] **CA-04** — `User.Create` sem `displayName` define o nome como a parte antes do `@`.
-- [ ] **CA-05** — `User.Create` com `displayName` informado preserva o valor recebido (apenas com trim).
-- [ ] **CA-06** — Todo usuário recém-criado tem `IsActive == true`.
-- [ ] **CA-07** — A entidade `User` **não expõe nenhum setter público**; alterações só ocorrem via método de domínio (verificado por teste de arquitetura/reflection).
-- [ ] **CA-08** — Não existe caminho de código que altere `Email` após a criação (não há método nem setter).
-- [ ] **CA-09** — `Rename` rejeita nome vazio, só-espaços ou acima de 100 caracteres, e atualiza `UpdatedAt` quando aceita.
-- [ ] **CA-10** — Inserir dois usuários com o mesmo e-mail viola o índice único do banco (teste de integração confirma a exceção do provider) — a garantia não depende apenas da checagem em memória.
-- [ ] **CA-11** — Inserir dois usuários com e-mails que diferem só em maiúsculas/minúsculas também é rejeitado pelo banco.
-- [ ] **CA-12** — `PasswordHash` não aparece em nenhuma serialização JSON produzida pela aplicação (verificado no teste de integração que cria e consulta um usuário).
+- [x] **CA-01** — `Email.Create` rejeita: vazio, sem `@`, sem domínio, com espaços, e com mais de 254 caracteres — retornando `Result` de falha, sem lançar exceção.
+- [x] **CA-02** — `Email.Create(" João@Exemplo.COM ")` produz `joão@exemplo.com` (trim + lowercase).
+- [x] **CA-03** — Dois `Email` criados de `A@X.com` e `a@x.com` são **iguais** (`Equals` e `GetHashCode`).
+- [x] **CA-04** — `User.Create` sem `displayName` define o nome como a parte antes do `@`.
+- [x] **CA-05** — `User.Create` com `displayName` informado preserva o valor recebido (apenas com trim).
+- [x] ~~**CA-06** — Todo usuário recém-criado tem `IsActive == true`.~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
+- [x] **CA-07** — A entidade `User` **não expõe nenhum setter público**; alterações só ocorrem via método de domínio (verificado por teste de arquitetura/reflection).
+- [x] **CA-08** — Não existe caminho de código que altere `Email` após a criação (não há método nem setter).
+- [x] **CA-09** — `Rename` rejeita nome vazio, só-espaços ou acima de 100 caracteres, e atualiza `UpdatedAt` quando aceita.
+- [x] **CA-10** — Inserir dois usuários com o mesmo e-mail viola o índice único do banco (teste de integração confirma a exceção do provider) — a garantia não depende apenas da checagem em memória.
+- [x] **CA-11** — Inserir dois usuários com e-mails que diferem só em maiúsculas/minúsculas também é rejeitado pelo banco.
+- [x] **CA-12** — `PasswordHash` não aparece em nenhuma serialização JSON produzida pela aplicação (verificado no teste de integração que cria e consulta um usuário).
 
 ## Testes obrigatórios
 
 - Unidade (Domain, cobertura ≥ 85%): `Email` (CA-01 a CA-03), `User.Create` (CA-04 a CA-06), `Rename` (CA-09).
 - Integração: unicidade no banco (CA-10, CA-11).
 - Arquitetura/reflection: CA-07.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 12 de 12.
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+O usuário não tem estado: `IsActive` e `Deactivate()` deixam de existir e RN-USER-04 foi removida (issue #16). O CA-06 está substituído. A criação (RN-AUTH-06) deixa o usuário apto a autenticar, sem flag de estado.

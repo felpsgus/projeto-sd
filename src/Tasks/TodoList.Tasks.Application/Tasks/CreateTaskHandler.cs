@@ -85,12 +85,6 @@ public sealed partial class CreateTaskHandler
             return Result.Failure<TaskResponse>(TaskErrors.OwnerNotFound);
         }
 
-        if (!validation.Active)
-        {
-            Log.OwnerRejected(_logger, ownerId, "inactive");
-            return Result.Failure<TaskResponse>(TaskErrors.OwnerInactive);
-        }
-
         // Passo 3: limite de tarefas ativas (RN-TASK-15) — só depois de saber
         // que o dono existe; null desativa o limite (D-08).
         var maxActive = _taskOptions.Value.MaxActivePerUser;

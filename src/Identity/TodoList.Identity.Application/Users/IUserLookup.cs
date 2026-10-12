@@ -18,10 +18,9 @@ public interface IUserLookup
 }
 
 /// <summary>
-/// Os únicos três dados de usuário que atravessam a fronteira gRPC
+/// Os únicos dois dados de usuário que atravessam a fronteira gRPC
 /// (<c>ValidateUserResponse</c>) — nunca e-mail, hash de senha ou qualquer
 /// outro campo (nota técnica de BE-26).
 /// </summary>
-/// <param name="Active">Estado atual do usuário (RN-USER-01, RN-USER-04).</param>
 /// <param name="DisplayName">Nome de exibição do dono (RN-AUTH-07).</param>
-public sealed record UserLookupResult(bool Active, string DisplayName);
+public sealed record UserLookupResult(string DisplayName);

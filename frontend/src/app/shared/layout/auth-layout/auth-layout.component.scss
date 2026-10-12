@@ -1,0 +1,17 @@
+.auth-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-md);
+  background: var(--color-bg);
+
+  &__card {
+    width: 100%;
+    max-width: 24rem;
+    padding: var(--space-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+}

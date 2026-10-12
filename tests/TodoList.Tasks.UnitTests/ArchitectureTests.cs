@@ -56,6 +56,20 @@ public class ArchitectureTests
         result.IsSuccessful.Should().BeTrue(DescreverFalhas(result));
     }
 
+    [Fact] // BE-18 CA-10
+    public void ITodoTaskRepository_NenhumMetodoQueCarregaTodoTaskDispensaOParametroDeDono()
+    {
+        var semDono = typeof(TodoList.Tasks.Application.Persistence.ITodoTaskRepository).GetMethods()
+            .Where(m => ReferenciaTodoTask(m.ReturnType) && !m.GetParameters().Any(p => p.Name == "ownerId"))
+            .Select(m => m.Name);
+
+        semDono.Should().BeEmpty("carregar tarefa sem filtrar pelo dono abre brecha de autorização (RN-AUTZ-02)");
+    }
+
+    private static bool ReferenciaTodoTask(Type type) =>
+        type == typeof(TodoList.Tasks.Domain.Tasks.TodoTask)
+        || (type.IsGenericType && type.GetGenericArguments().Any(ReferenciaTodoTask));
+
     [Fact] // CA-06
     public void Domain_NaoTemPackageReference_ETemApenasProjectReferenceParaSharedKernel()
     {
@@ -214,8 +228,52 @@ public class ArchitectureTests
         violacoes.Should().BeEmpty("endereço/porta do Identity deve vir só de appsettings*.json (Identity:GrpcAddress), nunca de código");
     }
 
+    [Fact] // CA-14 de BE-08
+    public void CodigoDoTasks_NaoReferenciaJwtSigningKey()
+    {
+        // D-31: a chave de assinatura JWT nunca sai do Identity. Varre todo
+        // src/Tasks (código e appsettings*.json) e o exemplo de variáveis de
+        // ambiente do deploy do Tasks — nenhum dos dois pode citar `Jwt:`,
+        // `Jwt__` (mesma chave, forma de variável de ambiente) nem
+        // `SigningKey`. O Gateway ainda não existe nesta etapa; a varredura
+        // é estendida para ele em BE-36.
+        var tasksSrc = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Tasks");
+        var tasksEnvExample = Path.Combine(SolutionPathHelper.SolutionRoot, "deploy", "tasks.env.example");
+        var violacoes = new List<string>();
+
+        var termosProibidos = new[] { "Jwt:", "Jwt__", "SigningKey" };
+
+        foreach (var arquivo in Directory.EnumerateFiles(tasksSrc, "*", SearchOption.AllDirectories))
+        {
+            if (arquivo.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                || arquivo.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var conteudo = File.ReadAllText(arquivo);
+
+            if (termosProibidos.Any(termo => conteudo.Contains(termo, StringComparison.Ordinal)))
+            {
+                violacoes.Add(arquivo);
+            }
+        }
+
+        if (File.Exists(tasksEnvExample))
+        {
+            var conteudoEnvExample = File.ReadAllText(tasksEnvExample);
+
+            if (termosProibidos.Any(termo => conteudoEnvExample.Contains(termo, StringComparison.Ordinal)))
+            {
+                violacoes.Add(tasksEnvExample);
+            }
+        }
+
+        violacoes.Should().BeEmpty("Jwt:SigningKey (D-31) é exclusiva do Identity — o Tasks Service não recebe nem referencia essa chave");
+    }
+
     [Fact] // CA-10 de BE-03
-    public void SharedKernel_ExpoeApenasResultErrorEErrorType()
+    public void SharedKernel_ExpoeApenasResultErrorEOsContratosDePersistencia()
     {
         var sharedKernelAssembly = typeof(TodoList.SharedKernel.Result).Assembly;
 
@@ -223,11 +281,11 @@ public class ArchitectureTests
             .Select(type => type.Name)
             .ToList();
 
-        var nomesEsperados = new[] { "Result", "Result`1", "Error", "ErrorType" };
+        var nomesEsperados = new[] { "Result", "Result`1", "Error", "ErrorType", "IAuditable", "ISoftDeletable", "IUnitOfWork" };
 
         nomesDosTiposPublicos.Should().BeEquivalentTo(
             nomesEsperados,
-            "SharedKernel (D-26) não pode conter entidade, DTO de negócio, catálogo de erros ou regra");
+            "SharedKernel (D-26) não pode conter entidade, DTO de negócio, catálogo de erros ou regra — só Result/Error e os três contratos de persistência sem dependência");
     }
 
     [Fact] // CA-12 de BE-02
@@ -258,4 +316,18 @@ public class ArchitectureTests
         result.FailingTypeNames is null
             ? "sem detalhes disponíveis"
             : string.Join(", ", result.FailingTypeNames);
+
+    [Fact] // BE-02 CA-14
+    public void CodigoDoTasksNaoReferenciaOSchemaDoOutroServicoForaDeMigrations()
+    {
+        // Só literais de string (comentários podem citar o outro schema; "identity.unavailable" é código de erro, não schema).
+        var padrao = new System.Text.RegularExpressions.Regex(@"""identity""|""[^""]*\bidentity\.(users|refresh_tokens|login_attempts)\b");
+        var violacoes = Directory.EnumerateFiles(Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Tasks"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(f => File.ReadLines(f).Any(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal) && padrao.IsMatch(l)));
+
+        violacoes.Should().BeEmpty("cada serviço só conhece o próprio schema (D-27)");
+    }
 }

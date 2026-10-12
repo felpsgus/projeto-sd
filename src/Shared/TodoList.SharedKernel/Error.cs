@@ -8,4 +8,5 @@ namespace TodoList.SharedKernel;
 /// <param name="Code">Código estável, ex.: <c>auth.invalid_credentials</c>.</param>
 /// <param name="Message">Mensagem legível, sempre vinda do catálogo do serviço dono — nunca interpolada com dado interno.</param>
 /// <param name="Type">Categoria do erro, usada para o mapeamento HTTP.</param>
-public readonly record struct Error(string Code, string Message, ErrorType Type);
+/// <param name="RetryAfter">Em erro transitório (ex.: bloqueio de login, BE-12), quanto falta para poder tentar de novo.</param>
+public readonly record struct Error(string Code, string Message, ErrorType Type, TimeSpan? RetryAfter = null);

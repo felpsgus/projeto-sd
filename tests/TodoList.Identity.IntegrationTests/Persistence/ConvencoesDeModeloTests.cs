@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using TodoList.Identity.Infrastructure.Persistence.Conventions;
+using TodoList.SharedKernel.Persistence;
 using Xunit;
 
 namespace TodoList.Identity.IntegrationTests.Persistence;

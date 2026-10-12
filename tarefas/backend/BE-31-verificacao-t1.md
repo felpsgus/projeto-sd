@@ -61,9 +61,9 @@ Qualquer pessoa consegue, seguindo apenas o `README.md`, subir os dois serviços
 
 ## Critérios de aceite
 
-- [x] **CA-01** — A seção "Rodando os dois serviços" existe no `README.md` da raiz e cobre os três caminhos. Inclui um quarto desfecho (dono inativo → **409**), que é a terceira resposta possível da mesma chamada `ValidateUser`.
+- [x] **CA-01** — A seção "Rodando os dois serviços" existe no `README.md` da raiz e cobre os três caminhos. *(emendado em 03/10/2026, issue #16)*
 - [ ] **CA-02** — Uma pessoa que nunca viu o projeto sobe os dois serviços seguindo **apenas** o README, em máquina limpa, sem consultar o código. **Não auto-certificável:** o roteiro foi executado pelo autor, na máquina de desenvolvimento. Falta a passada de alguém que não escreveu o código — registrar o resultado no PR (ver "Testes obrigatórios").
-- [x] **CA-03** — Caminho de sucesso: `POST /api/tasks` com usuário existente e ativo responde **201** com a tarefa criada. Verificado contra os dois processos reais (resposta literal no README) e automatizado em `CreateTaskOwnerValidationTests`.
+- [x] **CA-03** — Caminho de sucesso: `POST /api/tasks` com usuário existente responde **201** com a tarefa criada. Verificado contra os dois processos reais (resposta literal no README) e automatizado em `CreateTaskOwnerValidationTests`. *(emendado em 03/10/2026, issue #16)*
 - [x] **CA-04** — Caminho de falha: a **mesma** requisição, mudando apenas o `X-User-Id` para um usuário inexistente, responde **404** com `task.owner_not_found`. Idem — real e automatizado.
 - [x] **CA-05** — A rejeição do CA-04 é atribuível à resposta do Identity: alterando o Identity para reconhecer aquele usuário, a mesma requisição passa a responder **201** — sem tocar no Tasks. Automatizado em `CreateTaskOwnerValidationTests.PostTasks_MesmoUsuarioPassaAExistir_RejeicaoDesaparece_SemMudancaNoTasks` e, com dois Identity distintos, em `GrpcIdentityGatewayIntegrationTests`.
 - [x] **CA-06** — Caminho de indisponibilidade: com o Identity desligado, a requisição responde **503** com `identity.unavailable` e nada é gravado no banco. Verificado com o Identity encerrado de verdade (`Retry-After: 5`, nenhuma linha nova em `tasks.tasks`) e automatizado em `CreateTaskOwnerValidationTests`.
@@ -78,3 +78,15 @@ Qualquer pessoa consegue, seguindo apenas o `README.md`, subir os dois serviços
 
 - Integração ponta a ponta: CA-03, CA-04, CA-06 — Tasks e Identity reais, não substituídos.
 - Verificação manual documentada de CA-02, feita por alguém que não escreveu o código, com o resultado registrado no PR.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 11 de 12.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-02 | em aberto — não verificável por código | Exige que alguém que não escreveu o projeto suba os serviços seguindo só o README, em máquina limpa, e registre o resultado no PR; verificação humana. |
+
+## Emenda (03/10/2026) — usuário inativo removido
+
+A verificação de T1 não demonstra mais o desfecho "dono inativo → 409" nem usa um usuário de demonstração inativo (issue #16). Os critérios CA-01 e CA-03 foram emendados.

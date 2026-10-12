@@ -8,6 +8,10 @@
 | **Regras cobertas** | habilita RN-AUTH-09, RN-AUTZ-03, RN-TASK-15 e toda mensagem de erro |
 | **Estimativa** | M |
 
+> **Recorte do T2 (21/09/2026):** entra com um **acréscimo**: um indicador discreto do último status HTTP recebido (ex.: um chip no canto da tela, ligado por flag de `environment`), pensado só para a demo — a plateia enxerga 400/401/201 sem abrir o DevTools. O mapa de erro→mensagem cobre só os códigos que o backend do T2 emite: `auth.invalid_credentials` (401 de login), `auth.unauthorized` (401 de token ausente/inválido/expirado, ver [FE-06](FE-06-interceptor-auth-refresh.md)) e os erros de campo do 400 de criação de tarefa. **Fica para depois:** `auth.too_many_attempts`, `task.active_limit_reached` e os demais códigos que dependem de endpoints fora do T2. Depende de [BE-36](../backend/BE-36-api-gateway.md).
+>
+> **Formato real do 401 extraído do Gateway** (`Authentication/IdentityTokenAuthenticationHandler.cs`): `ProblemDetails` com `status: 401`, `title: "Não autenticado."`, `detail: "Autenticação ausente, inválida ou expirada."` e `extensions.errorCode: "auth.unauthorized"` — o mesmo corpo para token ausente, inválido ou expirado (CA-12 de BE-36); o 401 de credencial de login usa `errorCode: "auth.invalid_credentials"` em vez disso.
+
 ## Objetivo
 
 Todo erro vindo da API vira uma mensagem em português compreensível, exibida de forma consistente — e nenhuma tela precisa interpretar status HTTP na mão.
@@ -56,22 +60,35 @@ Todo erro vindo da API vira uma mensagem em português compreensível, exibida d
 
 ## Critérios de aceite
 
-- [ ] **CA-01** — Um erro 400 de validação produz `fieldErrors` com os campos e mensagens, e o formulário consegue exibi-los junto aos inputs corretos.
-- [ ] **CA-02** — Um código de erro conhecido é traduzido para a mensagem pt-BR correspondente.
-- [ ] **CA-03** — Um código de erro **desconhecido** cai na mensagem genérica, sem quebrar a tela e sem exibir o código cru ao usuário.
-- [ ] **CA-04** — Erro de rede (servidor inalcançável) exibe mensagem de conectividade, não "erro 0" nem tela em branco.
-- [ ] **CA-05** — Uma resposta 500 **nunca** exibe stack trace, nome de exceção ou detalhe interno — mesmo que o corpo os contivesse.
-- [ ] **CA-06** — Uma resposta que não é JSON válido é tratada sem lançar exceção não capturada.
-- [ ] **CA-07** — O `traceId` é preservado no `AppError` e aparece na mensagem de erro genérica.
-- [ ] **CA-08** — O toast de erro é anunciado por leitor de tela (`aria-live="assertive"`); o de sucesso usa `aria-live="polite"`.
-- [ ] **CA-09** — O toast pode ser fechado pelo teclado e não some rápido demais para ser lido (mínimo configurável, ≥ 5 s para erro).
-- [ ] **CA-10** — `<app-error-state>` oferece "tentar novamente" e o clique reexecuta a operação que falhou.
-- [ ] **CA-11** — Nenhuma string de mensagem de erro existe fora do arquivo central (verificado por busca no código).
-- [ ] **CA-12** — A ordem dos interceptors está declarada explicitamente e coberta por um teste que confirma o encadeamento.
-- [ ] **CA-13** — Mensagens com parâmetro usam o valor vindo da API, não um número fixo no frontend.
-- [ ] **CA-14** — Nenhum erro é enviado ao `console` em produção com dado sensível; o build de produção não faz `console.log` de payload de request.
+- [x] **CA-01** — Um erro 400 de validação produz `fieldErrors` com os campos e mensagens, e o formulário consegue exibi-los junto aos inputs corretos.
+- [x] **CA-02** — Um código de erro conhecido é traduzido para a mensagem pt-BR correspondente.
+- [x] **CA-03** — Um código de erro **desconhecido** cai na mensagem genérica, sem quebrar a tela e sem exibir o código cru ao usuário.
+- [x] **CA-04** — Erro de rede (servidor inalcançável) exibe mensagem de conectividade, não "erro 0" nem tela em branco.
+- [x] **CA-05** — Uma resposta 500 **nunca** exibe stack trace, nome de exceção ou detalhe interno — mesmo que o corpo os contivesse.
+- [x] **CA-06** — Uma resposta que não é JSON válido é tratada sem lançar exceção não capturada.
+- [x] **CA-07** — O `traceId` é preservado no `AppError` e aparece na mensagem de erro genérica.
+- [x] ~~**CA-08** — O toast de erro é anunciado por leitor de tela (`aria-live="assertive"`); o de sucesso usa `aria-live="polite"`.~~ **Substituído (03/10/2026, issue #15):** não há toast. O desenho definitivo é o erro junto do formulário ou do item (`role="alert"`), o aviso de página da listagem e a região `aria-live="polite"` de anúncios; um toast duplicaria esses mecanismos.
+- [x] ~~**CA-09** — O toast pode ser fechado pelo teclado e não some rápido demais para ser lido (mínimo configurável, ≥ 5 s para erro).~~ **Substituído (03/10/2026, issue #15):** sem toast (ver CA-08); as mensagens ficam na tela até a próxima ação, sem tempo para expirar.
+- [x] **CA-10** — `<app-error-state>` oferece "tentar novamente" e o clique reexecuta a operação que falhou.
+- [x] **CA-11** — Nenhuma string de mensagem de erro existe fora do arquivo central (verificado por busca no código). *(Atendido em 03/10/2026, issue #15: cinco mensagens movidas ou desduplicadas; a busca virou teste em `error-messages.catalog.spec.ts`. Mensagens de validação de campo no cliente continuam nos componentes — não são do catálogo de erros.)*
+- [x] **CA-12** — A ordem dos interceptors está declarada explicitamente e coberta por um teste que confirma o encadeamento.
+- [x] **CA-13** — Mensagens com parâmetro usam o valor vindo da API, não um número fixo no frontend.
+- [x] **CA-14** — Nenhum erro é enviado ao `console` em produção com dado sensível; o build de produção não faz `console.log` de payload de request.
 
 ## Testes obrigatórios
 
 - Unidade: interceptor de erro com respostas simuladas — CA-01 a CA-07, CA-12.
 - Componente (Testing Library): toast e estados de tela, consultando por texto e `role` — CA-08 a CA-10.
+
+## Auditoria dos critérios (03/10/2026)
+
+Critérios conferidos contra o código em 03/10/2026. Marcados: 10 de 14.
+
+| CA | Situação | Evidência / motivo |
+|---|---|---|
+| CA-07 | em aberto | `traceId` é preservado e testado em `AppError` e anexado como "(ref.: id)" à mensagem genérica (`error-mapper.ts`), mas nenhum teste cobre a mensagem genérica com `traceId`. |
+| CA-08 | em aberto | Não existe componente de toast/notificação; erros aparecem inline (`role="alert"`/`aria-live="assertive"` nos formulários). O objetivo é parcialmente coberto de outra forma, mas o critério fala de toast. |
+| CA-09 | em aberto | Depende do toast (CA-08), inexistente: sem fechar por teclado nem tempo mínimo configurável. |
+| CA-11 | em aberto | Há strings de erro fora de `error-messages.ts`: `'Verifique os campos destacados.'` em `error-mapper.ts`, `'Não foi possível carregar seu perfil.'` (`account.component.html`), `'Não foi possível carregar a tarefa.'` (`edit-task.component.html`) e "Este e-mail já está cadastrado." duplicado em `register.component.html`. |
+
+Também ausente (não é CA): o utilitário de estado assíncrono `idle|loading|success|error`. CA-10 coberto por `tasks-page.component.spec.ts` ("exibe erro com tentar novamente e refaz a chamada"); CA-12 por `interceptor-order.spec.ts`; CA-14 pela ausência de qualquer `console.*` em `src/app`.
