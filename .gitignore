@@ -68,3 +68,11 @@ graphify-out/
 # Cobertura e relatórios (BE-24)
 coverage-results/
 coverage-report/
+
+## Skill impeccable — instalada via `npx skills` (pbakaus/impeccable), 2.3 MB de terceiros.
+## O skills-lock.json é versionado e reinstala; o link em .claude/skills tem caminho absoluto
+## da máquina (sem barra final: pega link simbólico e diretório).
+.agents/
+.claude/skills/impeccable
+## Relatórios de critique por execução — o design.json ao lado continua versionado.
+.impeccable/critique/
