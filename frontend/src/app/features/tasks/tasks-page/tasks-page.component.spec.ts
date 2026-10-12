@@ -1430,4 +1430,169 @@ describe('TasksPageComponent', () => {
       expect(document.querySelector('.tasks-page__notice--success')).toBeNull();
     });
   });
+
+  describe('lista que não pisca e adicionar rápido', () => {
+    const PAGE_OF = (items: TaskResponse[], totalCount = items.length, page = 1) => ({
+      items,
+      page,
+      pageSize: 20,
+      totalCount,
+    });
+    const listRequests = (httpMock: HttpTestingController) =>
+      httpMock.match((r) => r.url === '/api/tasks' && r.method === 'GET');
+
+    async function loaded(items: TaskResponse[] = [makeTask()], totalCount = items.length) {
+      const ctx = await setup();
+      firstListRequest(ctx.httpMock).flush(PAGE_OF(items, totalCount));
+      await screen.findByRole('textbox', { name: 'Adicionar tarefa' });
+      return ctx;
+    }
+
+    it('mudar um filtro mantém a lista anterior, ocupada, até a resposta chegar', async () => {
+      const { httpMock } = await loaded();
+
+      await userEvent.click(screen.getByRole('radio', { name: 'Pendentes' }));
+      const req = await waitFor(() =>
+        httpMock.expectOne((r) => r.url === '/api/tasks' && r.params.get('status') === 'pending'),
+      );
+
+      const list = screen.getByRole('list', { name: 'Lista de tarefas' });
+      expect(list.getAttribute('aria-busy')).toBe('true');
+      expect(screen.getByText('Estudar para a prova')).toBeTruthy();
+      expect(screen.queryByText(/carregando tarefas/i)).toBeNull();
+
+      req.flush(PAGE_OF([makeTask({ id: '2', title: 'Outra' })]));
+      await screen.findByText('Outra');
+      expect(screen.getByRole('list', { name: 'Lista de tarefas' }).hasAttribute('aria-busy')).toBe(
+        false,
+      );
+    });
+
+    it('trocar de página só move o foco quando a nova página chega', async () => {
+      const { httpMock } = await loaded([makeTask({ id: '1', title: 'Primeira' })], 60);
+
+      await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+      const req = await waitFor(() =>
+        httpMock.expectOne((r) => r.url === '/api/tasks' && r.params.get('page') === '2'),
+      );
+      expect(document.activeElement).not.toBe(screen.getByRole('heading', { name: 'Primeira' }));
+
+      req.flush(PAGE_OF([makeTask({ id: '4', title: 'Quarta' })], 60, 2));
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Quarta' })),
+      );
+    });
+
+    it('não renderiza a barra de filtros nem o adicionar rápido antes da primeira carga', async () => {
+      const { httpMock } = await setup();
+
+      expect(screen.queryByRole('form', { name: 'Filtrar tarefas' })).toBeNull();
+      expect(screen.queryByRole('textbox', { name: 'Adicionar tarefa' })).toBeNull();
+
+      firstListRequest(httpMock).flush(PAGE_OF([]));
+      // Sem tarefas: o adicionar rápido é a primeira ação; a barra de filtros continua oculta.
+      expect(await screen.findByRole('textbox', { name: 'Adicionar tarefa' })).toBeTruthy();
+      expect(screen.queryByRole('form', { name: 'Filtrar tarefas' })).toBeNull();
+    });
+
+    describe('adicionar rápido', () => {
+      const input = () =>
+        screen.getByRole<HTMLInputElement>('textbox', { name: 'Adicionar tarefa' });
+      const createRequests = (httpMock: HttpTestingController) =>
+        httpMock.match((r) => r.url === '/api/tasks' && r.method === 'POST');
+
+      it('cria com os padrões do formulário, limpa o campo, mantém o foco, avisa e recarrega', async () => {
+        const { httpMock } = await loaded();
+
+        await userEvent.type(input(), '  Pagar a conta  {Enter}');
+        const post = httpMock.expectOne((r) => r.url === '/api/tasks' && r.method === 'POST');
+        expect(post.request.body).toEqual({
+          title: 'Pagar a conta',
+          description: null,
+          priority: 'Medium',
+          dueDate: null,
+        });
+        post.flush(makeTask({ id: '9', title: 'Pagar a conta' }));
+
+        expect(
+          await screen.findByText('Tarefa "Pagar a conta" criada.', {
+            selector: 'p.tasks-page__notice',
+          }),
+        ).toBeTruthy();
+        expect(input().value).toBe('');
+        expect(document.activeElement).toBe(input());
+        await waitFor(() =>
+          expect(document.querySelector('.tasks-page__announcement')?.textContent).toContain(
+            'Tarefa "Pagar a conta" criada.',
+          ),
+        );
+
+        // Recarrega a página atual em silêncio: sem bloco de carregamento nem lista ocupada.
+        const reload = listRequests(httpMock);
+        expect(reload.length).toBe(1);
+        expect(screen.queryByText(/carregando tarefas/i)).toBeNull();
+        expect(
+          screen.getByRole('list', { name: 'Lista de tarefas' }).hasAttribute('aria-busy'),
+        ).toBe(false);
+        reload[0]!.flush(PAGE_OF([makeTask({ id: '9', title: 'Pagar a conta' }), makeTask()], 2));
+        await screen.findByText('Pagar a conta', { selector: 'h2' });
+      });
+
+      it('título vazio ou só espaços não envia nada', async () => {
+        const { httpMock } = await loaded();
+
+        await userEvent.type(input(), '   {Enter}');
+        await userEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+        expect(createRequests(httpMock).length).toBe(0);
+      });
+
+      it('título acima de 200 caracteres mostra o erro e não envia', async () => {
+        const { httpMock } = await loaded();
+
+        await userEvent.click(input());
+        await userEvent.paste('a'.repeat(201));
+        await userEvent.keyboard('{Enter}');
+
+        expect((await screen.findByRole('alert')).textContent).toContain(
+          'O título deve ter no máximo 200 caracteres.',
+        );
+        expect(createRequests(httpMock).length).toBe(0);
+      });
+
+      it('segundo envio com a primeira em voo é ignorado', async () => {
+        const { httpMock } = await loaded();
+
+        await userEvent.type(input(), 'Uma só{Enter}');
+        const button = screen.getByRole('button', { name: 'Adicionar' });
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+        expect(button.getAttribute('aria-busy')).toBe('true');
+        await userEvent.type(input(), '{Enter}');
+
+        const posts = createRequests(httpMock);
+        expect(posts.length).toBe(1);
+        posts[0]!.flush(makeTask({ id: '9', title: 'Uma só' }));
+        await screen.findByText('Tarefa "Uma só" criada.', { selector: 'p.tasks-page__notice' });
+        listRequests(httpMock).forEach((r) => r.flush(PAGE_OF([makeTask()])));
+      });
+
+      it('erro do servidor aparece sob o campo, mantém o texto e o foco, e some ao digitar', async () => {
+        const { httpMock } = await loaded();
+
+        await userEvent.type(input(), 'Mais uma{Enter}');
+        httpMock
+          .expectOne((r) => r.url === '/api/tasks' && r.method === 'POST')
+          .flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+
+        const alert = await screen.findByRole('alert');
+        expect(alert.textContent?.trim().length).toBeGreaterThan(0);
+        expect(input().value).toBe('Mais uma');
+        expect(document.activeElement).toBe(input());
+        expect(listRequests(httpMock).length).toBe(0);
+
+        await userEvent.type(input(), '!');
+        expect(screen.queryByRole('alert')).toBeNull();
+      });
+    });
+  });
 });

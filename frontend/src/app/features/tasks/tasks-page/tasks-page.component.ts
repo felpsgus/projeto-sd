@@ -30,6 +30,7 @@ import {
   hasActiveTaskFilters,
 } from '../../../core/api/models/task.models';
 import { AppError } from '../../../core/errors/app-error.model';
+import { TITLE_MAX_LENGTH } from '../task-form/task-form.validators';
 import { TasksQueryState, buildTasksQueryParams, parseTasksQueryParams } from './tasks-query.util';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -78,6 +79,7 @@ export class TasksPageComponent {
 
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly taskItems = viewChildren(TaskItemComponent);
+  private readonly quickAddInput = viewChild<ElementRef<HTMLInputElement>>('quickAddInput');
   /** Marca de "troquei de página": consumida quando a nova página termina de carregar. */
   private focusOnPageLoad = false;
 
@@ -134,14 +136,37 @@ export class TasksPageComponent {
    * filtro, página ou ação de item — por isso só a última ação pode ser desfeita. */
   private readonly successNoticeSignal = signal<{ text: string; undo?: () => void } | null>(null);
   protected readonly successNotice = this.successNoticeSignal.asReadonly();
+  /** `true` depois que a primeira carga terminou (sucesso ou erro): só então aparecem o
+   * adicionar rápido e a barra de filtros — antes, a barra piscaria para quem não tem tarefas. */
+  protected readonly loaded = signal(false);
+
+  /** Adicionar rápido: texto digitado, requisição em voo e erro sob o campo. */
+  private readonly quickAddTitleSignal = signal('');
+  protected readonly quickAddTitle = this.quickAddTitleSignal.asReadonly();
+  protected readonly quickAdding = signal(false);
+  protected readonly quickAddError = signal<string | null>(null);
+
   /** Anúncio a leitor de tela (região viva da página, sempre no DOM): sobrevive à remoção do item. */
   protected readonly announcement = signal('');
 
   constructor() {
+    effect(() => {
+      if (this.store.status() === 'success' || this.store.status() === 'error') {
+        this.loaded.set(true);
+      }
+    });
+
     // Carrega a lista a cada emissão da URL — deep link, F5, "voltar" e navegação normal passam
     // todos por aqui, sem lógica duplicada (FE-16, CA-15/CA-16). Assinatura, não `effect()`:
     // a rota comanda a chamada (FE-14, CA-12).
+    let firstEmission = true;
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      if (firstEmission) {
+        // Ao entrar na página não há lista a manter na tela: o store pode guardar a de uma
+        // visita anterior, e ela entraria como "recarregando" em vez de carregando.
+        firstEmission = false;
+        this.store.clear();
+      }
       const state = parseTasksQueryParams(params);
       this.pageNoticeSignal.set(null);
       this.successNoticeSignal.set(null);
@@ -157,9 +182,12 @@ export class TasksPageComponent {
     }
 
     // Troca de página: quando a nova página termina de carregar, o foco vai para o primeiro item
-    // (ou o <h1>) — o botão Próxima/Anterior some durante o carregamento (FE-15, CA-18).
+    // (ou o <h1>) — o botão Próxima/Anterior some durante o carregamento (FE-15, CA-18). A lista
+    // antiga fica na tela durante o recarregamento (`status` segue 'success'), então quem avisa
+    // que a nova chegou é `refreshing` voltando a `false`; `focusOnPageLoad` não é signal, então
+    // o efeito só reavalia quando `status`/`refreshing` mudam, nunca ao marcar a troca.
     effect(() => {
-      if (this.store.status() === 'success' && this.focusOnPageLoad) {
+      if (this.store.status() === 'success' && !this.store.refreshing() && this.focusOnPageLoad) {
         this.focusOnPageLoad = false;
         this.focusItemAt(0);
       }
@@ -187,6 +215,46 @@ export class TasksPageComponent {
         }
         this.applyFilters({ ...this.queryState().filters, search: value });
       });
+  }
+
+  protected onQuickAddInput(event: Event): void {
+    this.quickAddTitleSignal.set((event.target as HTMLInputElement).value);
+    this.quickAddError.set(null);
+  }
+
+  /** Cria uma tarefa só com título (prioridade média, como o formulário intocado) sem sair da
+   * lista; o foco fica no campo para a próxima. */
+  protected onQuickAdd(event: Event): void {
+    event.preventDefault();
+    const title = this.quickAddTitleSignal().trim();
+    if (this.quickAdding() || title.length === 0) {
+      return;
+    }
+    this.quickAddError.set(null);
+    if (title.length > TITLE_MAX_LENGTH) {
+      this.quickAddError.set(`O título deve ter no máximo ${TITLE_MAX_LENGTH} caracteres.`);
+      return;
+    }
+    this.pageNoticeSignal.set(null);
+    this.successNoticeSignal.set(null);
+    this.announcement.set('');
+    this.quickAdding.set(true);
+    this.store.create({ title, description: null, priority: 'Medium', dueDate: null }).subscribe({
+      next: () => {
+        this.quickAdding.set(false);
+        this.quickAddTitleSignal.set('');
+        const text = `Tarefa "${title}" criada.`;
+        this.successNoticeSignal.set({ text });
+        this.announcement.set(text);
+        this.quickAddInput()?.nativeElement.focus();
+        this.store.refresh();
+      },
+      error: (error: AppError) => {
+        this.quickAdding.set(false);
+        this.quickAddError.set(error.fieldErrors?.['title']?.join(' ') ?? error.message);
+        this.quickAddInput()?.nativeElement.focus();
+      },
+    });
   }
 
   protected retry(): void {

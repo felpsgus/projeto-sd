@@ -66,6 +66,7 @@ export class TasksStore {
   private readonly totalCountSignal = signal(0);
   private readonly statusSignal = signal<TasksStatus>('idle');
   private readonly errorSignal = signal<AppError | null>(null);
+  private readonly refreshingSignal = signal(false);
   private readonly filtersSignal = signal<TasksFilters>(DEFAULT_TASKS_FILTERS);
 
   /** Contador de requisições em voo — protege contra respostas fora de ordem (`load`,
@@ -79,6 +80,10 @@ export class TasksStore {
   readonly totalCount = this.totalCountSignal.asReadonly();
   readonly status = this.statusSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
+  /** `true` enquanto um `load()` posterior ao primeiro está em voo: a lista anterior continua
+   * visível (`status` segue `'success'`) e a tela a marca como ocupada. Nunca é ligado pelo
+   * recarregamento silencioso. */
+  readonly refreshing = this.refreshingSignal.asReadonly();
   readonly filters = this.filtersSignal.asReadonly();
 
   /** Calculado no cliente a partir de `totalCount` — o backend não devolve `totalPages`. */
@@ -127,7 +132,16 @@ export class TasksStore {
     filters: TasksFilters = this.filtersSignal(),
   ): void {
     this.filtersSignal.set(filters);
-    this.fetchPage(page, pageSize, filters, { showLoading: true });
+    // Já há lista carregada: ela fica na tela, só marcada como ocupada. O bloco de carregamento
+    // é para quando não há nada para mostrar (primeira carga, depois de erro ou de `clear()`).
+    const mode = this.statusSignal() === 'success' ? 'refreshing' : 'loading';
+    this.fetchPage(page, pageSize, filters, mode);
+  }
+
+  /** Recarrega a página atual em silêncio — sem `loading`, sem `refreshing`, sem tela de erro.
+   * Para quem acabou de criar uma tarefa e quer vê-la na posição que o servidor der. */
+  refresh(): void {
+    this.fetchPage(this.pageSignal(), this.pageSizeSignal(), this.filtersSignal(), 'silent');
   }
 
   /**
@@ -211,6 +225,7 @@ export class TasksStore {
     this.totalCountSignal.set(0);
     this.statusSignal.set('idle');
     this.errorSignal.set(null);
+    this.refreshingSignal.set(false);
     this.filtersSignal.set(DEFAULT_TASKS_FILTERS);
   }
 
@@ -227,21 +242,24 @@ export class TasksStore {
   }
 
   /**
-   * Busca uma página no servidor. `showLoading` distingue os dois chamadores: `load()`
-   * (`true`, alterna `status` para `'loading'`/`'error'`, o jeito normal de FE-15) e o
-   * recarregamento silencioso pós-`complete`/`reopen` (`false`, nunca mexe em `status` — a
-   * lista permanece visível, e um erro aqui não vira tela de erro, já que a ação que o
-   * disparou já teve sucesso).
+   * Busca uma página no servidor. `mode`: `'loading'` (primeira carga: `status` vai a
+   * `'loading'`), `'refreshing'` (`load()` com lista já carregada: `status` fica, liga
+   * `refreshing`) — os dois terminam em `'error'` se falharem — e `'silent'` (pós-
+   * `complete`/`reopen`/criação: nunca mexe em `status` nem liga `refreshing`; um erro aqui
+   * não vira tela de erro, já que a ação que o disparou já teve sucesso).
    */
   private fetchPage(
     page: number,
     pageSize: number,
     filters: TasksFilters,
-    options: { showLoading: boolean },
+    mode: 'loading' | 'refreshing' | 'silent',
   ): void {
-    if (options.showLoading) {
-      this.statusSignal.set('loading');
+    if (mode !== 'silent') {
       this.errorSignal.set(null);
+      this.refreshingSignal.set(mode === 'refreshing');
+      if (mode === 'loading') {
+        this.statusSignal.set('loading');
+      }
     }
     const requestId = ++this.latestRequestId;
     const query: ListTasksQuery = {
@@ -263,12 +281,16 @@ export class TasksStore {
         this.pageSizeSignal.set(result.pageSize);
         this.totalCountSignal.set(result.totalCount);
         this.statusSignal.set('success');
+        this.refreshingSignal.set(false);
       },
       error: (error: AppError) => {
         if (requestId !== this.latestRequestId) {
           return;
         }
-        if (options.showLoading) {
+        // Só a requisição mais recente chega aqui: se ela é silenciosa, supera um `refreshing`
+        // anterior, e ele não pode ficar ligado.
+        this.refreshingSignal.set(false);
+        if (mode !== 'silent') {
           this.errorSignal.set(error);
           this.statusSignal.set('error');
         }
@@ -322,9 +344,7 @@ export class TasksStore {
     return call().pipe(
       tap((serverTask) => {
         this.replaceItem(serverTask);
-        this.fetchPage(this.pageSignal(), this.pageSizeSignal(), this.filtersSignal(), {
-          showLoading: false,
-        });
+        this.refresh();
       }),
       catchError((error: AppError) => {
         if (error.status === 404) {

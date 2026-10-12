@@ -4,7 +4,35 @@
     <a routerLink="/tasks/new" class="tasks-page__new">Nova tarefa</a>
   </header>
 
-  @if (!store.isEmpty()) {
+  @if (loaded()) {
+    <div class="tasks-page__quick-add">
+      <form class="tasks-page__quick-add-form" (submit)="onQuickAdd($event)">
+        <label class="visually-hidden" for="quick-add-title">Adicionar tarefa</label>
+        <input
+          #quickAddInput
+          id="quick-add-title"
+          type="text"
+          name="quick-add-title"
+          autocomplete="off"
+          placeholder="Adicionar tarefa…"
+          [value]="quickAddTitle()"
+          [attr.aria-invalid]="quickAddError() ? 'true' : null"
+          [attr.aria-describedby]="quickAddError() ? 'quick-add-error' : null"
+          (input)="onQuickAddInput($event)"
+        />
+        <button type="submit" [disabled]="quickAdding()" [attr.aria-busy]="quickAdding() || null">
+          Adicionar
+        </button>
+      </form>
+      @if (quickAddError(); as message) {
+        <p id="quick-add-error" class="tasks-page__notice tasks-page__quick-add-error" role="alert">
+          {{ message }}
+        </p>
+      }
+    </div>
+  }
+
+  @if (loaded() && !store.isEmpty()) {
     <form
       class="tasks-page__filters"
       (submit)="$event.preventDefault()"
@@ -131,7 +159,12 @@
           (action)="clearFilters()"
         />
       } @else {
-        <ul class="tasks-page__list" role="list" aria-label="Lista de tarefas">
+        <ul
+          class="tasks-page__list"
+          role="list"
+          aria-label="Lista de tarefas"
+          [attr.aria-busy]="store.refreshing() || null"
+        >
           @for (task of store.items(); track task.id) {
             <app-task-item
               [task]="task"

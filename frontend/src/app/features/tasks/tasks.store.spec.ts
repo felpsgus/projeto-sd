@@ -594,4 +594,93 @@ describe('TasksStore', () => {
       expect(store.items().map((t) => t.id)).toEqual(['2']);
     });
   });
+
+  describe('recarregamento sem piscar (refreshing)', () => {
+    const page = (ids: string[]) => ({
+      items: ids.map(makeTask),
+      page: 1,
+      pageSize: 20,
+      totalCount: ids.length,
+    });
+    const listReq = () => httpMock.expectOne((r) => r.url === '/api/tasks');
+
+    function loadFirst(): void {
+      store.load(1, 20);
+      expect(store.status()).toBe('loading');
+      expect(store.refreshing()).toBe(false);
+      listReq().flush(page(['1', '2']));
+    }
+
+    it('um load() depois do sucesso mantém status e itens, liga refreshing e desliga na resposta', () => {
+      loadFirst();
+
+      store.load(1, 20, { status: 'pending', priority: [], overdue: null, search: '' });
+      expect(store.status()).toBe('success');
+      expect(store.items().map((t) => t.id)).toEqual(['1', '2']);
+      expect(store.refreshing()).toBe(true);
+
+      listReq().flush(page(['3']));
+      expect(store.refreshing()).toBe(false);
+      expect(store.items().map((t) => t.id)).toEqual(['3']);
+    });
+
+    it('um recarregamento que falha termina em "error" e desliga refreshing', () => {
+      loadFirst();
+      store.load(2, 20);
+      listReq().flush({ errorCode: 'unknown' }, { status: 500, statusText: 'Server Error' });
+
+      expect(store.status()).toBe('error');
+      expect(store.error()).not.toBeNull();
+      expect(store.refreshing()).toBe(false);
+    });
+
+    it('resposta antiga não sobrescreve nem desliga refreshing antes da mais recente', () => {
+      loadFirst();
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: 'a' });
+      const older = listReq();
+      store.load(1, 20, { status: 'all', priority: [], overdue: null, search: 'ab' });
+      const newer = listReq();
+
+      older.flush(page(['old']));
+      expect(store.refreshing()).toBe(true);
+      expect(store.items().map((t) => t.id)).toEqual(['1', '2']);
+
+      newer.flush(page(['new']));
+      expect(store.refreshing()).toBe(false);
+      expect(store.items().map((t) => t.id)).toEqual(['new']);
+    });
+
+    it('o recarregamento silencioso pós-complete não liga refreshing', () => {
+      loadFirst();
+      store.complete('1').subscribe();
+      httpMock.expectOne('/api/tasks/1/complete').flush({ ...makeTask('1'), status: 'Completed' });
+
+      expect(store.refreshing()).toBe(false);
+      listReq().flush(page(['2', '1']));
+      expect(store.refreshing()).toBe(false);
+    });
+
+    it('refresh() recarrega a página atual sem ligar refreshing nem mexer em status', () => {
+      loadFirst();
+      store.refresh();
+
+      expect(store.refreshing()).toBe(false);
+      expect(store.status()).toBe('success');
+      listReq().flush(page(['9', '1', '2']));
+      expect(store.items().map((t) => t.id)).toEqual(['9', '1', '2']);
+    });
+
+    it('refresh() que supera um refreshing em voo desliga o indicador', () => {
+      loadFirst();
+      store.load(1, 20, { status: 'pending', priority: [], overdue: null, search: '' });
+      const superseded = listReq();
+      store.refresh();
+      const silent = listReq();
+
+      superseded.flush(page(['x']));
+      expect(store.refreshing()).toBe(true);
+      silent.flush(page(['y']));
+      expect(store.refreshing()).toBe(false);
+    });
+  });
 });
