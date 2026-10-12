@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { fireEvent, render, screen } from '@testing-library/angular';
+import { fireEvent, render, screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import { EditTaskComponent } from './edit-task.component';
@@ -181,7 +181,7 @@ describe('EditTaskComponent', () => {
     const { httpMock } = await setup();
 
     httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
-    await userEvent.type(await screen.findByLabelText(/título/i), '!');
+    fireEvent.input(await screen.findByLabelText(/título/i), { target: { value: 'Alterado' } });
 
     await userEvent.click(screen.getByRole('button', { name: /salvar alterações/i }));
 
@@ -337,27 +337,73 @@ describe('EditTaskComponent', () => {
   });
 
   // FE-18, CA-23 (e FE-07, CA-15)
+  const makeDirty = async (httpMock: HttpTestingController) => {
+    httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
+    fireEvent.input(await screen.findByLabelText(/título/i), { target: { value: 'Alterado' } });
+  };
+
   describe('canDeactivate (CA-23)', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it.each([true, false])('com alterações pergunta e devolve a resposta (%s)', async (answer) => {
-      const { httpMock, fixture } = await setup();
-      httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
-      await userEvent.type(await screen.findByLabelText(/título/i), '!');
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(answer);
+    const leave = () => screen.getByRole('button', { name: 'Sair sem salvar' });
+    const stay = () =>
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancelar' });
 
-      expect(fixture.componentInstance.canDeactivate()).toBe(answer);
-      expect(confirmSpy).toHaveBeenCalledOnce();
+    it('com alterações abre o diálogo e confirmar resolve true', async () => {
+      const { fixture, httpMock } = await setup();
+      await makeDirty(httpMock);
+
+      const result = fixture.componentInstance.canDeactivate();
+      await fixture.whenStable();
+      fireEvent.click(await screen.findByRole('button', { name: 'Sair sem salvar' }));
+
+      await expect(result).resolves.toBe(true);
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
     });
 
-    it('sem alterações sai sem perguntar', async () => {
-      const { httpMock, fixture } = await setup();
+    it('cancelar resolve false, mantém o que foi digitado e fecha o diálogo', async () => {
+      const { fixture, httpMock } = await setup();
+      await makeDirty(httpMock);
+
+      const result = fixture.componentInstance.canDeactivate();
+      await fixture.whenStable();
+      await screen.findByRole('button', { name: 'Sair sem salvar' });
+      fireEvent.click(stay());
+
+      await expect(result).resolves.toBe(false);
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
+      expect(screen.getByLabelText<HTMLInputElement>(/título/i).value).toBe('Alterado');
+    });
+
+    it('segunda tentativa com o diálogo aberto reaproveita a mesma promessa', async () => {
+      const { fixture, httpMock } = await setup();
+      await makeDirty(httpMock);
+
+      const first = fixture.componentInstance.canDeactivate();
+      const second = fixture.componentInstance.canDeactivate();
+      await fixture.whenStable();
+      await screen.findByRole('button', { name: 'Sair sem salvar' });
+
+      expect(second).toBe(first);
+      expect(screen.getAllByRole('button', { name: 'Sair sem salvar' })).toHaveLength(1);
+      fireEvent.click(leave());
+      await expect(first).resolves.toBe(true);
+    });
+
+    it('sem alterações sai sem abrir o diálogo', async () => {
+      const { fixture, httpMock } = await setup();
       httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
       await screen.findByLabelText(/título/i);
-      const confirmSpy = vi.spyOn(window, 'confirm');
 
       expect(fixture.componentInstance.canDeactivate()).toBe(true);
-      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
+    });
+
+    it('enquanto a tarefa não carregou sai sem abrir o diálogo', async () => {
+      const { httpMock, fixture } = await setup();
+
+      expect(fixture.componentInstance.canDeactivate()).toBe(true);
+      httpMock.expectOne((r) => r.method === 'GET').flush(makeTask());
     });
   });
 });

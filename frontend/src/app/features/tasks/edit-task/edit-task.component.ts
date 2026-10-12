@@ -18,6 +18,7 @@ import { STATUS_LABELS } from '../task-labels';
 import { TaskResponse } from '../../../core/api/models/task.models';
 import { AppError } from '../../../core/errors/app-error.model';
 import { TASK_LOAD_ERROR_MESSAGE } from '../../../core/errors/error-messages';
+import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { CanComponentDeactivate } from './unsaved-changes.guard';
 
 type EditTaskStatus = 'loading' | 'ready' | 'not-found' | 'error';
@@ -42,7 +43,14 @@ const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  */
 @Component({
   selector: 'app-edit-task',
-  imports: [TaskFormComponent, LoadingComponent, ErrorStateComponent, RouterLink, DatePipe],
+  imports: [
+    TaskFormComponent,
+    LoadingComponent,
+    ErrorStateComponent,
+    ConfirmDialogComponent,
+    RouterLink,
+    DatePipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './edit-task.component.html',
   styleUrl: './edit-task.component.scss',
@@ -53,6 +61,10 @@ export class EditTaskComponent implements OnInit, CanComponentDeactivate {
   private readonly router = inject(Router);
 
   @ViewChild(TaskFormComponent) private readonly taskForm?: TaskFormComponent;
+
+  @ViewChild(ConfirmDialogComponent) private readonly leaveDialog?: ConfirmDialogComponent;
+  private pendingLeave: Promise<boolean> | null = null;
+  private resolveLeave?: (leave: boolean) => void;
 
   protected readonly taskLoadError = TASK_LOAD_ERROR_MESSAGE;
   protected readonly status = signal<EditTaskStatus>('loading');
@@ -117,15 +129,28 @@ export class EditTaskComponent implements OnInit, CanComponentDeactivate {
     void this.router.navigateByUrl('/tasks');
   }
 
-  /** Consultado pela `unsavedChangesGuard` (FE-18, CA-23) ao tentar sair da rota. */
-  canDeactivate(): boolean {
-    if (this.savedSuccessfully || this.status() !== 'ready') {
+  /**
+   * Consultado pela `unsavedChangesGuard` ao tentar sair da rota. Com alterações abre o
+   * diálogo e resolve com a resposta; uma segunda tentativa com o diálogo aberto reaproveita
+   * a mesma promessa (não empilha outro diálogo).
+   */
+  canDeactivate(): boolean | Promise<boolean> {
+    if (this.savedSuccessfully || this.status() !== 'ready' || !this.taskForm?.dirty) {
       return true;
     }
-    if (!this.taskForm?.dirty) {
-      return true;
+    this.pendingLeave ??= new Promise<boolean>((resolve) => {
+      this.resolveLeave = resolve;
+      this.leaveDialog?.open();
+    });
+    return this.pendingLeave;
+  }
+
+  protected answerLeave(leave: boolean): void {
+    if (leave) {
+      this.leaveDialog?.close();
     }
-    return window.confirm('Existem alterações não salvas. Deseja sair sem salvar?');
+    this.resolveLeave?.(leave);
+    this.pendingLeave = null;
   }
 
   private loadTask(id: string): void {

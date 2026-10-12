@@ -29,10 +29,19 @@ async function fillValidForm() {
 }
 
 describe('RegisterComponent (FE-08)', () => {
-  it('botão de envio começa desabilitado (CA-02)', async () => {
-    await setup();
+  // Política única de envio (igual à do formulário de tarefa): o botão só desabilita durante o envio.
+  it('envio inválido não desabilita o botão, mostra os erros e foca o primeiro campo inválido (CA-02)', async () => {
+    const { httpMock } = await setup();
+    const button = screen.getByRole('button', { name: /criar conta/i });
+    expect(button).toBeEnabled();
 
-    expect(screen.getByRole('button', { name: /criar conta/i })).toBeDisabled();
+    await userEvent.click(button);
+
+    httpMock.expectNone(REGISTER_PATH);
+    expect(button).toBeEnabled();
+    expect(screen.getByText(/informe seu e-mail/i)).toBeTruthy();
+    expect(screen.getByText(/informe uma senha/i)).toBeTruthy();
+    await vi.waitFor(() => expect(screen.getByLabelText(/^e-mail$/i)).toHaveFocus());
   });
 
   it('cadastro válido chama a API e navega para /login com e-mail pré-preenchido (CA-01)', async () => {
@@ -94,7 +103,7 @@ describe('RegisterComponent (FE-08)', () => {
   });
 
   it('senha e confirmação diferentes impedem o envio (CA-07)', async () => {
-    await setup();
+    const { httpMock } = await setup();
 
     await userEvent.type(screen.getByLabelText(/^e-mail$/i), 'nova@example.com');
     await userEvent.type(screen.getByLabelText(/^senha$/i), 'abcdef12');
@@ -102,7 +111,8 @@ describe('RegisterComponent (FE-08)', () => {
     await userEvent.tab();
 
     expect(screen.getByText(/as senhas não coincidem/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /criar conta/i })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /criar conta/i }));
+    httpMock.expectNone(REGISTER_PATH);
   });
 
   it('liga a mensagem de senhas diferentes ao campo de confirmação por aria-describedby', async () => {
@@ -113,12 +123,14 @@ describe('RegisterComponent (FE-08)', () => {
     await userEvent.tab();
 
     const confirm = screen.getByLabelText(/confirmar senha/i);
-    const mismatch = screen.getByText(/as senhas não coincidem/i);
+    // renderizada pelo <app-form-field-error> (lista vermelha), não por um parágrafo avulso
+    const mismatch = screen.getByText(/as senhas não coincidem/i).closest('ul');
+    expect(mismatch).toHaveClass('form-field-error');
     expect(confirm).toHaveAttribute('aria-invalid', 'true');
-    expect(mismatch.id).not.toBe('');
-    expect(confirm.getAttribute('aria-describedby')?.split(' ')).toContain(mismatch.id);
+    expect(confirm).toHaveAttribute('aria-describedby', mismatch?.id);
     // regressão: senhas diferentes não marcam os outros campos como inválidos
     expect(screen.getByLabelText(/^senha$/i)).not.toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(/^e-mail$/i)).not.toHaveAttribute('aria-invalid', 'true');
   });
 
   it('nome de exibição com 101 caracteres é rejeitado; com 100 é aceito (CA-08)', async () => {

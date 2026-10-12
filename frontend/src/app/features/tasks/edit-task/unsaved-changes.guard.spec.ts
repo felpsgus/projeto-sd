@@ -8,9 +8,15 @@ import { CanComponentDeactivate, unsavedChangesGuard } from './unsaved-changes.g
 @Component({ template: '<p>formulário</p>' })
 class FormPageComponent implements CanComponentDeactivate {
   dirty = false;
-  // Mesmo contrato dos containers reais: avisa só com alterações e deixa o usuário recusar.
-  canDeactivate(): boolean {
-    return !this.dirty || window.confirm('Existem alterações não salvas.');
+  // Mesmo contrato dos containers reais: com alterações devolve uma promessa resolvida pelo diálogo.
+  answer: (leave: boolean) => void = () => undefined;
+  asked = 0;
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.dirty) {
+      return true;
+    }
+    this.asked++;
+    return new Promise<boolean>((resolve) => (this.answer = resolve));
   }
 }
 
@@ -19,8 +25,6 @@ class ListPageComponent {}
 
 // FE-07, CA-15: a guarda barra a navegação conforme a resposta do componente.
 describe('unsavedChangesGuard', () => {
-  afterEach(() => vi.restoreAllMocks());
-
   async function open() {
     TestBed.configureTestingModule({
       providers: [
@@ -37,34 +41,36 @@ describe('unsavedChangesGuard', () => {
     };
   }
 
-  it('com alterações avisa, e cancelar a saída mantém o usuário no formulário', async () => {
+  it('com alterações espera o diálogo, e cancelar a saída mantém o usuário no formulário', async () => {
     const { page, router } = await open();
     page.dirty = true;
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 
-    await router.navigateByUrl('/tasks');
+    const navigation = router.navigateByUrl('/tasks');
+    await vi.waitFor(() => expect(page.asked).toBe(1));
+    page.answer(false);
+    await navigation;
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     expect(router.url).toBe('/form');
   });
 
-  it('com alterações avisa, e confirmar a saída navega', async () => {
+  it('com alterações espera o diálogo, e confirmar a saída navega', async () => {
     const { page, router } = await open();
     page.dirty = true;
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-    await router.navigateByUrl('/tasks');
+    const navigation = router.navigateByUrl('/tasks');
+    await vi.waitFor(() => expect(page.asked).toBe(1));
+    page.answer(true);
+    await navigation;
 
     expect(router.url).toBe('/tasks');
   });
 
-  it('sem alterações não avisa e navega', async () => {
-    const { router } = await open();
-    const confirmSpy = vi.spyOn(window, 'confirm');
+  it('sem alterações não pergunta e navega', async () => {
+    const { page, router } = await open();
 
     await router.navigateByUrl('/tasks');
 
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(page.asked).toBe(0);
     expect(router.url).toBe('/tasks');
   });
 });

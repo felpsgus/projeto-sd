@@ -88,28 +88,15 @@ export class RegisterComponent {
     if (control.touched && control.invalid) {
       return this.clientMessages(field, control.errors);
     }
+    // Erro de grupo (senhas diferentes) — exibido junto ao campo de confirmação (CA-07).
+    if (field === 'confirmPassword' && this.form.errors?.['passwordMismatch'] && control.touched) {
+      return ['As senhas não coincidem.'];
+    }
     return this.serverFieldErrors()[field] ?? [];
   }
 
   protected hasError(field: RegisterFormField): boolean {
-    return (
-      this.fieldMessages(field).length > 0 ||
-      (field === 'confirmPassword' && this.confirmPasswordMismatch())
-    );
-  }
-
-  /** Erro de grupo (senhas diferentes) — exibido junto ao campo de confirmação (CA-07). */
-  protected confirmPasswordMismatch(): boolean {
-    return !!this.form.errors?.['passwordMismatch'] && this.form.controls.confirmPassword.touched;
-  }
-
-  /** Referencia só as mensagens realmente renderizadas junto ao campo de confirmação. */
-  protected confirmPasswordDescribedBy(): string | null {
-    const ids = [
-      this.fieldMessages('confirmPassword').length > 0 ? 'confirmPassword-error' : null,
-      this.confirmPasswordMismatch() ? 'confirmPassword-mismatch' : null,
-    ].filter((id) => id !== null);
-    return ids.length > 0 ? ids.join(' ') : null;
+    return this.fieldMessages(field).length > 0;
   }
 
   protected submit(): void {
@@ -183,7 +170,7 @@ export class RegisterComponent {
       // O detalhe de qual critério falta já é mostrado pelo indicador ao vivo
       // (<app-password-requirements>) — aqui basta apontar que a senha não atende à política.
       if (errors['passwordPolicy']) {
-        return ['A senha não atende aos requisitos abaixo.'];
+        return ['A senha não atende aos requisitos acima.'];
       }
     }
     if (field === 'confirmPassword' && errors['required']) {
@@ -197,12 +184,7 @@ export class RegisterComponent {
 
   private focusFirstInvalidField(): void {
     const order: RegisterFormField[] = ['email', 'password', 'confirmPassword', 'displayName'];
-    const firstInvalid = order.find(
-      (field) =>
-        this.form.controls[field].invalid ||
-        (this.serverFieldErrors()[field]?.length ?? 0) > 0 ||
-        (field === 'confirmPassword' && this.confirmPasswordMismatch()),
-    );
+    const firstInvalid = order.find((field) => this.hasError(field));
     if (!firstInvalid) {
       return;
     }

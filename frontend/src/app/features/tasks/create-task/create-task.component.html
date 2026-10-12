@@ -6,3 +6,11 @@
   (save)="onSave($event)"
   (cancelled)="cancel()"
 />
+
+<app-confirm-dialog
+  title="Sair sem salvar?"
+  message="Existem alterações não salvas."
+  confirmLabel="Sair sem salvar"
+  (confirmed)="answerLeave(true)"
+  (cancelled)="answerLeave(false)"
+/>

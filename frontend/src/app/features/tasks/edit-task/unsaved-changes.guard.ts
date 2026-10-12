@@ -2,7 +2,7 @@ import { CanDeactivateFn } from '@angular/router';
 
 /** Implementado por qualquer container com um formulário que pode ficar "sujo" (FE-18, CA-23). */
 export interface CanComponentDeactivate {
-  canDeactivate(): boolean;
+  canDeactivate(): boolean | Promise<boolean>;
 }
 
 /**

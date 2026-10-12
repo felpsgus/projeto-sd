@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
-import { fireEvent, render, screen, waitFor } from '@testing-library/angular';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 
 import { CreateTaskComponent } from './create-task.component';
@@ -320,37 +320,72 @@ describe('CreateTaskComponent', () => {
     });
   });
 
+  const makeDirty = () => setValue(/título/i, 'Rascunho');
+
   describe('canDeactivate (CA-18, CA-19)', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it.each([true, false])('com alterações pergunta e devolve a resposta (%s)', async (answer) => {
+    const leave = () => screen.getByRole('button', { name: 'Sair sem salvar' });
+    const stay = () =>
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancelar' });
+
+    it('com alterações abre o diálogo e confirmar resolve true', async () => {
       const { fixture } = await setup();
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(answer);
+      await makeDirty();
 
-      await userEvent.type(screen.getByLabelText(/título/i), 'Rascunho');
+      const result = fixture.componentInstance.canDeactivate();
+      await fixture.whenStable();
+      fireEvent.click(await screen.findByRole('button', { name: 'Sair sem salvar' }));
 
-      expect(fixture.componentInstance.canDeactivate()).toBe(answer);
-      expect(confirmSpy).toHaveBeenCalledOnce();
+      await expect(result).resolves.toBe(true);
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
     });
 
-    it('sem alterações sai sem perguntar', async () => {
+    it('cancelar resolve false, mantém o que foi digitado e fecha o diálogo', async () => {
       const { fixture } = await setup();
-      const confirmSpy = vi.spyOn(window, 'confirm');
+      await makeDirty();
+
+      const result = fixture.componentInstance.canDeactivate();
+      await fixture.whenStable();
+      await screen.findByRole('button', { name: 'Sair sem salvar' });
+      fireEvent.click(stay());
+
+      await expect(result).resolves.toBe(false);
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
+      expect(screen.getByLabelText<HTMLInputElement>(/título/i).value).toBe('Rascunho');
+    });
+
+    it('segunda tentativa com o diálogo aberto reaproveita a mesma promessa', async () => {
+      const { fixture } = await setup();
+      await makeDirty();
+
+      const first = fixture.componentInstance.canDeactivate();
+      const second = fixture.componentInstance.canDeactivate();
+      await fixture.whenStable();
+      await screen.findByRole('button', { name: 'Sair sem salvar' });
+
+      expect(second).toBe(first);
+      expect(screen.getAllByRole('button', { name: 'Sair sem salvar' })).toHaveLength(1);
+      fireEvent.click(leave());
+      await expect(first).resolves.toBe(true);
+    });
+
+    it('sem alterações sai sem abrir o diálogo', async () => {
+      const { fixture } = await setup();
 
       expect(fixture.componentInstance.canDeactivate()).toBe(true);
-      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
     });
 
-    it('depois de salvar com sucesso sai sem perguntar', async () => {
+    it('depois de salvar com sucesso sai sem abrir o diálogo', async () => {
       const { fixture, httpMock } = await setup();
-      const confirmSpy = vi.spyOn(window, 'confirm');
 
       await userEvent.type(screen.getByLabelText(/título/i), 'Estudar');
       await userEvent.click(screen.getByRole('button', { name: /criar tarefa/i }));
       httpMock.expectOne('/api/tasks').flush({ id: '1', title: 'Estudar' });
 
       expect(fixture.componentInstance.canDeactivate()).toBe(true);
-      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Sair sem salvar' })).toBeNull();
     });
 
     it('a rota tasks/new declara a unsavedChangesGuard', () => {

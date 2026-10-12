@@ -40,6 +40,14 @@ describe('ChangePasswordComponent (FE-12)', () => {
     expect(screen.getByRole('link', { name: 'Cancelar' })).toHaveAttribute('href', '/account');
   });
 
+  it('"Cancelar" vem antes do botão principal, como no formulário de tarefa', async () => {
+    await setup();
+
+    const cancel = screen.getByRole('link', { name: 'Cancelar' });
+    const submit = screen.getByRole('button', { name: 'Alterar senha' });
+    expect(cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('o aviso de desconexão aparece antes do envio (CA-06) com texto verdadeiro (sem "todos os dispositivos")', async () => {
     await setup();
 
@@ -89,7 +97,7 @@ describe('ChangePasswordComponent (FE-12)', () => {
     expect(screen.getByText(/não atende aos requisitos/i)).toBeTruthy();
   });
 
-  // FE-12, CA-07. A mensagem do campo é única ("não atende aos requisitos abaixo"); o critério
+  // FE-12, CA-07. A mensagem do campo é única ("não atende aos requisitos acima"); o critério
   // que falta é apontado pelo indicador ao vivo logo acima dela — o teste verifica os dois.
   it.each([
     ['7 caracteres', 'abc1234', /pelo menos 8 caracteres/i],

@@ -176,7 +176,7 @@ export class ChangePasswordComponent {
         return ['Informe a nova senha.'];
       }
       if (errors['passwordPolicy']) {
-        return ['A nova senha não atende aos requisitos abaixo.'];
+        return ['A nova senha não atende aos requisitos acima.'];
       }
     }
     if (field === 'confirmNewPassword' && errors['required']) {

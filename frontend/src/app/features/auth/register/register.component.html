@@ -58,7 +58,7 @@
         formControlName="confirmPassword"
         autocomplete="new-password"
         [attr.aria-invalid]="hasError('confirmPassword')"
-        [attr.aria-describedby]="confirmPasswordDescribedBy()"
+        [attr.aria-describedby]="hasError('confirmPassword') ? 'confirmPassword-error' : null"
       />
       <button
         type="button"
@@ -73,9 +73,6 @@
       fieldId="confirmPassword-error"
       [messages]="fieldMessages('confirmPassword')"
     />
-    @if (confirmPasswordMismatch()) {
-      <p id="confirmPassword-mismatch" class="register__hint">As senhas não coincidem.</p>
-    }
   </div>
 
   <div class="register__field">
@@ -103,7 +100,7 @@
   <button
     type="submit"
     class="register__submit"
-    [disabled]="form.invalid || submitting()"
+    [disabled]="submitting()"
     [attr.aria-busy]="submitting()"
   >
     {{ submitting() ? 'Criando conta…' : 'Criar conta' }}

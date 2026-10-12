@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { TasksStore } from '../tasks.store';
 import { TaskFormComponent, TaskFormValue } from '../task-form/task-form.component';
 import { AppError } from '../../../core/errors/app-error.model';
+import { ConfirmDialogComponent } from '../../../shared/ui/confirm-dialog/confirm-dialog.component';
 import { CanComponentDeactivate } from '../edit-task/unsaved-changes.guard';
 
 /**
@@ -15,7 +16,7 @@ import { CanComponentDeactivate } from '../edit-task/unsaved-changes.guard';
  */
 @Component({
   selector: 'app-create-task',
-  imports: [TaskFormComponent],
+  imports: [TaskFormComponent, ConfirmDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-task.component.html',
   styleUrl: './create-task.component.scss',
@@ -25,6 +26,10 @@ export class CreateTaskComponent implements CanComponentDeactivate {
   private readonly router = inject(Router);
 
   @ViewChild(TaskFormComponent) private readonly taskForm?: TaskFormComponent;
+
+  @ViewChild(ConfirmDialogComponent) private readonly leaveDialog?: ConfirmDialogComponent;
+  private pendingLeave: Promise<boolean> | null = null;
+  private resolveLeave?: (leave: boolean) => void;
 
   /** Após criar com sucesso, a saída da rota não deve pedir confirmação (FE-17, CA-19). */
   private savedSuccessfully = false;
@@ -45,11 +50,27 @@ export class CreateTaskComponent implements CanComponentDeactivate {
     void this.router.navigateByUrl('/tasks');
   }
 
-  /** Consultado pela `unsavedChangesGuard` (FE-17, CA-18/CA-19) ao tentar sair da rota. */
-  canDeactivate(): boolean {
+  /**
+   * Consultado pela `unsavedChangesGuard` ao tentar sair da rota. Com alterações abre o
+   * diálogo e resolve com a resposta; uma segunda tentativa com o diálogo aberto reaproveita
+   * a mesma promessa (não empilha outro diálogo).
+   */
+  canDeactivate(): boolean | Promise<boolean> {
     if (this.savedSuccessfully || !this.taskForm?.dirty) {
       return true;
     }
-    return window.confirm('Existem alterações não salvas. Deseja sair sem salvar?');
+    this.pendingLeave ??= new Promise<boolean>((resolve) => {
+      this.resolveLeave = resolve;
+      this.leaveDialog?.open();
+    });
+    return this.pendingLeave;
+  }
+
+  protected answerLeave(leave: boolean): void {
+    if (leave) {
+      this.leaveDialog?.close();
+    }
+    this.resolveLeave?.(leave);
+    this.pendingLeave = null;
   }
 }
