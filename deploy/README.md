@@ -303,65 +303,62 @@ sudo docker compose -f /opt/todolist/docker/docker-compose.prod.yml --env-file /
 ## 11. No dia da apresentação
 
 Roteiro de **até 10 minutos, partindo do frontend** (`t2.md`). O limite é duro: estouro zera a
-nota da apresentação oral. O SSH do navegador só precisa de HTTPS, que nenhuma rede
-institucional bloqueia. O frontend é mostrado num navegador comum em `http://<IP_EXTERNO>/`.
-Três lugares: o navegador, um terminal SSH na VM (logs) e um Git Bash no notebook
-(`deploy/smoke.sh`, para o 401).
+nota da apresentação oral. São **duas janelas e o editor**: o navegador em
+`http://<IP_EXTERNO>/`, e um terminal SSH na VM rodando `demo.sh`, que avança um ato por Enter.
+O SSH do navegador só precisa de HTTPS, que nenhuma rede institucional bloqueia.
+
+O roteiro anterior usava três terminais (logs ao vivo, `smoke.sh`, `psql`) e pedia o 400 pela
+tela. O ensaio de 13/10 mostrou que isso não se sustenta: o JSON cru de `logs -f` não dá para
+apresentar, e o formulário do Angular valida o título antes de enviar — pela tela a requisição
+nunca chega ao Gateway. O 400, os logs correlacionados e o `SELECT` passaram para o `demo.sh`.
 
 ### Preparar
 
-**Terminal 1 — SSH, na VM:**
+**Terminal — SSH, na VM** (fonte aumentada), com o comando digitado e **não executado**:
 
 ```bash
 cd /opt/todolist/docker
-sudo docker compose -f docker-compose.prod.yml --env-file .env logs -f --since 0s
+DEMO_PASSWORD='...' ./demo.sh
 ```
 
-`--since 0s` começa sem histórico: tudo que aparecer foi causado durante a apresentação. **Aumente
-a fonte** de terminal e navegador: se o `traceId` for para a segunda linha do log, a correlação
-deixa de ser visível da última fileira.
+O script cadastra uma conta própria a cada execução. Para que a tarefa criada por ele apareça
+também na lista do navegador, cadastre a conta da tela antes e passe-a:
+`DEMO_EMAIL=<e-mail da tela> DEMO_PASSWORD=<senha da tela> ./demo.sh`.
 
-**Terminal 2 — Git Bash no notebook**, pronto para o Ato 5:
+**Navegador:** aba nova em `http://<IP_EXTERNO>/` (tela de login/cadastro), fonte aumentada.
 
-```bash
-export DEMO_PASSWORD="..."
-# não execute ainda
-```
-
-**Navegador:** aba nova em `http://<IP_EXTERNO>/` (tela de login/cadastro).
+**Editor:** os quatro trechos do Ato 7 já abertos em abas.
 
 ### Roteiro cronometrado
 
-| # | Ato | O que fazer / narrar | Ato | Acum. |
+| # | Onde | O que fazer / narrar | Ato | Acum. |
 |---|---|---|---|---|
-| 0 | Abertura | Contexto de 1 frase: Angular → nginx → Gateway → gRPC → Identity/Tasks → Postgres. | 0:20 | 0:20 |
-| 1 | **Cadastro + login pelo frontend** | Criar uma conta nova ao vivo (e-mail à vista — prova que é cadastro real), depois login com ela. Narrar: o navegador só fala com o nginx, mesma origem, sem CORS. | 1:20 | 1:40 |
-| 2 | **Título vazio → 400** | Criar tarefa sem título; o formulário mostra o erro **sem** round-trip até o Tasks — o Gateway validando na borda. | 0:40 | 2:20 |
-| 3 | **Tarefa válida (201) + atrasada** | Criar uma tarefa com título e **uma segunda com vencimento no passado** (a conta é nova e não tem tarefa vencida; sem isso o destaque nunca aparece). Surgem na lista sem recarregar. | 1:10 | 3:30 |
-| 4 | **Banco real, por `psql`** | `psql` contra `10.30.240.3` (`PGSSLMODE=require`), `SELECT` em `tasks.tasks` mostrando a linha recém-criada — mesmo `title`/`id` da tela. É a prova de persistência real, não só o `201`. | 1:00 | 4:30 |
-| 5 | **401, pelo `smoke.sh`** | No terminal 2: `./deploy/smoke.sh http://<IP_EXTERNO>`. Três tokens inválidos (sem token, lixo, **adulterado** — exercita a assinatura RS256), todos 401 com o mesmo corpo. Mostrar uma vez o interceptor do frontend redirecionando ao login num 401. | 1:00 | 5:30 |
-| 6 | **Logs, mesmo `traceId`** | Terminal 1: nos painéis Identity/Tasks/Gateway, localizar o `traceId` da criação do Ato 3 (`grep -E 'CreateTask\|ValidateUser'`). O nginx repassa o `traceparent` intacto, sem participar da correlação (D-40). | 1:00 | 6:30 |
-| 7 | **Código** | `AddJwtBearer` do Gateway (BE-40), `CreateTaskHttpRequestValidator`, o handler JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (`CreateTask`/`ListTasks`/`GetTask`, BE-41). | 2:00 | 8:30 |
-| — | Encerramento | Buffer deliberado, margem contra qualquer travada. | 1:00 | 9:30 |
+| 0 | — | Abertura, 1 frase: Angular → nginx → Gateway → gRPC → Identity/Tasks → Postgres. | 0:20 | 0:20 |
+| 1 | Navegador | **Cadastro + login.** Criar uma conta nova ao vivo, depois login com ela. Narrar: o navegador só fala com o nginx, mesma origem, sem CORS. | 1:20 | 1:40 |
+| 2 | Navegador | **Tarefa válida + atrasada.** Criar uma tarefa e uma segunda com vencimento no passado (conta nova não tem tarefa vencida; sem isso o destaque nunca aparece). Surgem na lista sem recarregar. | 1:00 | 2:40 |
+| 3 | `demo.sh` Atos 1–2 | **401.** Sem token e com token inválido: mesmo corpo `auth.unauthorized`, barrado no middleware do Gateway. | 0:40 | 3:20 |
+| 4 | `demo.sh` Atos 3–5 | **Login, 400 e 201.** Título vazio → 400 com o erro por campo, sem chamada ao Tasks; título válido → 201 com `Location`. | 1:10 | 4:30 |
+| 5 | `demo.sh` Ato 6 | **Logs correlacionados.** O script filtra o `traceId` da criação e imprime `hora serviço mensagem`: Gateway → Tasks → Identity (`ValidateUser`) → Tasks → Gateway. | 0:50 | 5:20 |
+| 6 | `demo.sh` Ato 7 | **Banco real.** `SELECT` no Cloud SQL com a tarefa recém-criada e o e-mail do dono (join `tasks.tasks` × `identity.users`). | 0:40 | 6:00 |
+| 7 | Editor | **Código.** `AddJwtBearer` do Gateway (BE-40), `CreateTaskHttpRequestValidator`, o handler JSON → `CreateTaskRequest` gRPC, e `tasks.proto` (BE-41). | 2:00 | 8:00 |
+| — | — | Encerramento: buffer deliberado, margem contra qualquer travada. | 1:00 | 9:00 |
 
-A soma dos atos é 8:30; com o buffer termina em 9:30, sobrando 0:30 até o limite — **no
-papel**, só o ensaio confirma. O
-cadastro ao vivo do Ato 1 é o item mais provável de estourar: memorize e-mail/senha rápidos de
-digitar. Alternativa (decisão de quem apresenta): cadastrar minutos antes e apenas logar no
-Ato 1 — nesse caso confira que a conta não tem tarefa atrasada pré-existente que estrague o
-Ato 3.
+A soma dos atos é 8:00; com o buffer termina em 9:00, sobrando 1:00 até o limite — **no
+papel**, só o ensaio confirma. O cadastro ao vivo do Ato 1 é o item mais provável de estourar:
+memorize e-mail/senha rápidos de digitar. Alternativa (decisão de quem apresenta): cadastrar
+minutos antes e apenas logar no Ato 1.
 
 ### Requisito do `t2.md` → ato → evidência
 
 | Requisito (`t2.md`, 1–7) | Ato | Evidência |
 |---|---|---|
-| 1. Frontend funcional, só fala com o Gateway | 1–3 | DevTools → Network mostra só chamadas a `/api/*`, mesma origem |
-| 2. API Gateway como ponto único de entrada REST | 1–5 | Toda chamada do frontend e do `smoke.sh` vai para `http://<IP_EXTERNO>/api/*` |
-| 3. ≥ 2 microsserviços internos via gRPC | 6, 7 | `traceId` correlacionado Gateway→Tasks→Identity; `.proto` na tela |
-| 4. Banco real, persistência **exibida** | 4 | `SELECT` no `psql` mostrando a linha criada no Ato 3 |
-| 5. Validação de payload (400/201) | 2, 3 | 400 no título vazio; 201 na tarefa válida |
-| 6. Middleware JWT no Gateway (401 na borda) | 5 | Três tokens inválidos, mesmo corpo `auth.unauthorized` |
-| 7. Tradução REST → gRPC/Protobuf | 3, 7 | Tarefa criada de fato; handler e `.proto` na tela |
+| 1. Frontend funcional, só fala com o Gateway | 1–2 | A aplicação em uso; DevTools → Network só mostra `/api/*`, mesma origem |
+| 2. API Gateway como ponto único de entrada REST | 1–4 | Toda chamada da tela e do `demo.sh` vai para `/api/*` pelo nginx |
+| 3. ≥ 2 microsserviços internos via gRPC | 5, 7 | Mesmo `traceId` em Gateway, Tasks e Identity; `.proto` na tela |
+| 4. Banco real, persistência **exibida** | 6 | `SELECT` mostrando a linha criada no ato anterior |
+| 5. Validação de payload (400/201) | 4 | 400 no título vazio; 201 na tarefa válida |
+| 6. Middleware JWT no Gateway (401 na borda) | 3 | Dois 401 com o mesmo corpo `auth.unauthorized` |
+| 7. Tradução REST → gRPC/Protobuf | 4, 5, 7 | Tarefa criada; chamada gRPC no log; handler e `.proto` na tela |
 
 ### Checklist da última hora
 
@@ -377,7 +374,7 @@ Ato 3.
 - [ ] Aquecimento: uma requisição descartável (`./demo.sh --warmup` ou um login pela tela) — a
       primeira chamada paga conexão HTTP/2 e a primeira query do EF Core; que seja antes da
       plateia.
-- [ ] Logs rodando (`logs -f`), fonte aumentada e tela de login visível.
+- [ ] `demo.sh` digitado no terminal da VM (não executado), fonte aumentada e tela de login visível.
 - [ ] Se testou indisponibilidade no ensaio (`docker compose ... stop identity`), o Identity
       foi **religado** (`start identity`). Sem ele, o resultado esperado é `503` com
       `Retry-After: 5`, nunca 401 nem 500.
@@ -441,8 +438,17 @@ funcionou"):
 | Deadline do `docker-compose.prod.yml` | Recopiar o compose (`gcloud compute scp` e `install-docker-on-vm.sh`, ou cópia direta para `/opt/todolist/docker/`) e subir a stack de novo. Sem imagem nova |
 | `install-docker-on-vm.sh`, `smoke.sh` | Recopiar os arquivos para a VM |
 
-`frontend/src/index.html` ainda declara `<html lang="en">` numa interface em português —
-cosmético, não corrigido.
+### Redeploy de 13/10/2026 — tag `3354488` (merge do T2 em `main`)
+
+Quatro imagens republicadas, SQL regerado (inclui `DropUsersIsActive`), `.env` da VM com
+`IMAGE_TAG=3354488` e `RefreshCookie__Secure=false`. Verificado de fora, pelo IP externo do dia:
+80 serve o Angular com os headers de segurança; 8080/5080/5081/5100/5101 em timeout;
+`smoke.sh` com os 9 passos `OK`; `traceparent` enviado de fora igual ao `@tr` do log do Gateway;
+mesmo `traceId` da criação em `gateway`, `tasks` e `identity`. As correções de 01/10 acima
+chegaram à VM neste redeploy.
+
+O Identity registra um `ValidateUser` com `userId` zerado a cada 30 s, o que polui qualquer
+grep por nome de RPC. O `demo.sh` filtra pelo `traceId` da própria requisição e não é afetado.
 
 ### No ambiente
 
@@ -453,7 +459,7 @@ cosmético, não corrigido.
 - [ ] Trocar a senha do usuário `todolist` depois da apresentação (a atual passou por uma
       conversa com o assistente).
 - [ ] Limpar as contas de teste do ensaio (`demo-t2-*@todolist.example`,
-      `ca07-*@todolist.example`, `inativo@todolist.example`), se incomodarem.
+      `ca07-*@todolist.example`), se incomodarem.
 
 ### Verificação que só o apresentador pode fazer
 

@@ -68,6 +68,16 @@ Regras:
 - Endpoints **DEVEM** usar **Minimal APIs**, organizados por feature com `MapGroup` e classes de endpoint (padrão de extensão `IEndpointRouteBuilder`). Não misturar com Controllers.
 - Analyzers do Roslyn habilitados; warnings de análise tratados como algo a resolver, não ignorar.
 
+**Persistência (EF Core)** — vale para `IdentityDbContext` e `TasksDbContext`:
+
+- Cada serviço mapeia só o **seu** schema (`identity`, `tasks`) e guarda o `__EFMigrationsHistory` dentro dele. Nenhum `DbContext` conhece tabela do outro; a FK cruzada `tasks.tasks.owner_id → identity.users(id)` é SQL explícito na migration (`migrationBuilder.Sql`).
+- Todo `DateTime` é persistido em UTC (`timestamptz`), por conversão em `ConfigureConventions`; o tempo vem de `TimeProvider` injetado, nunca de `DateTime.UtcNow`.
+- `string` sem `MaxLength` explícito é proibido: a construção do modelo falha citando a propriedade.
+- `snake_case` automático (`EFCore.NamingConventions`); configuração fina em `IEntityTypeConfiguration<T>` via `ApplyConfigurationsFromAssembly`.
+- `ISoftDeletable`: o interceptor transforma `Remove()` em `UPDATE` de `DeletedAt` e um `HasQueryFilter` global esconde a linha; `IgnoreQueryFilters()` é o caminho explícito para revê-la (expurgo).
+- `IAuditable`: `CreatedAt`/`UpdatedAt` preenchidos pelo `SaveChangesInterceptor`, nunca à mão.
+- **Nunca** `EnsureCreated()` nem `Migrate()` automático na inicialização — só `dotnet ef database update` ou os SQL idempotentes de `scripts/new-migrations-sql.ps1`.
+
 ### 2.2 Frontend (Angular)
 
 Angular 22 é **signals-first e zoneless** — as convenções refletem isso.

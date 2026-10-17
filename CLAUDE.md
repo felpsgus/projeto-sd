@@ -81,7 +81,7 @@ SDK fixado em [global.json](global.json) (10.0.202). Props comuns em
 - Kestrel configurado só em `Development` em alguns pontos — ao rodar em outro ambiente, passar
   endereço por variável de ambiente.
 
-O [README.md](README.md) tem o roteiro de verificação de cada etapa; [deploy/](deploy/) tem os
+O [README.md](README.md) tem como subir (containers e `dotnet run`), a tabela de configuração e os problemas comuns; [deploy/](deploy/) tem os
 runbooks de GCP e os scripts de demo.
 
 ## Agent skills

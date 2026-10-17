@@ -6,14 +6,18 @@
 #     DEMO_PASSWORD=... ./demo.sh --warmup     # só a chamada de aquecimento, sem exibir nada
 #     DEMO_PASSWORD=... ./demo.sh --falha      # inclui o Ato opcional de indisponibilidade (503)
 #
-# Desde BE-42, o roteiro de verdade (deploy/README.md, "No dia da
-# apresentação") PARTE DO FRONTEND, no navegador: login, criar tarefa com
-# título vazio (400 no formulário) e criar tarefa válida (201, aparece na
-# lista) acontecem ali, não aqui. Este script cobre o que o navegador não
-# mostra bem sob pressão de tempo — o 401 em três variações e o caminho de
-# indisponibilidade — e serve de ensaio/backup em linha de comando para os
-# mesmos atos, e de apoio ao "mostrar o código" (o handler que recebe cada
-# chamada). Por isso ele ainda fala HTTP puro, e não abre navegador nenhum.
+# O roteiro (deploy/README.md, "No dia da apresentação") PARTE DO FRONTEND, no
+# navegador: cadastro, login e criar tarefa válida (201, aparece na lista)
+# acontecem ali. Este script cobre o que a tela não mostra: o 401, o 400 de
+# título vazio (o formulário do Angular valida antes de enviar, então pela
+# tela a requisição nunca chega ao Gateway), o 201 por HTTP puro, os logs
+# correlacionados e a linha no banco. Serve também de apoio ao "mostrar o
+# código" (o handler que recebe cada chamada).
+#
+# O script também mostra, no próprio terminal, os logs correlacionados da
+# chamada de sucesso (Ato 6) e a linha gravada no banco (Ato 7): não precisa de
+# painel de log nem de segundo terminal. O nginx não aparece na correlação —
+# ele só repassa o traceparent (D-40).
 #
 # Por que um script e não digitar na hora: ninguém digita e-mail/senha/token
 # sob pressão sem errar, e o limite de 10 minutos (t2.md) não perdoa. Cada
@@ -64,11 +68,12 @@ login() {
 }
 
 criar_tarefa() {
-    local token="$1" titulo="$2" esperado="$3"
+    local token="$1" titulo="$2" esperado="$3" traceparent="${4:-}"
     local args=(-s -i -X POST "$BASE/api/tasks" -H 'Content-Type: application/json')
     # Token vazio == Ato 1 (sem Authorization nenhum) — token arbitrário
     # (lixo ou válido) vai no header normalmente.
     [[ -n "$token" ]] && args+=(-H "Authorization: Bearer $token")
+    [[ -n "$traceparent" ]] && args+=(-H "traceparent: $traceparent")
     args+=(-d "{\"title\":\"$titulo\"}")
 
     local resposta status
@@ -141,6 +146,34 @@ restaurar_identity() {
 }
 trap 'restaurar_identity; rm -f "$CORPO" "$FALHAS"' EXIT
 
+# Hex aleatório de $1 bytes (openssl, ou o UUID do kernel sem hífens).
+hex() {
+    openssl rand -hex "$1" 2>/dev/null \
+        || tr -d - </proc/sys/kernel/random/uuid | cut -c1-$(($1 * 2))
+}
+
+# Lê do stdin as linhas cruas do `compose logs` (prefixo + JSON do Serilog) e
+# imprime "HH:MM:SS.mmm  serviço   mensagem", ordenado pelo @t. Sem jq: o awk
+# lê o @m caractere a caractere para tratar o \" escapado.
+formatar_logs() {
+    awk -v c_gw="$CIANO" -v c_ta="$VERDE" -v c_id="$AMARELO" -v fim="$FIM" '
+    {
+        svc = $1; sub(/-[0-9]+$/, "", svc)
+        i = index($0, "\"@t\":\""); j = index($0, "\"@m\":\"")
+        if (!i || !j) next
+        t = substr($0, i + 6); t = substr(t, 1, index(t, "\"") - 1)
+        r = substr($0, j + 6); m = ""
+        for (k = 1; k <= length(r); k++) {
+            ch = substr(r, k, 1)
+            if (ch == "\\") { k++; m = m substr(r, k, 1) }
+            else if (ch == "\"") break
+            else m = m ch
+        }
+        cor = (svc == "gateway") ? c_gw : (svc == "tasks") ? c_ta : c_id
+        printf "%s\t%s  %s%-8s%s  %s\n", t, substr(t, 12, 12), cor, svc, fim, m
+    }' | sort -s -t $'\t' -k1,1 | cut -f2-
+}
+
 ato() {
     echo ""
     echo "${CIANO}════════════════════════════════════════════════════════════${FIM}"
@@ -153,9 +186,8 @@ ato() {
 
 clear
 echo "${VERDE}TodoList — API Gateway: REST na borda, gRPC por dentro (T2)${FIM}"
-echo "${CINZA}Lembrete: o roteiro de verdade parte do frontend, no navegador (login, título vazio,${FIM}"
-echo "${CINZA}tarefa válida). Os atos abaixo são o apoio em linha de comando — 401 e indisponibilidade —${FIM}"
-echo "${CINZA}que o deploy/smoke.sh, rodado num SEGUNDO terminal (notebook, Git Bash), também cobre.${FIM}"
+echo "${CINZA}Lembrete: cadastro, login e tarefa válida acontecem antes, no navegador. Aqui saem o 401,${FIM}"
+echo "${CINZA}o 400 de título vazio, o 201, os logs correlacionados e a linha no banco.${FIM}"
 echo "${CINZA}Conta desta execução: $EMAIL_ATIVO${FIM}"
 echo "${CINZA}Aquecendo antes de começar...${FIM}"
 aquecer
@@ -194,11 +226,40 @@ echo "${CINZA}400 — rejeitado antes de qualquer tradução para gRPC.${FIM}"
 ato "ATO 5 — caminho de sucesso: 201, tradução JSON -> gRPC completa"
 echo "${CINZA}POST /api/tasks   título válido${FIM}"
 echo ""
-resposta_final="$(criar_tarefa "$token" "Demonstracao do T2 - API Gateway" 201)"
+trace_id="$(hex 16)"
+echo "${CINZA}traceparent: 00-$trace_id-<span>-01${FIM}"
+resposta_final="$(criar_tarefa "$token" "Demonstracao do T2 - API Gateway" 201 "00-$trace_id-$(hex 8)-01")"
 echo "$resposta_final"
+tarefa_id="$(sed -n 's/.*"id":"\([0-9a-fA-F-]*\)".*/\1/p' <<<"$resposta_final")"
 echo ""
 echo "${CINZA}Location aponta para o recurso criado; a tarefa já está no banco do Tasks.${FIM}"
-echo "${AMARELO}Anote o traceId dos logs (próximo passo) para achar as três linhas correlacionadas.${FIM}"
+echo "${CINZA}O traceId acima atravessa Gateway, Tasks e Identity: é o que o próximo ato filtra.${FIM}"
+
+ato "ATO 6 — logs correlacionados: o mesmo traceId nos três serviços"
+echo "${CINZA}docker compose logs gateway tasks identity | filtra traceId $trace_id${FIM}"
+echo ""
+sleep 1
+logs_trace="$(dc logs --no-color --since 5m gateway tasks identity 2>/dev/null | grep -F "$trace_id")"
+if [[ -n "$logs_trace" ]]; then
+    formatar_logs <<<"$logs_trace"
+else
+    echo "${AMARELO}Nenhuma linha de log com o traceId $trace_id.${FIM}"
+    echo "Ato 6: nenhum log com o traceId $trace_id" >>"$FALHAS"
+fi
+echo ""
+echo "${CINZA}O nginx não aparece: só repassa o traceparent, não loga o traceId (D-40).${FIM}"
+
+ato "ATO 7 — a linha no banco: a tarefa do Ato 5 no Postgres real (Cloud SQL)"
+if [[ "$tarefa_id" =~ ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$ ]]; then
+    sql="select t.id, t.title, u.email as dono, t.created_at from tasks.tasks t join identity.users u on u.id = t.owner_id where t.id = '$tarefa_id'"
+    echo "${CINZA}$sql${FIM}"
+    echo ""
+    dc run --rm --entrypoint psql migrate -P pager=off -c "$sql" \
+        || { echo "${AMARELO}psql falhou.${FIM}"; echo "Ato 7: psql falhou" >>"$FALHAS"; }
+else
+    echo "${AMARELO}Sem id de tarefa válido do Ato 5 (veio: '${tarefa_id}').${FIM}"
+    echo "Ato 7: id da tarefa ausente ou inválido" >>"$FALHAS"
+fi
 
 if [[ $incluir_falha -eq 1 ]]; then
     ato "ATO OPCIONAL — Identity fora do ar: 503 com Retry-After, nunca 401"
@@ -215,13 +276,9 @@ if [[ $incluir_falha -eq 1 ]]; then
 fi
 
 echo ""
-echo "${VERDE}Fim. Nos três painéis de log (Gateway, Tasks, Identity) procure o mesmo traceId do Ato 5:${FIM}"
-echo "${CINZA}  sudo docker compose -f $COMPOSE_DIR/docker-compose.prod.yml --env-file $COMPOSE_DIR/.env \\${FIM}"
-echo "${CINZA}    logs --since 2m gateway tasks identity | grep -E 'CreateTask|ValidateUser'${FIM}"
-echo ""
-echo "${CINZA}O quarto processo em jogo é o nginx, que roda no container frontend —${FIM}"
-echo "${CINZA}ele só encaminha bytes (D-40): o traceparent atravessa intacto, então não é esperado${FIM}"
-echo "${CINZA}vê-lo como uma quarta linha correlacionada. Se fizer sentido narrar o roteamento em si:${FIM}"
+echo "${VERDE}Fim.${FIM}"
+echo "${CINZA}O nginx (container frontend) só encaminha bytes (D-40): o traceparent atravessa intacto,${FIM}"
+echo "${CINZA}então ele não aparece na correlação. Se fizer sentido narrar o roteamento em si:${FIM}"
 echo "${CINZA}  sudo docker compose -f $COMPOSE_DIR/docker-compose.prod.yml --env-file $COMPOSE_DIR/.env logs -f frontend${FIM}"
 echo ""
 if [[ -s "$FALHAS" ]]; then
