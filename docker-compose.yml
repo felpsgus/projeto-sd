@@ -1,6 +1,6 @@
 # docker-compose.yml de desenvolvimento (BE-02, BE-38). Por padrão (sem
 # `--profile full`) sobe só o Postgres — os três serviços continuam rodando
-# com `dotnet run` fora do container (ver README, seção "Rodando o T2"). Isso
+# com `dotnet run` fora do container (ver README, seção "Desenvolvimento local"). Isso
 # NÃO mudou com BE-38: `docker compose up postgres` continua funcionando
 # exatamente como antes, sem exigir o perfil novo nem nenhuma variável (CA-06).
 #
