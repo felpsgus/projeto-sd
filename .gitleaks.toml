@@ -22,4 +22,4 @@ paths = ['''^frontend/e2e/.+\.ts$''']
 [[allowlists]]
 description = "curl do smoke.sh sem credencial"
 targetRules = ["curl-auth-header"]
-paths = ['''^deploy/smoke\.sh$''']
+paths = ['''^deploy/cloudrun/smoke\.sh$''']
