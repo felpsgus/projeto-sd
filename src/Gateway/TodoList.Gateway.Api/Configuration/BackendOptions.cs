@@ -38,4 +38,11 @@ public sealed class BackendOptions
     /// </summary>
     [Range(1, int.MaxValue, ErrorMessage = "A chave de configuração 'Backends:TasksGrpcTimeoutSeconds' precisa ser maior que zero.")]
     public int TasksGrpcTimeoutSeconds { get; init; } = 5;
+
+    /// <summary>
+    /// Máximo de tentativas (inclui a primeira) das RPCs de leitura em
+    /// <c>Unavailable</c> (BE-43, D-44). Escrita nunca é retentada.
+    /// </summary>
+    [Range(1, 5, ErrorMessage = "A chave de configuração 'Backends:GrpcRetryMaxAttempts' precisa estar entre 1 e 5.")]
+    public int GrpcRetryMaxAttempts { get; init; } = 3;
 }
