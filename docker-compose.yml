@@ -181,7 +181,7 @@ services:
       gateway:
         condition: service_started
     environment:
-      GATEWAY_UPSTREAM: gateway:8080
+      GATEWAY_UPSTREAM: http://gateway:8080
     ports:
       - "80:8080"
 
