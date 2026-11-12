@@ -34,4 +34,13 @@ public sealed class IdentityGrpcOptions
     /// </summary>
     [Range(1, int.MaxValue, ErrorMessage = "A chave de configuração 'Identity:GrpcTimeoutSeconds' precisa ser maior que zero.")]
     public int GrpcTimeoutSeconds { get; init; } = 2;
+
+    /// <summary>
+    /// Máximo de tentativas (inclui a primeira) do retry de <c>ValidateUser</c>
+    /// em <c>Unavailable</c> (BE-43, D-44). O grpc-dotnet rejeita
+    /// <c>MaxAttempts</c> &lt;= 1 ao criar o canal, então desligar o retry não é
+    /// uma configuração suportada.
+    /// </summary>
+    [Range(2, 5, ErrorMessage = "A chave de configuração 'Identity:RetryMaxAttempts' precisa estar entre 2 e 5 (desligar o retry não é suportado).")]
+    public int RetryMaxAttempts { get; init; } = 3;
 }

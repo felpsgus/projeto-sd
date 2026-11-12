@@ -1,3 +1,4 @@
+using Grpc.Net.Client.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -45,6 +46,9 @@ public static class ServiceCollectionExtensions
         {
             var grpcOptions = provider.GetRequiredService<IOptions<IdentityGrpcOptions>>().Value;
             options.Address = new Uri(grpcOptions.GrpcAddress);
-        });
+        }).ConfigureChannel((provider, channel) =>
+            channel.ServiceConfig = GrpcRetry.ForReadOnly(
+                provider.GetRequiredService<IOptions<IdentityGrpcOptions>>().Value.RetryMaxAttempts,
+                new MethodName { Service = "identity.v1.IdentityService", Method = "ValidateUser" }));
     }
 }
