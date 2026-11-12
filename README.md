@@ -21,7 +21,7 @@ src/Tasks/          Domain, Application, Infrastructure, Api
 src/Gateway/        TodoList.Gateway.Api
 frontend/           Angular (ver frontend/README.md)
 tests/              unit + integration por serviço
-deploy/             VM do GCP, smoke.sh, demo.sh (ver deploy/README.md)
+deploy/cloudrun/    scripts e runbook do Cloud Run (T3)
 scripts/            chaves JWT, SQL de migration, cobertura, publicação de imagens
 ```
 
@@ -45,7 +45,7 @@ Sobe `postgres` → `migrate` → `identity`/`tasks` → `gateway` → `frontend
 Não há usuários pré-cadastrados: cadastre pela tela ou deixe o smoke test criar a conta dele:
 
 ```bash
-DEMO_PASSWORD="<8+ caracteres, letra e número>" ./deploy/smoke.sh http://localhost
+DEMO_PASSWORD="<8+ caracteres, letra e número>" ./deploy/cloudrun/smoke.sh http://localhost
 ```
 
 Uma linha `OK`/`ERRO` por passo (rota do SPA, 401 sem token e com token inválido, cadastro, login, 400,
@@ -93,7 +93,7 @@ cd frontend; npm ci; npm start      # http://localhost:4200
 O `ng serve` encaminha `/api/*` para o Gateway (`frontend/proxy.conf.json`), fazendo o papel do nginx:
 a mesma origem, sem CORS. Por isso o frontend só usa caminhos relativos.
 
-Smoke test sem nginx: `DEMO_PASSWORD=... ./deploy/smoke.sh http://localhost:8080` (o passo da rota do
+Smoke test sem nginx: `DEMO_PASSWORD=... ./deploy/cloudrun/smoke.sh http://localhost:8080` (o passo da rota do
 SPA falha, como esperado). Documentação da API em Development: `http://localhost:8080/scalar/v1`.
 
 ## Configuração
@@ -147,7 +147,7 @@ docker compose logs --no-log-prefix gateway tasks identity | grep '"<traceId>"'
 docker compose logs --no-log-prefix gateway tasks identity | grep -E 'CreateTask|ValidateUser'
 ```
 
-Na VM, ver [deploy/README.md](deploy/README.md) §10.
+Runbooks da VM (T2): branch `entrega-t2`.
 
 ## Testes, estilo e CI
 
@@ -183,5 +183,5 @@ propósito, atualize o baseline à mão.
 - [REGRAS-DE-NEGOCIO.md](REGRAS-DE-NEGOCIO.md): regras `RN-*`
 - [tarefas/](tarefas/): tasks `BE-*`/`FE-*` e decisões `D-*`
 - [docs/adr/](docs/adr/): decisões de arquitetura
-- [deploy/README.md](deploy/README.md): VM do GCP, roteiro da apresentação, mapa de requisitos do T2
+- Runbooks da VM (T2): branch `entrega-t2`
 - [frontend/README.md](frontend/README.md)

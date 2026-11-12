@@ -81,8 +81,8 @@ SDK fixado em [global.json](global.json) (10.0.202). Props comuns em
 - Kestrel configurado só em `Development` em alguns pontos — ao rodar em outro ambiente, passar
   endereço por variável de ambiente.
 
-O [README.md](README.md) tem como subir (containers e `dotnet run`), a tabela de configuração e os problemas comuns; [deploy/](deploy/) tem os
-runbooks de GCP e os scripts de demo.
+O [README.md](README.md) tem como subir (containers e `dotnet run`), a tabela de configuração e os problemas comuns; [deploy/cloudrun/](deploy/cloudrun/) tem o
+runbook do Cloud Run; o deploy em VM do T2 está na branch `entrega-t2`.
 
 ## Agent skills
 
