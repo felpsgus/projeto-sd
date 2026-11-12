@@ -391,7 +391,7 @@ navegador ──HTTP/JSON──▶ nginx :80 ──┬─ estático (Angular)
 
 ### D-44 ✅ — Retry gRPC no Gateway: só leitura, só `Unavailable`, 3 tentativas, sem circuit breaker (12/11/2026)
 
-**Decisão:** os clientes gRPC do Gateway usam a política nativa de retry do `Grpc.Net.Client` (`ServiceConfig`/`RetryPolicy`) apenas para `ValidateUser`/`GetProfile` (Identity) e `ListTasks`/`GetTask` (Tasks), apenas para `StatusCode.Unavailable`, com `Backends:GrpcRetryMaxAttempts=3` (faixa 1 a 5), backoff inicial 200 ms, máximo 1 s, multiplicador 2. Sem circuit breaker.
+**Decisão:** os clientes gRPC do Gateway usam a política nativa de retry do `Grpc.Net.Client` (`ServiceConfig`/`RetryPolicy`) apenas para `ValidateUser`/`GetProfile` (Identity) e `ListTasks`/`GetTask` (Tasks), apenas para `StatusCode.Unavailable`, com `Backends:GrpcRetryMaxAttempts=3` (faixa 2 a 5; o grpc-dotnet rejeita `MaxAttempts` <= 1 ao criar o canal, o que viraria 500 na primeira requisição, e desligar o retry não é uma configuração suportada), backoff inicial 200 ms, máximo 1 s, multiplicador 2. Sem circuit breaker.
 
 **Motivo:** no Cloud Run o Tasks some por instantes (cold start, redeploy) e a demo mostra a retentativa automática. Escrita **nunca** é retentada: um `CreateTask` que chegou ao Tasks mas perdeu a resposta seria duplicado. Circuit breaker é complexidade sem ganho com três chamadores e uma demo. Esgotadas as tentativas, vale D-28: `503` + `Retry-After`.
 

@@ -14,7 +14,7 @@ using FakeListTasksReply = Fakes::TodoList.Gateway.IntegrationTests.Fakes.FakeLi
 namespace TodoList.Gateway.IntegrationTests;
 
 /// <summary>BE-43 (D-44) — retry nativo do Grpc.Net.Client só nas RPCs de leitura, só em <c>Unavailable</c>.</summary>
-public class GrpcRetryTests : IClassFixture<GatewayApiFactory>
+public sealed class GrpcRetryTests : IClassFixture<GatewayApiFactory>, IDisposable
 {
     private const string AuthenticatedUserId = "22222222-2222-2222-2222-222222222222";
 
@@ -23,6 +23,26 @@ public class GrpcRetryTests : IClassFixture<GatewayApiFactory>
     public GrpcRetryTests(GatewayApiFactory factory)
     {
         _factory = factory;
+    }
+
+
+    public void Dispose()
+    {
+        _factory.Tasks.ListTasksHandler = null;
+        _factory.Tasks.CreateTaskHandler = null;
+        _factory.Identity.GetProfileHandler = null;
+        _factory.Identity.RegisterHandler = null;
+    }
+
+    [Fact]
+    public void Startup_GrpcRetryMaxAttemptsUm_FalhaNaInicializacao()
+    {
+        using var factory = new GatewayApiFactory();
+        factory.AdditionalSettings["Backends:GrpcRetryMaxAttempts"] = "1";
+
+        var act = () => _ = factory.Services;
+
+        act.Should().Throw<Exception>();
     }
 
     private static RpcException Unavailable() => new(new Status(StatusCode.Unavailable, string.Empty));

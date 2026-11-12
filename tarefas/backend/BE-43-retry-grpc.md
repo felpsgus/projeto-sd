@@ -20,7 +20,7 @@ Os dois clientes gRPC do Gateway (Identity e Tasks) usam o retry nativo do `Grpc
 
 - `GrpcRetry.ForReadOnly(maxAttempts, params MethodName[])` monta um `ServiceConfig` com `MaxAttempts` configurável, `InitialBackoff = 200ms`, `MaxBackoff = 1s`, `BackoffMultiplier = 2`, `RetryableStatusCodes = { Unavailable }`.
 - Aplicado por `.ConfigureChannel(...)` nos dois `AddGrpcClient` de `AddBackendGrpcClients`.
-- `Backends:GrpcRetryMaxAttempts` (`BackendOptions.GrpcRetryMaxAttempts`, padrão 3, `[Range(1, 5)]`).
+- `Backends:GrpcRetryMaxAttempts` (`BackendOptions.GrpcRetryMaxAttempts`, padrão 3, faixa 2 a 5 validada na inicialização; o grpc-dotnet rejeita `MaxAttempts` <= 1 ao criar o canal, então desligar o retry não é uma configuração suportada).
 - Log de nível `Debug` na categoria que registra as retentativas, em `appsettings.json`.
 
 ### Não inclui

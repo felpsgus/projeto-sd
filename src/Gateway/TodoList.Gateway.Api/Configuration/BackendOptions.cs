@@ -43,6 +43,6 @@ public sealed class BackendOptions
     /// Máximo de tentativas (inclui a primeira) das RPCs de leitura em
     /// <c>Unavailable</c> (BE-43, D-44). Escrita nunca é retentada.
     /// </summary>
-    [Range(1, 5, ErrorMessage = "A chave de configuração 'Backends:GrpcRetryMaxAttempts' precisa estar entre 1 e 5.")]
+    [Range(2, 5, ErrorMessage = "A chave de configuração 'Backends:GrpcRetryMaxAttempts' precisa estar entre 2 e 5 (desligar o retry não é uma configuração suportada).")]
     public int GrpcRetryMaxAttempts { get; init; } = 3;
 }
