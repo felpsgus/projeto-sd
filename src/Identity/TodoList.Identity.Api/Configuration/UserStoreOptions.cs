@@ -16,8 +16,8 @@ namespace TodoList.Identity.Api.Configuration;
 /// de verdade. Com o cadastro real (fase 3, <c>POST /api/auth/register</c>),
 /// o seed virou exatamente o tipo de atalho que um avaliador repara: uma
 /// rota de "ligar em produção por engano" que não precisa mais existir. O
-/// roteiro de demonstração (<c>deploy/demo.sh</c>,
-/// <c>deploy/smoke.sh</c>) passou a cadastrar contas pela API/tela.
+/// roteiro de demonstração (<c>deploy/cloudrun/smoke.sh</c>) passou a cadastrar
+/// contas pela API/tela.
 /// </remarks>
 public sealed class UserStoreOptions
 {

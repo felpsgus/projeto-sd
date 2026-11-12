@@ -17,7 +17,7 @@ description = "Senhas de usuários fictícios no E2E do frontend"
 targetRules = ["generic-api-key"]
 paths = ['''^frontend/e2e/.+\.ts$''']
 
-# deploy/smoke.sh monta curl com `-X POST ... -H 'Content-Type'` em linhas contínuas;
+# deploy/cloudrun/smoke.sh monta curl com `-X POST ... -H 'Content-Type'` em linhas contínuas;
 # não há token no arquivo (o teste "sem token" justamente não envia nenhum).
 [[allowlists]]
 description = "curl do smoke.sh sem credencial"

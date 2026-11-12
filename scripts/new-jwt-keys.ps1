@@ -12,8 +12,8 @@
         public.pem    SubjectPublicKeyInfo, RSA pública — só o Gateway lê este arquivo (Jwt:PublicKeyPath)
 
     O par gerado aqui é para desenvolvimento local (`dotnet run`) e para o perfil
-    `full` do docker-compose — nunca para a VM. Na VM, o par é gerado direto por
-    `deploy/install-docker-on-vm.sh` com `openssl`, na própria VM (D-38): nenhuma
+    `full` do docker-compose — nunca para o Cloud Run. No Cloud Run, o par é enviado ao
+    Secret Manager por `deploy/cloudrun/provision.ps1` (D-38): nenhuma
     chave sai daqui para lá, e nenhuma chave de teste é reaproveitada em produção.
 
     Por padrão grava em `<raiz do repositório>/.secrets/jwt` — pasta ignorada pelo
@@ -82,6 +82,6 @@ Write-Host "  $privatePath  (PKCS8, RSA privada — só o Identity lê, Jwt:Priv
 Write-Host "  $publicPath   (SubjectPublicKeyInfo, RSA pública — só o Gateway lê, Jwt:PublicKeyPath)"
 Write-Host ""
 Write-Host "ATENÇÃO: estes arquivos NUNCA devem ser versionados (.gitignore já ignora" -ForegroundColor Yellow
-Write-Host "'.secrets/' e '*.pem'). Não copie este par para a VM nem para nenhum ambiente" -ForegroundColor Yellow
-Write-Host "de implantação — lá a chave é gerada direto na VM (deploy/install-docker-on-vm.sh)." -ForegroundColor Yellow
+Write-Host "'.secrets/' e '*.pem'). Não copie este par para o Cloud Run nem para nenhum ambiente" -ForegroundColor Yellow
+Write-Host "de implantação — no Cloud Run as chaves vão ao Secret Manager via deploy/cloudrun/provision.ps1." -ForegroundColor Yellow
 Write-Host ""
