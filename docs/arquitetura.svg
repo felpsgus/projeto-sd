@@ -43,8 +43,9 @@
 
     <rect x="1470" y="120" width="214" height="380" rx="12" fill="#FFFDF8" stroke="#2F6FB0" stroke-width="2"/>
     <text x="1577" y="235" font-size="26" font-weight="700" text-anchor="middle">Cloud SQL</text>
-    <text x="1577" y="266" font-size="20" fill="#4A5568" text-anchor="middle">banco-1 · PostgreSQL 18</text>
-    <text x="1577" y="296" font-size="20" fill="#4A5568" text-anchor="middle">IP privado</text>
+    <text x="1577" y="264" font-size="20" fill="#4A5568" text-anchor="middle">banco-1</text>
+    <text x="1577" y="290" font-size="20" fill="#4A5568" text-anchor="middle">PostgreSQL 18</text>
+    <text x="1577" y="316" font-size="20" fill="#4A5568" text-anchor="middle">IP privado</text>
     <rect x="1490" y="158" width="174" height="44" rx="8" fill="#DCE7F3"/>
     <text x="1577" y="187" font-size="18" font-family="JetBrains Mono, Consolas, monospace" text-anchor="middle">schema identity</text>
     <rect x="1490" y="418" width="174" height="44" rx="8" fill="#DCE7F3"/>
@@ -69,7 +70,7 @@
 
     <!-- setas -->
     <line x1="198" y1="310" x2="328" y2="310" stroke="#14213D" stroke-width="3" marker-end="url(#a-dark)"/>
-    <text x="263" y="296" font-size="22" font-weight="600" text-anchor="middle">HTTPS</text>
+    <text x="247" y="296" font-size="22" font-weight="600" text-anchor="middle">HTTPS</text>
     <line x1="550" y1="310" x2="668" y2="310" stroke="#14213D" stroke-width="3" marker-end="url(#a-dark)"/>
     <text x="609" y="296" font-size="22" font-weight="600" text-anchor="middle">/api/*</text>
 
@@ -85,9 +86,9 @@
     <text x="1164" y="357" font-size="18" fill="#A8500E">com retry</text>
 
     <line x1="1340" y1="180" x2="1468" y2="180" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
-    <text x="1404" y="166" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
+    <text x="1380" y="166" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
     <line x1="1340" y1="440" x2="1468" y2="440" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
-    <text x="1404" y="426" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
+    <text x="1380" y="426" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
     <line x1="1577" y1="598" x2="1577" y2="502" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
     <text x="1591" y="555" font-size="18" font-weight="600" fill="#245A92">aplica SQL</text>
 
