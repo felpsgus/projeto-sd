@@ -396,3 +396,11 @@ navegador ──HTTP/JSON──▶ nginx :80 ──┬─ estático (Angular)
 **Motivo:** no Cloud Run o Tasks some por instantes (cold start, redeploy) e a demo mostra a retentativa automática. Escrita **nunca** é retentada: um `CreateTask` que chegou ao Tasks mas perdeu a resposta seria duplicado. Circuit breaker é complexidade sem ganho com três chamadores e uma demo. Esgotadas as tentativas, vale D-28: `503` + `Retry-After`.
 
 **Afeta:** [BE-43](BE-43-retry-grpc.md), [BE-36](BE-36-api-gateway.md).
+
+### D-45 ✅ — Cloud Run: identity e tasks por ingress interno, sem IAM entre serviços; uma branch por entrega (12/11/2026)
+
+**Decisão:** frontend e gateway são públicos; identity e tasks sobem com `--ingress internal` (parâmetro `-Exposure Internal|Public` do `deploy.ps1`; `Public` é a troca caso o professor peça tudo público). As chamadas entre serviços usam as URLs `*.run.app` pela VPC (Direct VPC egress + Private Google Access) e **não** usam ID token/IAM; por isso identity e tasks levam `--allow-unauthenticated` e a barreira é só o ingress. Cada entrega vive numa branch (`entrega-t3` a partir de `entrega-t2`); os artefatos da VM do T2 ficam na branch `entrega-t2`.
+
+**Motivo:** preserva a D-32 (borda pública única) sem código novo de autenticação entre serviços. Abrir uma URL interna no navegador e ver 404 é a prova de não exposição na demo.
+
+**Afeta:** [BE-45](BE-45-deploy-cloud-run.md), D-32.
