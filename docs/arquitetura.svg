@@ -93,6 +93,6 @@
 
     <!-- legenda -->
     <text x="18" y="735" font-size="20" fill="#4A5568">Só frontend e gateway têm ingress público; Identity e Tasks aceitam apenas tráfego interno (abrir a URL no navegador dá 404). Sem IAM entre serviços.</text>
-    <text x="18" y="763" font-size="20" fill="#4A5568">Retry só em leituras, no Gateway e no ValidateUser do Tasks (Unavailable, 3 tentativas); esgotado, vale o fail-closed: 503. O Job de migração roda antes do deploy dos serviços.</text>
+    <text x="18" y="763" font-size="20" fill="#4A5568">Retry só em leituras (Gateway e ValidateUser do Tasks; 3 tentativas); esgotado: fail-closed, 503. O Job de migração roda antes do deploy.</text>
   </g>
 </svg>
