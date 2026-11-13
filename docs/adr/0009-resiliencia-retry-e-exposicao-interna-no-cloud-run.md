@@ -21,7 +21,7 @@ sem biblioteca extra:
 
 **Exposição (D-45).** `todolist-frontend` e `todolist-gateway` são públicos. `todolist-identity` e
 `todolist-tasks` sobem com `--ingress internal`; o Gateway os alcança pelas URLs `*.run.app` via Direct VPC egress
-e Private Google Access, h2c, **sem** ID token/IAM (por isso levam `--allow-unauthenticated`: a barreira é só o
+e Private Google Access, em gRPC sobre HTTPS (HTTP/2 + TLS; o Cloud Run entrega ao container em h2c, `--use-http2`), **sem** ID token/IAM (por isso levam `--allow-unauthenticated`: a barreira é só o
 ingress). O parâmetro `-Exposure Internal|Public` do `deploy.ps1` troca o modo se for preciso expor tudo.
 
 ## Alternativas consideradas

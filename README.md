@@ -10,7 +10,7 @@ frontend (Angular + nginx, porta 80)  →  Gateway (REST, única borda pública)
 ```
 
 **No Cloud Run (T3)**: `todolist-frontend` e `todolist-gateway` são públicos; `todolist-identity` e
-`todolist-tasks` têm ingress interno e são chamados pelo Gateway por gRPC (h2c) via VPC, com retry só em
+`todolist-tasks` têm ingress interno e são chamados pelo Gateway por gRPC sobre HTTPS (HTTP/2 + TLS) via VPC, com retry só em
 leituras. O banco é o Cloud SQL `banco-1` (IP privado) e as migrations rodam no Job `todolist-migrate`.
 Diagrama em [docs/arquitetura.svg](docs/arquitetura.svg), decisão em
 [ADR-0009](docs/adr/0009-resiliencia-retry-e-exposicao-interna-no-cloud-run.md), passo a passo em
