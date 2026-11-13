@@ -14,10 +14,10 @@ e Tasks (a D-32 manda a borda pública ser única). O fail-closed da D-28 (ADR-0
 **Retry (D-44).** Os clientes gRPC usam a política nativa do `Grpc.Net.Client` (`ServiceConfig`/`RetryPolicy`),
 sem biblioteca extra:
 
-- só nas leituras (`ValidateUser`, `GetProfile`, `ListTasks`, `GetTask`); escrita nunca é retentada;
+- só nas leituras (`ValidateUser`, `GetProfile`, `ListTasks`, `GetTask`); escrita nunca é retentada. A mesma política vale para o `ValidateUser` que o Tasks faz no Identity (BE-43);
 - só para `StatusCode.Unavailable`; `Backends:GrpcRetryMaxAttempts=3` (faixa 2 a 5), backoff de 200 ms a 1 s,
   multiplicador 2;
-- esgotadas as tentativas, vale a D-28: `503` + `Retry-After`.
+- esgotadas as tentativas, vale a D-28 (Gateway ou Tasks): `503` + `Retry-After`, nada persistido.
 
 **Exposição (D-45).** `todolist-frontend` e `todolist-gateway` são públicos. `todolist-identity` e
 `todolist-tasks` sobem com `--ingress internal`; o Gateway os alcança pelas URLs `*.run.app` via Direct VPC egress
