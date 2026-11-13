@@ -96,13 +96,13 @@ foreach ($n in $acesso.Keys | Sort-Object) {
     Gcl @('secrets', 'add-iam-policy-binding', $n, '--member', "serviceAccount:$(Email $acesso[$n])", '--role', 'roles/secretmanager.secretAccessor', '--project', $projeto, '--quiet')
 }
 
-# 6. Banco: tier mínimo e sem IP público. O patch reinicia a instância e só vale com ela ligada.
-$info = (gcloud sql instances describe $instancia --project $projeto --format='value(state,settings.tier,settings.ipConfiguration.ipv4Enabled)' 2>$null | Out-String).Trim() -split '\s+'
-$estado, $tier, $ipPublico = $info
-if ($tier -eq 'db-f1-micro' -and $ipPublico -ne 'True') { Write-Host "$instancia já é db-f1-micro sem IP público." }
+# 6. Banco: tier mínimo, sem IP público; Data API liberada para o Cloud SQL Studio funcionar sem IP público. O patch reinicia a instância e só vale com ela ligada.
+$info = (gcloud sql instances describe $instancia --project $projeto --format='value(state,settings.tier,settings.ipConfiguration.ipv4Enabled,settings.dataApiAccess)' 2>$null | Out-String).Trim() -split "`t"
+$estado, $tier, $ipPublico, $dataApi = $info
+if ($tier -eq 'db-f1-micro' -and $ipPublico -ne 'True' -and $dataApi -eq 'ALLOW_DATA_API') { Write-Host "$instancia já é db-f1-micro sem IP público e com Data API liberada (Cloud SQL Studio)." }
 else {
     Write-Host "ATENÇÃO: o patch REINICIA o $instancia (estado atual: $estado)." -ForegroundColor Yellow
-    $patch = @('sql', 'instances', 'patch', $instancia, '--tier=db-f1-micro', '--no-assign-ip', '--project', $projeto, '--quiet')
+    $patch = @('sql', 'instances', 'patch', $instancia, '--tier=db-f1-micro', '--no-assign-ip', '--data-api-access=ALLOW_DATA_API', '--project', $projeto, '--quiet')
     if ($estado -ne 'RUNNABLE') {
         Write-Host '  Parada: ligo junto com --activation-policy=ALWAYS. Desligue depois com demo.ps1 -Action Cooldown.' -ForegroundColor Yellow
         $patch += '--activation-policy=ALWAYS'

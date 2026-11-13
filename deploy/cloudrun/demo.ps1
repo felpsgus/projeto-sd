@@ -3,7 +3,7 @@
 .SYNOPSIS
     Liga/desliga o ambiente da demo (BE-45).
 .PARAMETER Action
-    Warmup    banco ligado + min-instances 1 nos 4 serviços (rode ~30 min antes).
+    Warmup    banco ligado + --min 1 nos 4 serviços (nível do serviço, sem criar revisão) (rode ~30 min antes).
     Cooldown  o inverso: min-instances 0 e banco parado (rode logo depois, para não gastar crédito).
     TasksDown desliga o Tasks sem apagá-lo (--scaling=0): a cena da queda.
     TasksUp   volta ao autoscaling.
@@ -19,9 +19,9 @@ function Gcl([string[]]$a) {
     if ($DryRun) { Write-Host "[dry-run] gcloud $($a -join ' ')" } else { Run "gcloud $($a[0..2] -join ' ')" { gcloud @a } }
 }
 function Banco([string]$politica) { Gcl @('sql', 'instances', 'patch', 'banco-1', "--activation-policy=$politica", '--project', $projeto, '--quiet') }
-function Servicos([string]$flag, [string]$valor) {
+function Servicos([string]$valor) {
     foreach ($s in 'identity', 'tasks', 'gateway', 'frontend') {
-        Gcl @('run', 'services', 'update', "todolist-$s", $flag, $valor, '--region', $regiao, '--project', $projeto, '--quiet')
+        Gcl @('run', 'services', 'update', "todolist-$s", '--min', $valor, '--region', $regiao, '--project', $projeto, '--quiet')
     }
 }
 
@@ -31,8 +31,8 @@ if (-not $DryRun -and -not (gcloud services list --enabled --filter='config.name
 }
 
 switch ($Action) {
-    'Warmup' { Banco 'ALWAYS'; Servicos '--min-instances' '1'; Write-Host 'Pronto. Rode o smoke.sh e espere os 4 serviços ficarem verdes.' -ForegroundColor Green }
-    'Cooldown' { Servicos '--min-instances' '0'; Banco 'NEVER'; Write-Host 'Pronto. Banco parado, serviços escalam a zero.' -ForegroundColor Green }
+    'Warmup' { Banco 'ALWAYS'; Servicos '1'; Write-Host 'Pronto. Rode o smoke.sh e espere os 4 serviços ficarem verdes.' -ForegroundColor Green }
+    'Cooldown' { Servicos '0'; Banco 'NEVER'; Write-Host 'Pronto. Banco parado, serviços escalam a zero.' -ForegroundColor Green }
     'TasksDown' { Gcl @('run', 'services', 'update', 'todolist-tasks', '--scaling=0', '--region', $regiao, '--project', $projeto, '--quiet') }
     'TasksUp' { Gcl @('run', 'services', 'update', 'todolist-tasks', '--scaling=auto', '--region', $regiao, '--project', $projeto, '--quiet') }
 }

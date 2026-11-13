@@ -48,7 +48,7 @@ continuam sem IAM (D-45); a barreira é o ingress.
 
 ## 4. Dia da apresentação
 
-1. **~30 min antes:** `./deploy/cloudrun/demo.ps1 -Action Warmup` (liga o banco, `min-instances 1` nos
+1. **~30 min antes:** `./deploy/cloudrun/demo.ps1 -Action Warmup` (liga o banco, `--min 1` no nível do serviço, sem revisão nova, nos
    4 serviços). Depois o `smoke.sh` contra a URL pública: tudo OK, e deixe uma aba do app já logada.
 2. **Depois:** `./deploy/cloudrun/demo.ps1 -Action Cooldown` (volta a 0 e para o banco). Não esqueça.
 3. Se o Tasks ficou derrubado: `demo.ps1 -Action TasksUp` antes de qualquer outra coisa.
@@ -100,6 +100,7 @@ Operações de escrita (criar) **não** são retentadas (D-44): só leituras.
 | "connection refused" / "too many clients" no Postgres | `max_connections` (seção 8) |
 | Job de migração falha na conexão | banco parado (`NEVER`), ou a SA do job sem acesso ao `todolist-db-password` |
 | Login funciona e a sessão morre em 15 min | cookie `Secure` em HTTP; aqui tudo é HTTPS e o padrão `true` basta |
+| `add-iam-policy-binding` falha com "does not exist" logo depois de criar as SAs | propagação do IAM; rode `provision.ps1` de novo (é idempotente) |
 
 ## 7. O que medir no 1º ensaio
 
@@ -107,9 +108,11 @@ Operações de escrita (criar) **não** são retentadas (D-44): só leituras.
    vindo de um 404), **abra uma tarefa nova antes de mexer**: o código entra nos retentáveis e no
    mapeamento para `503`, com teste. Registre o resultado aqui.
 2. O `db-f1-micro` aguenta? Se faltar conexão ou memória, `db-g1-small` antes de qualquer tier dedicado.
-3. Latência do Register/Login (PBKDF2 de 600 mil iterações, ~1,6 s numa vCPU compartilhada; o timeout
+3. **Cloud SQL Studio:** a consulta do roteiro (6:00-7:30) tem de funcionar com o banco sem IP público (precisa de `--data-api-access=ALLOW_DATA_API`, já no `provision.ps1`). Se não funcionar, ligue o IP público como na seção 9 e registre aqui.
+4. Latência do Register/Login (PBKDF2 de 600 mil iterações, ~1,6 s numa vCPU compartilhada; o timeout
    do Identity no gateway é 10 s).
-4. `min-instances 0`: tempo do primeiro request depois de ocioso (cold start encadeado).
+5. `min-instances 0`: tempo do primeiro request depois de ocioso (cold start encadeado).
+6. O deadline do Tasks -> Identity é 2 s (`Identity:GrpcTimeoutSeconds`): com `min-instances 0`, um cold start do Identity pode dar `503` no primeiro criar. É por isso que existe o Warmup; sem mudança de configuração.
 
 ## 8. Orçamento de conexões
 

@@ -24,7 +24,7 @@ Em `deploy/cloudrun/`, no padrão de `scripts/publish-images.ps1` (pwsh 7, pré-
 - **(a) `ForwardedHeaders:KnownProxies` fica como está.** No Cloud Run o IP remoto só aparece em log, e o cookie `Secure` é configuração explícita (D-42), não `Request.IsHttps`. Abrir a lista de proxies sem IP fixo deixaria o `X-Forwarded-For` falsificável.
 - **(b) O botão "tentar de novo" já existe** (`app-error-state` em `tasks-page.component.html`): o front não muda.
 - **`--allow-unauthenticated` também em identity e tasks, mesmo no modo interno.** A D-T3-1 descarta ID token entre serviços; sem a flag, o IAM barraria o gateway. A barreira é o `--ingress internal` (D-45).
-- **`Logging__Console__FormatterName=json` não é usado.** Os serviços usam Serilog com `RenderedCompactJsonFormatter` fixo (`StructuredLogging.cs`): o log já sai em JSON e essa chave não tem efeito. Consequência a tratar à parte: o formato compacto usa `@l` para o nível, e o Cloud Logging só lê `severity`, então as entradas aparecem sem severidade. O filtro das retentativas usa `jsonPayload.SourceContext`, que funciona.
+- **`Logging__Console__FormatterName=json` não é usado.** Os serviços usam Serilog com `RenderedCompactJsonFormatter` fixo (`StructuredLogging.cs`): o log já sai em JSON e essa chave não tem efeito. A severidade para o Cloud Logging é tratada à parte (CA-07). O filtro das retentativas usa `jsonPayload.SourceContext`, que funciona.
 - **`iam.googleapis.com` entra no `provision.ps1`**: não estava habilitada e criar service account precisa dela.
 - Job com `--max-retries 0` (falha alto) e frontend com `--max-instances 2` (teto de custo).
 
