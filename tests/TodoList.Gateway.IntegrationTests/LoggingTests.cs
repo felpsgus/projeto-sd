@@ -1,6 +1,9 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Grpc.Core;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 using TodoList.Gateway.Api.Contracts;
 using Xunit;
 
@@ -62,5 +65,26 @@ public class LoggingTests : IClassFixture<GatewayApiFactory>
         entries.Should().Contain(entry => entry.Contains("backend=Tasks") && entry.Contains("rpc=CreateTask"));
         entries.Should().OnlyContain(entry => !entry.Contains(bearerToken), "nenhuma linha de log deve carregar o token de autorização");
         entries.Should().OnlyContain(entry => !entry.Contains(tituloSecreto), "nenhuma linha de log deve carregar o corpo/título da tarefa");
+    }
+
+    [Fact] // BE-45 — Cloud Logging só lê `severity` (top-level); o `@l` do formato compacto não serve
+    public async Task LogDeRequisicao_TrazSeverityTopLevelParaOCloudLogging()
+    {
+        _factory.Identity.LoginHandler = (_, _) => (true, "t", DateTimeOffset.UtcNow.AddHours(1), Guid.NewGuid().ToString());
+        var client = _factory.CreateClient();
+        await client.PostAsJsonAsync(new Uri("/api/auth/login", UriKind.Relative), new LoginHttpRequest("user@example.com", "senha123"));
+
+        var info = _factory.Logs.Events.Last(e => e.Level == LogEventLevel.Information && e.Properties.ContainsKey("RequestPath"));
+        info.Properties["severity"].ToString().Should().Be("\"INFO\"");
+
+        var writer = new StringWriter();
+        new RenderedCompactJsonFormatter().Format(info, writer);
+        writer.ToString().Should().Contain("\"severity\":\"INFO\"");
+
+        _factory.Identity.LoginHandler = (_, _) => throw new RpcException(new Status(StatusCode.Unavailable, "fora"));
+        await client.PostAsJsonAsync(new Uri("/api/auth/login", UriKind.Relative), new LoginHttpRequest("user@example.com", "senha123"));
+
+        var error = _factory.Logs.Events.Last(e => e.Level == LogEventLevel.Error && e.Properties.ContainsKey("RequestPath"));
+        error.Properties["severity"].ToString().Should().Be("\"ERROR\"");
     }
 }

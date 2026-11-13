@@ -24,7 +24,7 @@ public static class StructuredLogging
     /// <summary>
     /// Troca o logging padrão pelo Serilog: JSON compacto renderizado no console, níveis em
     /// <c>Serilog:MinimumLevel</c> (sobrescrevível por <c>Serilog__MinimumLevel__Default</c>),
-    /// e <c>service</c>/<c>environment</c>/<c>version</c>/<c>traceId</c>/<c>spanId</c> em toda entrada.
+    /// e <c>service</c>/<c>environment</c>/<c>version</c>/<c>traceId</c>/<c>spanId</c> em toda entrada, mais <c>severity</c>: o Cloud Logging só lê a severidade desse campo (o <c>@l</c> do formato compacto é ignorado).
     /// Sinks registrados no DI (<see cref="ILogEventSink"/>) também recebem os eventos — é o gancho dos testes.
     /// </summary>
     public static WebApplicationBuilder AddStructuredLogging(this WebApplicationBuilder builder, string service)
@@ -38,6 +38,7 @@ public static class StructuredLogging
             .ReadFrom.Configuration(context.Configuration)
             .ReadFrom.Services(services)
             .Enrich.With<ActivityEnricher>()
+            .Enrich.With<SeverityEnricher>()
             .Enrich.WithProperty("service", service)
             .Enrich.WithProperty("environment", context.HostingEnvironment.EnvironmentName)
             .Enrich.WithProperty("version", version)
@@ -84,6 +85,22 @@ public static class StructuredLogging
                 logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("traceId", activity.TraceId.ToString()));
                 logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("spanId", activity.SpanId.ToString()));
             }
+        }
+    }
+
+    private sealed class SeverityEnricher : ILogEventEnricher
+    {
+        public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+        {
+            var severity = logEvent.Level switch
+            {
+                LogEventLevel.Verbose or LogEventLevel.Debug => "DEBUG",
+                LogEventLevel.Information => "INFO",
+                LogEventLevel.Warning => "WARNING",
+                LogEventLevel.Error => "ERROR",
+                _ => "CRITICAL",
+            };
+            logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("severity", severity));
         }
     }
 }

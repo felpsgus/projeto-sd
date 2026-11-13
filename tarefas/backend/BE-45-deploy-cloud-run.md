@@ -35,6 +35,7 @@ Em `deploy/cloudrun/`, no padrão de `scripts/publish-images.ps1` (pwsh 7, pré-
 - [x] **CA-03** — Os 4 `demo.ps1 -Action ... -DryRun` imprimem os comandos esperados (Cooldown: serviços a 0 antes de parar o banco).
 - [x] **CA-04** — Nenhum valor de secret aparece no texto impresso (connection strings e senha só em arquivo temporário apagado; o dry-run mostra `<valor-pedido-no-prompt>`).
 - [x] **CA-05** — `DEMO_PASSWORD=... bash deploy/cloudrun/smoke.sh http://localhost` contra o compose de dev: todos os passos OK.
+- [x] **CA-07** — Toda linha de log JSON carrega `severity` top-level (`LoggingTests.LogDeRequisicao_TrazSeverityTopLevelParaOCloudLogging`).
 - [ ] **CA-06** — Executado pelo usuário no 1º ensaio (provision, publish, deploy, smoke, roteiro com cronômetro, medições da seção 7 do runbook). **Em aberto.**
 
 ## Notas
