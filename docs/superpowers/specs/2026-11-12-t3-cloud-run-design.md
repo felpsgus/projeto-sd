@@ -117,7 +117,7 @@ primeiro, `-DryRun`, falha alto, nunca habilita API ou cria recurso escondido de
   no Cloud Run.
 - **Uma service account por serviço**, com só o que usa: `secretmanager.secretAccessor` nos secrets
   dele; nada de SA padrão do Compute.
-- **Imagens .NET finais em `aspnet:10.0-noble-chiseled`** (menor, sem shell, não-root). Confirmar o uid
+- **Imagens .NET finais em `aspnet:10.0-noble-chiseled-extra` (ICU e tzdata)** (menor, sem shell, não-root). Confirmar o uid
   e que nada no runtime depende de shell/ICU; se depender de ICU, usar a variante `-extra`.
 - **Logs em JSON** no Cloud Run via `Logging__Console__FormatterName=json` (configuração, não código).
 - **Cookie `Secure` = padrão `true`** (tudo HTTPS); some o `RefreshCookie__Secure=false` da VM.

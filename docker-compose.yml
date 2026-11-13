@@ -49,8 +49,8 @@
 # que importa é esse usuário conseguir ler o arquivo montado, o que um `.pem`
 # criado normalmente (leitura para o dono) já garante.
 #
-# Sem healthcheck HTTP nos três containers .NET: a imagem `aspnet:10.0` não
-# traz `curl`/`wget`, e instalar uma ferramenta só para isso aumentaria a
+# Sem healthcheck HTTP nos três containers .NET: a imagem `aspnet:10.0-noble-chiseled-extra` não tem shell nem
+# `curl`/`wget`, e instalar uma ferramenta só para isso aumentaria a
 # imagem e a superfície sem necessidade — se um backend ainda estiver
 # subindo, o Gateway responde 503 com Retry-After (D-28, fail-closed) e se
 # recupera sozinho quando o backend fica pronto; no Cloud Run (T3), os probes

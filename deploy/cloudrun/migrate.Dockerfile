@@ -5,6 +5,9 @@
 #   docker build -f deploy/cloudrun/migrate.Dockerfile -t todolist-migrate artifacts/sql
 #
 # A conexão vem de PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD/PGSSLMODE=require.
-FROM postgres:18-alpine
+# Só o cliente psql (não o servidor Postgres), para a imagem ficar pequena.
+FROM alpine:3.23
+RUN apk add --no-cache postgresql18-client
 COPY 01-identity.sql 02-tasks.sql /sql/
+USER nobody
 ENTRYPOINT ["psql", "-v", "ON_ERROR_STOP=1", "-f", "/sql/01-identity.sql", "-f", "/sql/02-tasks.sql"]

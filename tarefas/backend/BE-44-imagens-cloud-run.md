@@ -21,7 +21,7 @@ O proxy de `/api` do `frontend` aceita um `GATEWAY_UPSTREAM` https (URL do Gatew
 - **Por que `-extra`:** traz ICU e tzdata. A variante sem ICU exigiria `InvariantGlobalization=true`, e o efeito disso (cultura, comparação de strings) não foi verificado.
 - **Sem shell:** a imagem chiseled não tem `sh`. Nada no estágio final nem no compose depende de shell (os containers .NET não têm healthcheck; o `migrate` do compose usa a imagem do Postgres).
 - **Porta 8081 fica.** Atende `/health` em HTTP/1 no compose e no `dotnet run`. No Cloud Run é inalcançável e inofensiva; a probe usa TCP na 8080. Isto ajusta o texto do design.
-- **Imagem de migração** `deploy/cloudrun/migrate.Dockerfile`: `postgres:18-alpine` + `01-identity.sql` e `02-tasks.sql` (Identity antes do Tasks), `psql -v ON_ERROR_STOP=1`. Conexão por `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`/`PGSSLMODE=require`. Contexto de build = `artifacts/sql/` (o `.dockerignore` da raiz exclui `artifacts/`).
+- **Imagem de migração** `deploy/cloudrun/migrate.Dockerfile`: `alpine:3.23` + só o cliente (`apk add postgresql18-client`; sem o servidor Postgres, que pesava 433 MB), usuário `nobody`, + `01-identity.sql` e `02-tasks.sql` (Identity antes do Tasks), `psql -v ON_ERROR_STOP=1`. Conexão por `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`/`PGSSLMODE=require`. Contexto de build = `artifacts/sql/` (o `.dockerignore` da raiz exclui `artifacts/`).
 - `scripts/publish-images.ps1` publica cinco imagens (gera os SQL se faltarem) e termina com `Use: deploy/cloudrun/deploy.ps1 -Tag <tag>`.
 
 ### Tamanhos (`docker images`)
@@ -32,7 +32,7 @@ O proxy de `/api` do `frontend` aceita um `GATEWAY_UPSTREAM` https (URL do Gatew
 | todolist-tasks | 388 MB | 287 MB |
 | todolist-gateway | 348 MB | 247 MB |
 | todolist-frontend | 83 MB | 83 MB (inalterada) |
-| todolist-migrate | - | 433 MB (nova; só roda uma vez) |
+| todolist-migrate | - | 26.9 MB (nova; só o psql, sobre alpine) |
 
 ## Critérios de aceite
 
