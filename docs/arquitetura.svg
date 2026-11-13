@@ -1,70 +1,97 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 680" width="1700" height="680" role="img" aria-label="Arquitetura do TodoList distribuído: o navegador fala só com o nginx na porta 80; o nginx repassa /api ao API Gateway, que chama Identity e Tasks via gRPC; o Tasks chama ValidateUser no Identity; cada serviço grava no próprio schema do PostgreSQL.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 780" width="1700" height="780" role="img" aria-label="Arquitetura do TodoList distribuído no Cloud Run (T3): o navegador acessa por HTTPS o serviço público todolist-frontend, que repassa /api ao todolist-gateway, também público; o gateway chama por gRPC (h2c, via VPC, com retry nas leituras) os serviços todolist-identity e todolist-tasks, ambos com ingress interno; o tasks chama ValidateUser no identity; os dois gravam nos schemas identity e tasks do Cloud SQL banco-1 (PostgreSQL 18, IP privado). Ao lado: Secret Manager (chaves JWT e connection strings), Artifact Registry (5 imagens), Cloud Logging e o Cloud Run Job todolist-migrate, que aplica o SQL das migrations no banco.">
   <defs>
     <marker id="a-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#14213D"/></marker>
     <marker id="a-grpc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C8611B"/></marker>
     <marker id="a-sql" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2F6FB0"/></marker>
   </defs>
-  <rect width="1700" height="680" fill="#F6F5F0"/>
+  <rect width="1700" height="780" fill="#F6F5F0"/>
   <g font-family="IBM Plex Sans, Segoe UI, Arial, sans-serif" fill="#14213D">
-    <!-- VM -->
-    <rect x="308" y="30" width="1030" height="560" rx="16" fill="none" stroke="#8A94A6" stroke-width="2" stroke-dasharray="10 8"/>
-    <text x="330" y="64" font-size="22" fill="#4A5568">VM maquina-1-psd (GCP) · docker compose</text>
+    <!-- Cloud Run -->
+    <rect x="300" y="30" width="1120" height="530" rx="16" fill="none" stroke="#8A94A6" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="322" y="64" font-size="22" fill="#4A5568">Google Cloud · Cloud Run (4 serviços)</text>
 
     <!-- caixas -->
     <rect x="18" y="250" width="180" height="120" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
     <text x="108" y="303" font-size="26" font-weight="700" text-anchor="middle">Navegador</text>
     <text x="108" y="335" font-size="22" fill="#4A5568" text-anchor="middle">usuário</text>
 
-    <rect x="338" y="240" width="240" height="140" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
-    <text x="458" y="290" font-size="26" font-weight="700" text-anchor="middle">nginx</text>
-    <text x="458" y="322" font-size="22" fill="#4A5568" text-anchor="middle">serve Angular</text>
-    <text x="458" y="352" font-size="22" fill="#4A5568" text-anchor="middle">porta 80</text>
+    <rect x="330" y="230" width="220" height="160" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
+    <text x="440" y="275" font-size="26" font-weight="700" text-anchor="middle">Frontend</text>
+    <text x="440" y="302" font-size="18" font-family="JetBrains Mono, Consolas, monospace" fill="#4A5568" text-anchor="middle">todolist-frontend</text>
+    <text x="440" y="335" font-size="22" fill="#4A5568" text-anchor="middle">Angular + nginx</text>
+    <text x="440" y="365" font-size="22" fill="#4A5568" text-anchor="middle">público</text>
 
-    <rect x="678" y="110" width="280" height="400" rx="12" fill="#14213D"/>
-    <text x="818" y="245" font-size="28" font-weight="700" fill="#F6F5F0" text-anchor="middle">API Gateway</text>
-    <text x="818" y="285" font-size="22" fill="#C9D3E3" text-anchor="middle">.NET Minimal API</text>
-    <text x="818" y="325" font-size="22" fill="#F6F5F0" text-anchor="middle">valida JWT RS256</text>
-    <text x="818" y="360" font-size="22" fill="#F6F5F0" text-anchor="middle">valida payload</text>
-    <text x="818" y="395" font-size="22" fill="#F6F5F0" text-anchor="middle">JSON → Protobuf</text>
+    <rect x="670" y="110" width="260" height="400" rx="12" fill="#14213D"/>
+    <text x="800" y="200" font-size="28" font-weight="700" fill="#F6F5F0" text-anchor="middle">API Gateway</text>
+    <text x="800" y="228" font-size="18" font-family="JetBrains Mono, Consolas, monospace" fill="#C9D3E3" text-anchor="middle">todolist-gateway</text>
+    <text x="800" y="275" font-size="22" fill="#C9D3E3" text-anchor="middle">Cloud Run · público</text>
+    <text x="800" y="320" font-size="22" fill="#F6F5F0" text-anchor="middle">valida JWT RS256</text>
+    <text x="800" y="355" font-size="22" fill="#F6F5F0" text-anchor="middle">JSON → Protobuf</text>
+    <text x="800" y="390" font-size="22" fill="#F6F5F0" text-anchor="middle">retry em leituras</text>
 
-    <rect x="1068" y="80" width="240" height="150" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
-    <text x="1188" y="135" font-size="26" font-weight="700" text-anchor="middle">Identity</text>
-    <text x="1188" y="168" font-size="22" fill="#4A5568" text-anchor="middle">contas, login</text>
-    <text x="1188" y="198" font-size="22" fill="#4A5568" text-anchor="middle">emite JWT</text>
+    <rect x="1100" y="80" width="240" height="150" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
+    <text x="1220" y="122" font-size="26" font-weight="700" text-anchor="middle">Identity</text>
+    <text x="1220" y="148" font-size="18" font-family="JetBrains Mono, Consolas, monospace" fill="#4A5568" text-anchor="middle">todolist-identity</text>
+    <text x="1220" y="180" font-size="22" fill="#4A5568" text-anchor="middle">contas, login, JWT</text>
+    <text x="1220" y="210" font-size="22" fill="#4A5568" text-anchor="middle">ingress interno</text>
 
-    <rect x="1068" y="400" width="240" height="150" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
-    <text x="1188" y="465" font-size="26" font-weight="700" text-anchor="middle">Tasks</text>
-    <text x="1188" y="498" font-size="22" fill="#4A5568" text-anchor="middle">CRUD de tarefas</text>
+    <rect x="1100" y="400" width="240" height="150" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
+    <text x="1220" y="442" font-size="26" font-weight="700" text-anchor="middle">Tasks</text>
+    <text x="1220" y="468" font-size="18" font-family="JetBrains Mono, Consolas, monospace" fill="#4A5568" text-anchor="middle">todolist-tasks</text>
+    <text x="1220" y="500" font-size="22" fill="#4A5568" text-anchor="middle">CRUD de tarefas</text>
+    <text x="1220" y="530" font-size="22" fill="#4A5568" text-anchor="middle">ingress interno</text>
 
-    <rect x="1438" y="120" width="244" height="380" rx="12" fill="#FFFDF8" stroke="#2F6FB0" stroke-width="2"/>
-    <text x="1560" y="250" font-size="26" font-weight="700" text-anchor="middle">PostgreSQL</text>
-    <text x="1560" y="282" font-size="22" fill="#4A5568" text-anchor="middle">Cloud SQL</text>
-    <rect x="1462" y="158" width="196" height="44" rx="8" fill="#DCE7F3"/>
-    <text x="1560" y="188" font-size="20" font-family="JetBrains Mono, Consolas, monospace" text-anchor="middle">schema identity</text>
-    <rect x="1462" y="418" width="196" height="44" rx="8" fill="#DCE7F3"/>
-    <text x="1560" y="448" font-size="20" font-family="JetBrains Mono, Consolas, monospace" text-anchor="middle">schema tasks</text>
+    <rect x="1470" y="120" width="214" height="380" rx="12" fill="#FFFDF8" stroke="#2F6FB0" stroke-width="2"/>
+    <text x="1577" y="235" font-size="26" font-weight="700" text-anchor="middle">Cloud SQL</text>
+    <text x="1577" y="266" font-size="20" fill="#4A5568" text-anchor="middle">banco-1 · PostgreSQL 18</text>
+    <text x="1577" y="296" font-size="20" fill="#4A5568" text-anchor="middle">IP privado</text>
+    <rect x="1490" y="158" width="174" height="44" rx="8" fill="#DCE7F3"/>
+    <text x="1577" y="187" font-size="18" font-family="JetBrains Mono, Consolas, monospace" text-anchor="middle">schema identity</text>
+    <rect x="1490" y="418" width="174" height="44" rx="8" fill="#DCE7F3"/>
+    <text x="1577" y="447" font-size="18" font-family="JetBrains Mono, Consolas, monospace" text-anchor="middle">schema tasks</text>
+
+    <!-- laterais -->
+    <rect x="300" y="600" width="330" height="90" rx="12" fill="#FFFDF8" stroke="#8A94A6" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="465" y="636" font-size="24" font-weight="700" text-anchor="middle">Secret Manager</text>
+    <text x="465" y="666" font-size="20" fill="#4A5568" text-anchor="middle">chaves JWT, connection strings</text>
+
+    <rect x="660" y="600" width="330" height="90" rx="12" fill="#FFFDF8" stroke="#8A94A6" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="825" y="636" font-size="24" font-weight="700" text-anchor="middle">Artifact Registry</text>
+    <text x="825" y="666" font-size="20" fill="#4A5568" text-anchor="middle">5 imagens: 4 serviços e o job</text>
+
+    <rect x="1020" y="600" width="330" height="90" rx="12" fill="#FFFDF8" stroke="#8A94A6" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="1185" y="636" font-size="24" font-weight="700" text-anchor="middle">Cloud Logging</text>
+    <text x="1185" y="666" font-size="20" fill="#4A5568" text-anchor="middle">logs JSON dos serviços</text>
+
+    <rect x="1470" y="600" width="214" height="90" rx="12" fill="#FFFDF8" stroke="#14213D" stroke-width="2"/>
+    <text x="1577" y="636" font-size="22" font-weight="700" text-anchor="middle">Cloud Run Job</text>
+    <text x="1577" y="666" font-size="18" font-family="JetBrains Mono, Consolas, monospace" fill="#4A5568" text-anchor="middle">todolist-migrate</text>
 
     <!-- setas -->
-    <line x1="198" y1="310" x2="336" y2="310" stroke="#14213D" stroke-width="3" marker-end="url(#a-dark)"/>
-    <text x="267" y="296" font-size="22" font-weight="600" text-anchor="middle">HTTP</text>
-    <line x1="578" y1="310" x2="676" y2="310" stroke="#14213D" stroke-width="3" marker-end="url(#a-dark)"/>
-    <text x="627" y="296" font-size="22" font-weight="600" text-anchor="middle">/api/*</text>
+    <line x1="198" y1="310" x2="328" y2="310" stroke="#14213D" stroke-width="3" marker-end="url(#a-dark)"/>
+    <text x="263" y="296" font-size="22" font-weight="600" text-anchor="middle">HTTPS</text>
+    <line x1="550" y1="310" x2="668" y2="310" stroke="#14213D" stroke-width="3" marker-end="url(#a-dark)"/>
+    <text x="609" y="296" font-size="22" font-weight="600" text-anchor="middle">/api/*</text>
 
-    <line x1="958" y1="180" x2="1066" y2="180" stroke="#C8611B" stroke-width="3" marker-end="url(#a-grpc)"/>
-    <text x="1012" y="166" font-size="22" font-weight="600" fill="#A8500E" text-anchor="middle">gRPC</text>
-    <line x1="958" y1="450" x2="1066" y2="450" stroke="#C8611B" stroke-width="3" marker-end="url(#a-grpc)"/>
-    <text x="1012" y="436" font-size="22" font-weight="600" fill="#A8500E" text-anchor="middle">gRPC</text>
-    <line x1="1110" y1="400" x2="1110" y2="232" stroke="#C8611B" stroke-width="3" marker-end="url(#a-grpc)"/>
-    <text x="1124" y="305" font-size="22" font-weight="600" fill="#A8500E">gRPC</text>
-    <text x="1124" y="332" font-size="22" font-weight="600" fill="#A8500E">ValidateUser</text>
+    <line x1="930" y1="180" x2="1098" y2="180" stroke="#C8611B" stroke-width="3" marker-end="url(#a-grpc)"/>
+    <text x="1014" y="146" font-size="22" font-weight="600" fill="#A8500E" text-anchor="middle">gRPC h2c</text>
+    <text x="1014" y="166" font-size="18" fill="#A8500E" text-anchor="middle">via VPC</text>
+    <line x1="930" y1="450" x2="1098" y2="450" stroke="#C8611B" stroke-width="3" marker-end="url(#a-grpc)"/>
+    <text x="1014" y="416" font-size="22" font-weight="600" fill="#A8500E" text-anchor="middle">gRPC h2c</text>
+    <text x="1014" y="436" font-size="18" fill="#A8500E" text-anchor="middle">via VPC</text>
+    <line x1="1150" y1="400" x2="1150" y2="232" stroke="#C8611B" stroke-width="3" marker-end="url(#a-grpc)"/>
+    <text x="1164" y="305" font-size="22" font-weight="600" fill="#A8500E">gRPC</text>
+    <text x="1164" y="332" font-size="22" font-weight="600" fill="#A8500E">ValidateUser</text>
 
-    <line x1="1308" y1="180" x2="1460" y2="180" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
-    <text x="1373" y="166" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
-    <line x1="1308" y1="440" x2="1460" y2="440" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
-    <text x="1373" y="426" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
+    <line x1="1340" y1="180" x2="1468" y2="180" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
+    <text x="1404" y="166" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
+    <line x1="1340" y1="440" x2="1468" y2="440" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
+    <text x="1404" y="426" font-size="22" font-weight="600" fill="#245A92" text-anchor="middle">SQL</text>
+    <line x1="1577" y1="598" x2="1577" y2="502" stroke="#2F6FB0" stroke-width="3" marker-end="url(#a-sql)"/>
+    <text x="1591" y="555" font-size="18" font-weight="600" fill="#245A92">aplica SQL</text>
 
     <!-- legenda -->
-    <text x="18" y="630" font-size="20" fill="#4A5568">Só a porta 80 é publicada: Gateway, Identity e Tasks não expõem portas. Identity e Tasks não se referenciam no código, só compartilham os .proto;</text>
-    <text x="18" y="658" font-size="20" fill="#4A5568">cada um grava no seu schema, ligados apenas pela FK tasks.owner_id → identity.users.</text>
+    <text x="18" y="735" font-size="20" fill="#4A5568">Só frontend e gateway têm ingress público; Identity e Tasks aceitam apenas tráfego interno (abrir a URL no navegador dá 404). Sem IAM entre serviços.</text>
+    <text x="18" y="763" font-size="20" fill="#4A5568">Retry só em leituras (Unavailable, 3 tentativas); esgotado, vale o fail-closed: 503. O Job de migração roda antes do deploy dos serviços.</text>
   </g>
 </svg>
