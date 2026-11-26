@@ -59,7 +59,7 @@ No Cloud Run, instâncias somem por instantes (cold start, redeploy). A decisão
 | Parâmetro | Valor |
 |---|---|
 | Código que dispara | só `StatusCode.Unavailable` |
-| Tentativas | 3 por padrão; configurável de 2 a 5 (`Backends:GrpcRetryMaxAttempts`) |
+| Tentativas | 3 por padrão; configurável de 2 a 5 (`Backends:GrpcRetryMaxAttempts` no Gateway, `Identity:RetryMaxAttempts` no Tasks) |
 | Backoff | 200 ms a 1 s, multiplicador 2 |
 | RPCs com retry | `identity.v1.IdentityService/ValidateUser`, `/GetProfile`, `tasks.v1.TasksService/ListTasks`, `/GetTask` |
 | Onde vale | clientes do Gateway (Identity e Tasks) e cliente Identity do Tasks |
