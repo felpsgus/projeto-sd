@@ -1,3 +1,4 @@
+using Grpc.Net.Client.Configuration;
 using Microsoft.Extensions.Options;
 using TodoList.Contracts.Identity.V1;
 using TodoList.Contracts.Tasks.V1;
@@ -43,7 +44,11 @@ public static class ServiceCollectionExtensions
         {
             var backendOptions = provider.GetRequiredService<IOptions<BackendOptions>>().Value;
             options.Address = new Uri(backendOptions.IdentityGrpcAddress);
-        });
+        }).ConfigureChannel((provider, channel) =>
+            channel.ServiceConfig = GrpcRetry.ForReadOnly(
+                provider.GetRequiredService<IOptions<BackendOptions>>().Value.GrpcRetryMaxAttempts,
+                new MethodName { Service = "identity.v1.IdentityService", Method = "ValidateUser" },
+                new MethodName { Service = "identity.v1.IdentityService", Method = "GetProfile" }));
 
         // D-34: ClientMetadataInterceptor acrescenta x-user-id/x-client-date
         // só nas chamadas ao Tasks — o cliente do Identity nunca leva essa
@@ -53,7 +58,12 @@ public static class ServiceCollectionExtensions
         {
             var backendOptions = provider.GetRequiredService<IOptions<BackendOptions>>().Value;
             options.Address = new Uri(backendOptions.TasksGrpcAddress);
-        }).AddInterceptor<ClientMetadataInterceptor>();
+        }).ConfigureChannel((provider, channel) =>
+            channel.ServiceConfig = GrpcRetry.ForReadOnly(
+                provider.GetRequiredService<IOptions<BackendOptions>>().Value.GrpcRetryMaxAttempts,
+                new MethodName { Service = "tasks.v1.TasksService", Method = "ListTasks" },
+                new MethodName { Service = "tasks.v1.TasksService", Method = "GetTask" }))
+            .AddInterceptor<ClientMetadataInterceptor>();
 
         return services;
     }

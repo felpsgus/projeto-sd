@@ -32,7 +32,7 @@ RUN dotnet publish src/Gateway/TodoList.Gateway.Api/TodoList.Gateway.Api.csproj 
     -c Release --no-restore -o /app
 
 # --- Imagem final ---------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS final
 WORKDIR /app
 
 # A imagem base fixa ASPNETCORE_HTTP_PORTS=8080; aqui o endpoint vem do
@@ -49,7 +49,7 @@ EXPOSE 8080
 
 COPY --from=build /app .
 
-# Usuário não-root já presente na imagem aspnet:10.0.
+# Usuário não-root (uid 1654) já presente na imagem chiseled-extra (ICU + tzdata, sem shell).
 USER $APP_UID
 
 ENTRYPOINT ["dotnet", "TodoList.Gateway.Api.dll"]

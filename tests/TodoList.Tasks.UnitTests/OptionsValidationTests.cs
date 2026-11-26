@@ -133,6 +133,24 @@ public class IdentityGrpcOptionsValidationTests
             .WithMessage("*Identity:GrpcTimeoutSeconds*");
     }
 
+    [Theory] // BE-43 — grpc-dotnet rejeita MaxAttempts <= 1 ao criar o canal; falha na inicialização, não na 1ª chamada
+    [InlineData("1")]
+    [InlineData("0")]
+    [InlineData("6")]
+    public async Task Host_ComRetryMaxAttemptsForaDeDoisACinco_FalhaAoIniciar(string tentativasInvalidas)
+    {
+        using var host = BuildHost(settings: new Dictionary<string, string?>
+        {
+            ["Identity:GrpcAddress"] = "http://localhost:5081",
+            ["Identity:RetryMaxAttempts"] = tentativasInvalidas,
+        });
+
+        var act = async () => await host.StartAsync();
+
+        (await act.Should().ThrowAsync<OptionsValidationException>())
+            .WithMessage("*Identity:RetryMaxAttempts*");
+    }
+
     private static IHost BuildHost(Dictionary<string, string?> settings) =>
         Host.CreateDefaultBuilder()
             .ConfigureAppConfiguration((_, configuration) =>

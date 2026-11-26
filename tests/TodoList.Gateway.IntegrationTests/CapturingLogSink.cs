@@ -14,5 +14,11 @@ public sealed class CapturingLogSink : ILogEventSink
 {
     public ConcurrentQueue<string> Entries { get; } = new();
 
-    public void Emit(LogEvent logEvent) => Entries.Enqueue(logEvent.RenderMessage().Replace("\"", string.Empty, StringComparison.Ordinal));
+    public ConcurrentQueue<LogEvent> Events { get; } = new();
+
+    public void Emit(LogEvent logEvent)
+    {
+        Events.Enqueue(logEvent);
+        Entries.Enqueue(logEvent.RenderMessage().Replace("\"", string.Empty, StringComparison.Ordinal));
+    }
 }

@@ -1,7 +1,7 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Builda e publica no Artifact Registry as quatro imagens (identity, tasks, gateway, frontend).
+    Builda e publica no Artifact Registry as cinco imagens (identity, tasks, gateway, frontend, migrate).
 .PARAMETER Tag      Tag explícita. Padrão: SHA curto do commit; árvore suja vira <sha>-dirty-<AAAAMMDD-HHmmss>.
 .PARAMETER DryRun   Só imprime os comandos; pré-condições faltando viram aviso em vez de erro.
 .PARAMETER SkipTests Pula build+testes antes das imagens (nunca para a versão da apresentação).
@@ -47,14 +47,18 @@ elseif (-not $DryRun) {
 
 if (-not $DryRun) { Run 'configure-docker' { gcloud auth configure-docker "$regiao-docker.pkg.dev" --quiet } }
 
+# Imagem de migração: precisa dos SQL gerados.
+if (-not (Test-Path artifacts/sql/01-identity.sql)) { Run 'new-migrations-sql' { & ./scripts/new-migrations-sql.ps1 } }
+
 # identity/tasks/gateway: contexto = raiz (o restore precisa de contracts/, Directory.Build.props, global.json).
-# frontend: contexto = frontend/. --platform explícito: sem ele, um notebook ARM publica imagem que só falha na VM.
+# frontend: contexto = frontend/. migrate: contexto = artifacts/sql (o .dockerignore da raiz exclui artifacts/). --platform explícito: sem ele, um notebook ARM publica imagem que só falha na VM.
 $servicos = @(
     @('identity', 'src/Identity/TodoList.Identity.Api/Dockerfile', '.'), @('tasks', 'src/Tasks/TodoList.Tasks.Api/Dockerfile', '.'),
-    @('gateway', 'src/Gateway/TodoList.Gateway.Api/Dockerfile', '.'), @('frontend', 'frontend/Dockerfile', 'frontend'))
+    @('gateway', 'src/Gateway/TodoList.Gateway.Api/Dockerfile', '.'), @('frontend', 'frontend/Dockerfile', 'frontend'),
+    @('migrate', 'deploy/cloudrun/migrate.Dockerfile', 'artifacts/sql'))
 foreach ($s in $servicos) {
     $nome, $dockerfile, $ctx = $s; $img = "$registry/todolist-${nome}:$Tag"
     $cmds = @(@('build', '--platform', 'linux/amd64', '-f', $dockerfile, '-t', $img, $ctx), @('push', $img))
     foreach ($c in $cmds) { if ($DryRun) { Write-Host "[dry-run] docker $($c -join ' ')" } else { Run "docker $($c[0]) $nome" { docker @c } } }
 }
-Write-Host "Tag: $Tag. Atualize IMAGE_TAG no .env da VM." -ForegroundColor Green
+Write-Host "Tag: $Tag. Use: deploy/cloudrun/deploy.ps1 -Tag $Tag" -ForegroundColor Green

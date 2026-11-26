@@ -120,14 +120,14 @@ server {
     # Proxy reverso da API (D-40): só repassa, nenhuma lógica. O Gateway
     # continua sendo o único ponto de entrada da API (D-32); daqui para a frente
     # é só encaminhamento de bytes. GATEWAY_UPSTREAM vem de variável de
-    # ambiente (docker-compose: gateway:8080; Cloud Run/T3: a URL do serviço
-    # Gateway) — é a ÚNICA substituição que o envsubst do entrypoint faz neste
+    # ambiente (URL com esquema e sem barra final; docker-compose:
+    # http://gateway:8080; Cloud Run/T3: https://<serviço Gateway>.run.app) — é a ÚNICA substituição que o envsubst do entrypoint faz neste
     # arquivo (ver NGINX_ENVSUBST_FILTER no Dockerfile).
     #
     # ATENÇÃO — por que o upstream passa por uma variável do nginx
     # (diagnosticado e verificado em 25/09/2026):
     #
-    # Escrito da forma óbvia — `proxy_pass http://${GATEWAY_UPSTREAM};`, com o
+    # Escrito da forma óbvia — `proxy_pass ${GATEWAY_UPSTREAM};`, com o
     # envsubst deixando um hostname LITERAL — o nginx resolve esse nome UMA
     # VEZ, ao subir, e guarda o IP para sempre. Isso dava dois problemas reais:
     #
@@ -151,10 +151,14 @@ server {
     # responderia 404. `$request_uri` é a URI original COM query string, que é
     # exatamente o que a forma literal enviava.
     location /api/ {
-        set $api_upstream "http://${GATEWAY_UPSTREAM}";
+        set $api_upstream "${GATEWAY_UPSTREAM}";
         proxy_pass $api_upstream$request_uri;
 
-        proxy_set_header Host $host;
+        # Host do upstream (o Cloud Run roteia por ele) + SNI para upstream HTTPS;
+        # o host original do cliente segue em X-Forwarded-Host.
+        proxy_set_header Host $proxy_host;
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 

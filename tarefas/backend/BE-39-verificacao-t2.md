@@ -60,11 +60,11 @@ Qualquer pessoa consegue, seguindo apenas o `README.md`, subir os três serviço
 - [x] **CA-01** — Existe uma tabela **requisito do `t2.md` → passo do roteiro → evidência** (log, resposta HTTP, ou ambos) cobrindo os quatro requisitos numerados do enunciado (REST público, validação na borda com 400/201, autenticação com 401, tradução JSON→gRPC).
 - [x] **CA-02** — `scripts/demo-t2.ps1` e `deploy/smoke.sh` saem com código **≠ 0** se qualquer status HTTP divergir do esperado, e com **0** quando todos os passos passam. *(provado em 06/10/2026 na stack local: `deploy/smoke.sh` sai 0 com tudo no ar e 1 com o Tasks parado (503 onde esperava 201) ou com a borda inalcançável. O `scripts/demo-t2.ps1` não existe mais; o equivalente é `deploy/demo.sh`, que saía 0 mesmo recebendo 503 no Ato 5. Corrigido: cada ato declara o status esperado e o script sai 1 no fim se algum divergir.)*
 - [x] ~~**CA-03** — O roteiro de apresentação (`deploy/README.md`) cabe em **5 minutos** num ensaio cronometrado real, com o tempo registrado.~~ **Substituído (04/10/2026)** pelo CA-03 (revisado): o limite é de 10 minutos.
-- [ ] **CA-04** — A verificação contra a VM (`scripts/demo-t2.ps1 -BaseUrl http://<IP externo>:8080`) é executada **a partir de fora** — pelo IP externo da `maquina-1-psd`, porta 8080 —, não de dentro da própria VM via `127.0.0.1`.
+- [x] **CA-04** — A verificação contra a VM (`scripts/demo-t2.ps1 -BaseUrl http://<IP externo>:8080`) é executada **a partir de fora** — pelo IP externo da `maquina-1-psd`, porta 8080 —, não de dentro da própria VM via `127.0.0.1`. **Verificado em campo (13/10/2026, tag `3354488`)** na forma revisada por BE-42/D-40: `deploy/smoke.sh http://<IP externo>` (porta 80), do notebook, com os 9 passos `OK` (SPA 200, três 401, cadastro 201, login 200, 400, 201 com `Location`).
 - [x] **CA-05** — Os passos 1 e 2 da sequência (sem token, token lixo) respondem **401** nos dois — comprovando que o middleware trata os dois casos, não apenas um deles.
 - [x] ~~**CA-06** — O passo 6 (usuário inativo) responde **401** com corpo indistinguível do de uma credencial simplesmente errada (RN-AUTH-09 estendida ao Gateway).~~ **Substituído (03/10/2026)** pela remoção do usuário inativo (issue #16).
 - [x] **CA-07** — O caminho de falha controlada (Identity parado) responde **503** com `Retry-After`, nunca 401 nem 500, verificado com o Identity de fato encerrado. *(provado em 06/10/2026 com `docker compose stop identity`: `POST /api/tasks` devolve 503, `Retry-After: 5`, `tasks.unavailable`, e `POST /api/auth/login` devolve 503, `Retry-After: 5`, `identity.unavailable`; religado o Identity, a mesma criação volta a 201. O `errorCode` da criação é `tasks.unavailable`, porque quem falha é o `ValidateUser` feito pelo Tasks.)*
-- [x] **CA-08** — O trecho de log documentado no README/roteiro mostra o mesmo `traceId` nas linhas do Gateway, do Tasks e do Identity, para o caminho de sucesso. *(recapturado em 06/10/2026: o README, seção 4 de "Rodando o T2", traz as quatro linhas reais com o mesmo `traceId` (Gateway `CreateTask`, Tasks `ValidateUser` e `CreateTask`, Identity `ValidateUser`), no formato JSON compacto do Serilog e sem dado sensível. A cadeia hoje tem dois saltos, porque o Gateway valida o JWT localmente.)*
+- [x] **CA-08** — O trecho de log documentado no README/roteiro mostra o mesmo `traceId` nas linhas do Gateway, do Tasks e do Identity, para o caminho de sucesso. *(recapturado em 06/10/2026: a seção "Evidência de log (CA-08)" no fim deste arquivo traz as quatro linhas reais com o mesmo `traceId` (Gateway `CreateTask`, Tasks `ValidateUser` e `CreateTask`, Identity `ValidateUser`), no formato JSON compacto do Serilog e sem dado sensível. A cadeia hoje tem dois saltos, porque o Gateway valida o JWT localmente.)*
 - [x] **CA-09** — Nenhum log ou resposta mostrados no material da task contém senha, hash de senha ou o access token completo (RN-AUTH-05, mesmo cuidado de BE-31 CA-12).
 
 ## Testes obrigatórios
@@ -169,7 +169,7 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 5 de 11 (o arqui
 | CA-02 | em aberto (parcial) | `deploy/smoke.sh` sai com 1 se algum status diverge e com 0 se todos passam. `scripts/demo-t2.ps1` não existe no repositório (o roteiro em linha de comando é `deploy/demo.sh`, interativo, sem código de saída por passo). |
 | CA-03 (original, 5 min) | em aberto (superado) | Substituído pelo limite de 10 minutos da emenda; ver a linha seguinte. |
 | CA-03 (revisado, 10 min) | em aberto (não verificável) | Ensaio cronometrado não feito: `deploy/README.md` seção 11 mantém `[PENDENTE]` e a seção 13 repete "ainda não feito". Risco direto para 22/10. |
-| CA-04 | em aberto (não verificável) | Execução a partir de fora da VM só pode ser confirmada na VM; `deploy/README.md` seção 13 afirma verificação de campo em 30/09, sem prova aqui. A base mudou para `http://<IP>` na porta 80 (BE-42/D-40). |
+| CA-04 | verificado em campo (13/10/2026) | `deploy/smoke.sh` do notebook contra o IP externo, porta 80 (BE-42/D-40), 9 passos `OK` com a tag `3354488`. |
 | CA-05 | atendido | `deploy/smoke.sh` (passos 1 e 2) espera 401 nos dois casos, mais o token adulterado (2b); `AuthenticationTests` cobre o lado do Gateway. O script não foi reexecutado nesta auditoria. |
 | CA-06 | atendido | `deploy/smoke.sh` passo 7 espera 401 `auth.invalid_credentials`; `AuthLoginTests.Login_CredenciaisInvalidas_Retorna401ComMesmoCorpoParaTodasAsCausas` cobre o mesmo corpo para inexistente/errada/inativo. Atenção: o passo 7 é PULADO sem `DEMO_INACTIVE_EMAIL`. |
 | CA-07 | em aberto (não verificável) | `deploy/demo.sh --falha` (`dc stop identity`) e o README afirmam o 503 com `Retry-After`, e `AuthLoginTests.Login_IdentityIndisponivel_Retorna503ComRetryAfterNunca401` cobre o mapeamento, mas o teste automatizado usa um Identity falso; o Identity real encerrado só se prova na VM/stack. |
@@ -179,3 +179,22 @@ Critérios conferidos contra o código em 03/10/2026. Marcados: 5 de 11 (o arqui
 ## Emenda (03/10/2026) — usuário inativo removido
 
 O passo do usuário inativo (RN-AUTH-09) foi removido da verificação, do `deploy/smoke.sh` e do roteiro da apresentação (issue #16). O CA-06 está substituído. Deixam de valer o `UPDATE ... SET is_active` por SQL e a variável `DEMO_INACTIVE_EMAIL` descritos na seção de emenda de 25/09/2026.
+
+## Evidência de log (CA-08)
+
+Recaptura real contra `docker compose --profile full` (06/10/2026), campos reduzidos a `@t`/`@m`/`@tr`
+(`@tr` é o `traceId` W3C). Desde BE-40 o Gateway valida o JWT localmente, então a cadeia de uma criação
+é Gateway → Tasks (`CreateTask`) → Identity (`ValidateUser`). As quatro linhas têm o mesmo `traceId`:
+
+```text
+# gateway
+{"@t":"2026-10-06T21:09:40.7743248Z","@m":"Chamada gRPC de saída: backend=\"Tasks\", rpc=\"CreateTask\", statusCode=OK, durationMs=17.3584","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+# tasks
+{"@t":"2026-10-06T21:09:40.7662354Z","@m":"ValidateUser (Identity gRPC): userId=8f0afd9f-abbc-4361-a401-bfe88d87f0ba, statusCode=OK, durationMs=7.857","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+{"@t":"2026-10-06T21:09:40.7734921Z","@m":"CreateTask: ownerId=8f0afd9f-abbc-4361-a401-bfe88d87f0ba, statusCode=OK, durationMs=15.1705","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+# identity
+{"@t":"2026-10-06T21:09:40.7645984Z","@m":"ValidateUser: userId=\"8f0afd9f-abbc-4361-a401-bfe88d87f0ba\", exists=True, durationMs=4.2837","@tr":"e87003d0e51afa5a0cb994c79bc1a1a8"}
+```
+
+Com o Identity fora do ar, a criação responde `503` + `Retry-After` com `errorCode` `tasks.unavailable`
+(quem falha é o `ValidateUser` do Tasks); o login responde `identity.unavailable`. Nunca `401` nem `500`.
